@@ -1,0 +1,8 @@
+- Download Anaconda3 https://www.anaconda.com/download/
+- Download QCoDeS repository 'git clone https://github.com/QCoDeS/Qcodes.git' (will download QCoDeS repository at current location)
+- From Anaconda Prompt, move into QCoDeS repository, and run:
+    - conda env create -f environment.yml
+    - conda activate qcodes
+    - pip install -e .
+    - python -m pip install nidaqmx
+- Download this repository 'git clone https://github.com/nanophys/MeasureIt.git'
