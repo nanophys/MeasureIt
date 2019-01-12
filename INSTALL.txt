@@ -5,4 +5,4 @@
     - conda activate qcodes
     - pip install -e .
     - python -m pip install nidaqmx
-- Download this repository 'git clone 
+- Download this repository 'git clone https://github.com/nanophys/MeasureIt.git'
