@@ -4,5 +4,7 @@
     - conda env create -f environment.yml
     - conda activate qcodes
     - pip install -e .
-    - python -m pip install nidaqmx
+    - conda config --add channels conda-forge 
+    - conda install nidaqmx
+    - Download and install the NI DAQmx drivers at 'http://www.ni.com/en-us/support/downloads/drivers/download/unpackaged.ni-daqmx.291872.html'
 - Download this repository 'git clone https://github.com/nanophys/MeasureIt.git'
