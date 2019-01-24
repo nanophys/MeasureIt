@@ -14,7 +14,7 @@ from qcodes.instrument.channel import InstrumentChannel
 class Daq(Instrument):
     
     def __init__(self, address, name, ao_num, ai_num):
-#        super().__init__(address)
+        super().__init__(address)
         system = nidaqmx.system.System.local()
         self.name=address
         self.device = system.devices[self.name]
@@ -43,6 +43,8 @@ class DaqAOChannel(InstrumentChannel):
     
     def set_voltage(self, _voltage):
         self.voltage=_voltage
+        if self.task != None:
+            self.task.write(_voltage)
         
     def get_load_impedance(self):
         return self.impedance
@@ -57,7 +59,8 @@ class DaqAOChannel(InstrumentChannel):
         self.device=device
         self.address=address
         self.channel=channel
-        self.name=self.address+"/"+str(channel)
+        self.name=str(channel)
+        self.fullname=self.address+"/"+self.name
         
         self.gain=-1
         self.voltage=0
@@ -66,7 +69,7 @@ class DaqAOChannel(InstrumentChannel):
         self.task=None
         self.channel=None
         
-        self.add_parameter('gain_'+self.address+str(self.channel),
+        self.add_parameter('gain',
                            get_cmd=self.get_gain,
                            get_parser=float,
                            set_cmd=self.set_gain,
@@ -74,7 +77,15 @@ class DaqAOChannel(InstrumentChannel):
                            val=vals.Numbers(0,1000)
                            )
         
-        self.add_parameter('voltage_'+self.address+str(self.channel),
+        self.add_parameter('impedance',
+                           get_cmd=self.get_load_impedance,
+                           get_parser=float,
+                           set_cmd=self.set_load_impedance,
+                           label='Output Load Impedance',
+                           vals=vals.Numbers(0,1000)
+                           )
+        
+        self.add_parameter('voltage',
                            get_cmd=self.get_voltage,
                            get_parser=float,
                            set_cmd=self.set_voltage,
@@ -84,7 +95,7 @@ class DaqAOChannel(InstrumentChannel):
                            )
         
     def add_self_to_task(self, task):
-        task.ao_channels.add_ao_voltage_chan(self.name)
+        task.ao_channels.add_ao_voltage_chan(self.fullname)
         self.task=task
         self.channel=nidaqmx._task_modules.channels.ao_channel.AOChannel(self.task._handle, self.channel)
         if self.gain != -1:
@@ -109,10 +120,9 @@ class DaqAIChannel(InstrumentChannel):
             self.channel.ai_gain=_gain
         
     def get_voltage(self):
+        if self.task != None:
+            self.voltage = self.task.read()
         return self.voltage
-    
-    def set_voltage(self):
-        pass
         
     def get_load_impedance(self):
         return self.impedance
@@ -127,7 +137,8 @@ class DaqAIChannel(InstrumentChannel):
         self.device=device
         self.address=address
         self.channel=channel
-        self.name=self.address+str(channel)
+        self.name=str(channel)
+        self.fullname=self.address+"/"+self.name
         
         self.gain=-1
         self.voltage=0
@@ -136,25 +147,32 @@ class DaqAIChannel(InstrumentChannel):
         self.task=None
         self.channel=None
         
-        self.add_parameter('gain_'+self.address+str(self.channel),
+        self.add_parameter('gain',
                            get_cmd=self.get_gain,
                            get_parser=float,
                            set_cmd=self.set_gain,
-                           label='Output Gain',
-                           val=vals.Numbers(0,1000)
+                           label='Input Gain',
+                           vals=vals.Numbers(0,1000)
                            )
         
-        self.add_parameter('voltage_'+self.address+str(self.channel),
+        self.add_parameter('impedance',
+                           get_cmd=self.get_load_impedance,
+                           get_parser=float,
+                           set_cmd=self.set_load_impedance,
+                           label='Input Load Impedance',
+                           vals=vals.Numbers(0,1000)
+                           )
+        
+        self.add_parameter('voltage',
                            get_cmd=self.get_voltage,
                            get_parser=float,
-                           set_cmd=self.set_voltage,
-                           label='Current Voltage Output',
+                           label='Current Voltage Input',
                            unit='V',
-                           val=vals.Numbers(-10,10)
+                           vals=vals.Numbers(-10,10)
                            )
         
     def add_self_to_task(self, task):
-        task.ai_channels.add_ai_voltage_chan(self.name)
+        task.ai_channels.add_ai_voltage_chan(self.fullname)
         self.task=task
         self.channel=nidaqmx._task_modules.channels.ai_channel.AIChannel(self.task._handle, self.channel)
         if self.gain != -1:
@@ -165,3 +183,32 @@ class DaqAIChannel(InstrumentChannel):
     def clear_task(self):
         self.task=None
         self.channel=None
+        
+        
+        
+def main():
+    daq=Daq("Dev1","test",2,24)
+    print(daq.ai1)
+    print(daq.ao1)
+    print(daq.ao1.set("gain",4))
+    print(daq.ao1.get("gain"))
+    writer=nidaqmx.Task()
+    reader=nidaqmx.Task()
+    daq.ao1.add_self_to_task(writer)
+    daq.ai1.add_self_to_task(reader)
+    daq.ao1.set("voltage",1)
+    print(daq.ai1.get("voltage"))
+    print(daq.ai1.get("voltage"))
+    print(daq.ai1.get("voltage"))
+    writer.close()
+    print(daq.ai1.get("voltage"))
+    reader.close()
+    daq.close()
+
+
+
+
+
+
+if __name__ == "__main__":
+    main()
