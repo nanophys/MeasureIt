@@ -46,6 +46,7 @@ class Daq(Instrument):
     def __del__(self):
         try:
             for a,c in self.submodules.items():
+#                print(a, c)
                 if c.task is not None:
                     c.task.close()
         except:
@@ -114,7 +115,7 @@ class DaqAOChannel(InstrumentChannel):
                            get_cmd=self.get_voltage,
                            get_parser=float,
                            set_cmd=self.set_voltage,
-                           label='Current Voltage Output',
+                           label='Output Voltage',
                            unit='V',
                            val=vals.Numbers(-10,10)
                            )
@@ -194,7 +195,7 @@ class DaqAIChannel(InstrumentChannel):
         self.add_parameter('voltage',
                            get_cmd=self.get_voltage,
                            get_parser=float,
-                           label='Current Voltage Input',
+                           label='Input Voltage',
                            unit='V',
                            vals=vals.Numbers(-10,10)
                            )
