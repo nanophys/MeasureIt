@@ -6,218 +6,15 @@ from qcodes.dataset.measurements import Measurement
 from qcodes.dataset.database import initialise_or_create_database_at
 from daq_driver import Daq
 import PyQt5 as qt
-from PyQt5.QtWidgets import QSizePolicy, QWidget, QApplication, QLabel, QMainWindow, QPushButton, QComboBox, QMessageBox, QLineEdit, QMenu, QMenuBar, QStatusBar, QGridLayout
+from PyQt5.QtWidgets import qApp, QSizePolicy, QWidget, QAction, QApplication, QLabel, QMainWindow, QPushButton, QComboBox, QMessageBox, QLineEdit, QMenu, QMenuBar, QStatusBar, QGridLayout
 from PyQt5.QtCore import Qt
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 #from IPython import display
 from qcodes.dataset.data_export import get_data_by_id 
 import nidaqmx
-
-
-class Sweep(object):
-    def __init__(self):
-        self._sr830s = []
-        self._params = []
-    
-    def follow_param(self, p):
-        self._params.append(p)
-
-    def follow_sr830(self, l, name, gain=1.0):
-        self._sr830s.append((l, name, gain))
-
-    def _create_measurement(self, *set_params):
-        meas = Measurement()
-        for p in set_params:
-            meas.register_parameter(p)
-        meas.register_custom_parameter('time', label='Time', unit='s')
-        for p in self._params:
-            meas.register_parameter(p, setpoints=(*set_params, 'time',))
-        for l, _, _ in self._sr830s:
-            meas.register_parameter(l.X, setpoints=(*set_params, 'time',))
-            meas.register_parameter(l.Y, setpoints=(*set_params, 'time',))
-        return meas
-    
-    def sweep(self, set_param, vals, inter_delay=None):
-        plt.switch_backend('Qt5Agg')
-        if inter_delay is not None:
-            d = len(vals)*inter_delay
-            h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
-            print(f'Minimum duration: {h}h {m}m {s}s')
-
-        fig = plt.figure(figsize=(4*(2 + len(self._params) + len(self._sr830s)),4))
-        grid = plt.GridSpec(4, 1 + len(self._params) + len(self._sr830s), hspace=0)
-        setax = fig.add_subplot(grid[:, 0])
-        setax.set_xlabel('Time (s)')
-        setax.set_ylabel(f'{set_param.label} ({set_param.unit})')
-        setaxline = setax.plot([], [])[0]
-
-        paxs = []
-        plines = []
-        for i, p in enumerate(self._params):
-            ax = fig.add_subplot(grid[:, 1 + i])
-            ax.set_xlabel(f'{set_param.label} ({set_param.unit})')
-            ax.set_ylabel(f'{p.label} ({p.unit})')
-            paxs.append(ax)
-            plines.append(ax.plot([], [])[0])
-
-        laxs = []
-        llines = []
-        for i, (l, name, _) in enumerate(self._sr830s):
-            ax0 = fig.add_subplot(grid[:-1, 1 + len(self._params) + i])
-            ax0.set_ylabel(f'{name} (V)')
-            fmt = ScalarFormatter()
-            fmt.set_powerlimits((-3, 3))
-            ax0.get_yaxis().set_major_formatter(fmt)
-            laxs.append(ax0)
-            llines.append(ax0.plot([], [])[0])
-            ax1 = fig.add_subplot(grid[-1, 1 + len(self._params) + i], sharex=ax0)
-            ax1.set_ylabel('Phase (°)')
-            ax1.set_xlabel(f'{set_param.label} ({set_param.unit})')
-            laxs.append(ax1)
-            llines.append(ax1.plot([], [])[0])
-            plt.setp(ax0.get_xticklabels(), visible=False)
-
-        fig.tight_layout()
-        fig.show()
-
-        meas = self._create_measurement(set_param)
-        with meas.run() as datasaver:
-            t0 = time.monotonic()
-            for setpoint in vals:
-                t = time.monotonic() - t0
-                set_param.set(setpoint)
-                
-                setaxline.set_xdata(np.append(setaxline.get_xdata(), t))
-                setaxline.set_ydata(np.append(setaxline.get_ydata(), setpoint))
-                setax.relim()
-                setax.autoscale_view()
-                
-                if inter_delay is not None:
-                    plt.pause(inter_delay)
-
-                data = [
-                    (set_param, setpoint),
-                    ('time', t)
-                ]
-                for i, p in enumerate(self._params):
-                    v = p.get()
-                    data.append((p, v))
-                    plines[i].set_xdata(np.append(plines[i].get_xdata(), setpoint))
-                    plines[i].set_ydata(np.append(plines[i].get_ydata(), v))
-                    paxs[i].relim()
-                    paxs[i].autoscale_view()
-
-
-                datasaver.add_result(*data)
-                
-                fig.tight_layout()
-                fig.canvas.draw()
-                plt.show()
-                plt.pause(0.001)
-
-            d = time.monotonic() - t0
-            h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
-            print(f'Completed in: {h}h {m}m {s}s')
-
-            b = io.BytesIO()
-            fig.savefig(b, format='png')
-#            display.display(display.Image(data=b.getbuffer(), format='png'))
-
-
-def do_sweep():
-    s=Sweep()
-    daq=Daq("Dev1", "daq", 2, 24)
-    initialise_or_create_database_at('C:\\Users\\erunb\\MeasureIt\\currentdatabase.db')
-    qc.new_experiment(name='daqtest', sample_name='trying1')
-    print(daq.ai2.voltage)
-    s.follow_param(daq.ai2.voltage)
-    writer=nidaqmx.Task()
-    reader=nidaqmx.Task()
-    daq.ao0.add_self_to_task(writer)
-    daq.ai2.add_self_to_task(reader)
-    s.sweep(daq.ao0.voltage, np.linspace(0,1,50), inter_delay=.01)
-    
-class MeasureItWindow(QMainWindow):
-    
-    def __init__(self, *args, **kwargs):
-        super(MeasureItWindow, self).__init__(*args, **kwargs)
-        
-        self.daq=None
-        try:
-            self.daq = Daq("Dev1", "daq", 2, 24)
-        except:
-            print("Could not connect to the specified National Instruments DAQ")
-        
-        
-        self.init_window()
-        
-        
-        
-    def init_window(self):
-        self.setGeometry(50, 50, 640, 480)
-        self.setWindowTitle("MeasureIt, Version Python")
-        
-        self.statusBar()
-        
-        mainMenu = self.menuBar()
-        fileMenu = mainMenu.addMenu('&File')
-        editMenu = mainMenu.addMenu('&Edit')
-        experimentMenu = mainMenu.addMenu('&Experiment')
-        
-        # Sweep button
-        self.sweep_button = QPushButton('Sweep', self)
-        self.sweep_button.clicked.connect(self.start_sweep)
-        self.sweep_button.move(0,200)
-        
-        # Input channel selection
-        self.input_chan_label = QLabel("Input Channel",self)
-        self.input_chan_label.move(0,80)
-        self.input_chan = QComboBox(self)
-        self.input_chan.move(100,80)
-        for ai in range(self.daq.get_ai_num()):
-            self.input_chan.addItem(str(ai))
-            
-        self.input_chan.activated[str].connect(self.set_ai_text)
-        
-        # Output channel selection
-        self.output_chan_label = QLabel("Output Channel",self)
-        self.output_chan_label.move(0,50)
-        self.output_chan = QComboBox(self)
-        self.output_chan.move(100,50)
-        
-        for ao in range(self.daq.get_ao_num()):
-            self.output_chan.addItem(str(ao))
-        
-        # Voltage sweep settings
-        self.start_voltage_label = QLabel("Start voltage", self)
-        self.end_voltage_label = QLabel("End voltage", self)
-        self.v_step_label = QLabel("Voltage step", self)
-        self.t_step_label = QLabel("Steps/second", self)
-        
-        
-    def set_ai_text(self):
-        pass
-    
-    def set_ao_text(self):
-        pass
-        
-    def start_sweep(self):
-        pass
-        
-    def closeEvent(self, event):
-        reply = QMessageBox.question(self, 'Message',
-            "Are you sure to quit?", QMessageBox.Yes, QMessageBox.No)
-
-        if reply == QMessageBox.Yes:
-            if self.daq is not None:
-                self.daq.__del__()
-                event.accept()
-        else:
-            event.ignore()
-        
-
-    
+import importlib
+from sweep_window import Sweep1DWindow
     
 #    qc.dataset.experiment_container.experiments()
 #    ex = qc.dataset.experiment_container.load_experiment(0)
@@ -231,11 +28,8 @@ class Daq_Main_Window(QMainWindow):
         super(Daq_Main_Window, self).__init__(*args, **kwargs)
         
         self.daq=None
-        try:
-            self.daq = Daq("Dev1", "daq", 2, 24)
-        except:
-            print("Could not connect to the specified National Instruments DAQ")
         
+        self.connect()
         self.setupUi()
         
     def closeEvent(self, event):
@@ -248,7 +42,29 @@ class Daq_Main_Window(QMainWindow):
                 event.accept()
         else:
             event.ignore()
+    
+    def connect(self):
+        try:
+            importlib.reload(nidaqmx)
+            self.daq = Daq("Dev1", "daq", 2, 24)
+        except:
+            msg = QMessageBox()
+            msg.setText("Could not connect to the DAQ")
+            msg.setWindowTitle("Connection Attempt")
+            msg.setStandardButtons(QMessageBox.Close)
+            msg.exec_()
         
+    def reconnect(self):
+        #print(self.daq)
+        if self.daq is not None:
+            msg = QMessageBox()
+            msg.setText("Already connected to a DAQ")
+            msg.setWindowTitle("Connection Attempt")
+            msg.setStandardButtons(QMessageBox.Close)
+            msg.exec_()
+        else:
+            self.connect()
+            
     def setupUi(self):
         self.setObjectName("Main Window")
         self.resize(800, 338)
@@ -257,106 +73,106 @@ class Daq_Main_Window(QMainWindow):
         self.input_channels = QLabel(self.centralwidget)
         self.input_channels.setGeometry(qt.QtCore.QRect(20, 20, 73, 13))
         self.input_channels.setObjectName("input_channels")
-        self.formLayoutWidget_3 = QWidget(self.centralwidget)
-        self.formLayoutWidget_3.setGeometry(qt.QtCore.QRect(20, 50, 301, 231))
-        self.formLayoutWidget_3.setObjectName("formLayoutWidget_3")
-        self.gridLayout = QGridLayout(self.formLayoutWidget_3)
+        self.ai_grid = QWidget(self.centralwidget)
+        self.ai_grid.setGeometry(qt.QtCore.QRect(20, 50, 301, 231))
+        self.ai_grid.setObjectName("ai_grid")
+        self.gridLayout = QGridLayout(self.ai_grid)
         self.gridLayout.setContentsMargins(0, 0, 0, 0)
         self.gridLayout.setObjectName("gridLayout")
-        self.ai0_val = QLabel(self.formLayoutWidget_3)
+        self.ai0_val = QLabel(self.ai_grid)
         self.ai0_val.setObjectName("ai0_val")
         self.gridLayout.addWidget(self.ai0_val, 0, 1, 1, 1)
-        self.ai13_label = QLabel(self.formLayoutWidget_3)
+        self.ai13_label = QLabel(self.ai_grid)
         self.ai13_label.setObjectName("ai13_label")
         self.gridLayout.addWidget(self.ai13_label, 5, 2, 1, 1)
-        self.ai10_val = QLabel(self.formLayoutWidget_3)
+        self.ai10_val = QLabel(self.ai_grid)
         self.ai10_val.setObjectName("ai10_val")
         self.gridLayout.addWidget(self.ai10_val, 2, 3, 1, 1)
-        self.ai11_label = QLabel(self.formLayoutWidget_3)
+        self.ai11_label = QLabel(self.ai_grid)
         self.ai11_label.setObjectName("ai11_label")
         self.gridLayout.addWidget(self.ai11_label, 3, 2, 1, 1)
-        self.ai9_label = QLabel(self.formLayoutWidget_3)
+        self.ai9_label = QLabel(self.ai_grid)
         self.ai9_label.setObjectName("ai9_label")
         self.gridLayout.addWidget(self.ai9_label, 1, 2, 1, 1)
-        self.ai14_label = QLabel(self.formLayoutWidget_3)
+        self.ai14_label = QLabel(self.ai_grid)
         self.ai14_label.setObjectName("ai14_label")
         self.gridLayout.addWidget(self.ai14_label, 6, 2, 1, 1)
-        self.ai12_label = QLabel(self.formLayoutWidget_3)
+        self.ai12_label = QLabel(self.ai_grid)
         self.ai12_label.setObjectName("ai12_label")
         self.gridLayout.addWidget(self.ai12_label, 4, 2, 1, 1)
-        self.ai10_label = QLabel(self.formLayoutWidget_3)
+        self.ai10_label = QLabel(self.ai_grid)
         self.ai10_label.setObjectName("ai10_label")
         self.gridLayout.addWidget(self.ai10_label, 2, 2, 1, 1)
-        self.ai8_label = QLabel(self.formLayoutWidget_3)
+        self.ai8_label = QLabel(self.ai_grid)
         self.ai8_label.setObjectName("ai8_label")
         self.gridLayout.addWidget(self.ai8_label, 0, 2, 1, 1)
-        self.ai9_val = QLabel(self.formLayoutWidget_3)
+        self.ai9_val = QLabel(self.ai_grid)
         self.ai9_val.setObjectName("ai9_val")
         self.gridLayout.addWidget(self.ai9_val, 1, 3, 1, 1)
-        self.ai14_val = QLabel(self.formLayoutWidget_3)
+        self.ai14_val = QLabel(self.ai_grid)
         self.ai14_val.setObjectName("ai14_val")
         self.gridLayout.addWidget(self.ai14_val, 6, 3, 1, 1)
-        self.ai13_val = QLabel(self.formLayoutWidget_3)
+        self.ai13_val = QLabel(self.ai_grid)
         self.ai13_val.setObjectName("ai13_val")
         self.gridLayout.addWidget(self.ai13_val, 5, 3, 1, 1)
-        self.ai12_val = QLabel(self.formLayoutWidget_3)
+        self.ai12_val = QLabel(self.ai_grid)
         self.ai12_val.setObjectName("ai12_val")
         self.gridLayout.addWidget(self.ai12_val, 4, 3, 1, 1)
-        self.ai15_val = QLabel(self.formLayoutWidget_3)
+        self.ai15_val = QLabel(self.ai_grid)
         self.ai15_val.setObjectName("ai15_val")
         self.gridLayout.addWidget(self.ai15_val, 7, 3, 1, 1)
-        self.ai7_label = QLabel(self.formLayoutWidget_3)
+        self.ai7_label = QLabel(self.ai_grid)
         self.ai7_label.setObjectName("ai7_label")
         self.gridLayout.addWidget(self.ai7_label, 7, 0, 1, 1)
-        self.ai7_val = QLabel(self.formLayoutWidget_3)
+        self.ai7_val = QLabel(self.ai_grid)
         self.ai7_val.setObjectName("ai7_val")
         self.gridLayout.addWidget(self.ai7_val, 7, 1, 1, 1)
-        self.ai6_val = QLabel(self.formLayoutWidget_3)
+        self.ai6_val = QLabel(self.ai_grid)
         self.ai6_val.setObjectName("ai6_val")
         self.gridLayout.addWidget(self.ai6_val, 6, 1, 1, 1)
-        self.ai15_label = QLabel(self.formLayoutWidget_3)
+        self.ai15_label = QLabel(self.ai_grid)
         self.ai15_label.setObjectName("ai15_label")
         self.gridLayout.addWidget(self.ai15_label, 7, 2, 1, 1)
-        self.ai11_val = QLabel(self.formLayoutWidget_3)
+        self.ai11_val = QLabel(self.ai_grid)
         self.ai11_val.setObjectName("ai11_val")
         self.gridLayout.addWidget(self.ai11_val, 3, 3, 1, 1)
-        self.ai8_val = QLabel(self.formLayoutWidget_3)
+        self.ai8_val = QLabel(self.ai_grid)
         self.ai8_val.setObjectName("ai8_val")
         self.gridLayout.addWidget(self.ai8_val, 0, 3, 1, 1)
-        self.ai6_label = QLabel(self.formLayoutWidget_3)
+        self.ai6_label = QLabel(self.ai_grid)
         self.ai6_label.setObjectName("ai6_label")
         self.gridLayout.addWidget(self.ai6_label, 6, 0, 1, 1)
-        self.ai1_label = QLabel(self.formLayoutWidget_3)
+        self.ai1_label = QLabel(self.ai_grid)
         self.ai1_label.setObjectName("ai1_label")
         self.gridLayout.addWidget(self.ai1_label, 1, 0, 1, 1)
-        self.ai1_val = QLabel(self.formLayoutWidget_3)
+        self.ai1_val = QLabel(self.ai_grid)
         self.ai1_val.setObjectName("ai1_val")
         self.gridLayout.addWidget(self.ai1_val, 1, 1, 1, 1)
-        self.ai2_val = QLabel(self.formLayoutWidget_3)
+        self.ai2_val = QLabel(self.ai_grid)
         self.ai2_val.setObjectName("ai2_val")
         self.gridLayout.addWidget(self.ai2_val, 2, 1, 1, 1)
-        self.ai3_label = QLabel(self.formLayoutWidget_3)
+        self.ai3_label = QLabel(self.ai_grid)
         self.ai3_label.setObjectName("ai3_label")
         self.gridLayout.addWidget(self.ai3_label, 3, 0, 1, 1)
-        self.ai5_label = QLabel(self.formLayoutWidget_3)
+        self.ai5_label = QLabel(self.ai_grid)
         self.ai5_label.setObjectName("ai5_label")
         self.gridLayout.addWidget(self.ai5_label, 5, 0, 1, 1)
-        self.ai4_label = QLabel(self.formLayoutWidget_3)
+        self.ai4_label = QLabel(self.ai_grid)
         self.ai4_label.setObjectName("ai4_label")
         self.gridLayout.addWidget(self.ai4_label, 4, 0, 1, 1)
-        self.ai0_label = QLabel(self.formLayoutWidget_3)
+        self.ai0_label = QLabel(self.ai_grid)
         self.ai0_label.setObjectName("ai0_label")
         self.gridLayout.addWidget(self.ai0_label, 0, 0, 1, 1)
-        self.ai3_val = QLabel(self.formLayoutWidget_3)
+        self.ai3_val = QLabel(self.ai_grid)
         self.ai3_val.setObjectName("ai3_val")
         self.gridLayout.addWidget(self.ai3_val, 3, 1, 1, 1)
-        self.ai2_label = QLabel(self.formLayoutWidget_3)
+        self.ai2_label = QLabel(self.ai_grid)
         self.ai2_label.setObjectName("ai2_label")
         self.gridLayout.addWidget(self.ai2_label, 2, 0, 1, 1)
-        self.ai5_val = QLabel(self.formLayoutWidget_3)
+        self.ai5_val = QLabel(self.ai_grid)
         self.ai5_val.setObjectName("ai5_val")
         self.gridLayout.addWidget(self.ai5_val, 5, 1, 1, 1)
-        self.ai4_val = QLabel(self.formLayoutWidget_3)
+        self.ai4_val = QLabel(self.ai_grid)
         self.ai4_val.setObjectName("ai4_val")
         self.gridLayout.addWidget(self.ai4_val, 4, 1, 1, 1)
         self.output_channels = QLabel(self.centralwidget)
@@ -389,10 +205,6 @@ class Daq_Main_Window(QMainWindow):
         self.ao1_set.setObjectName("ao1_set")
         self.ao1_set.setMaximumSize(61,20)
         self.OutputChannels.addWidget(self.ao1_set, 1, 2, 1, 1)
-        self.updateButton = QPushButton(self.centralwidget)
-        self.updateButton.setGeometry(qt.QtCore.QRect(410, 170, 201, 61))
-        self.updateButton.setObjectName("updateButton")
-        self.updateButton.clicked.connect(self.set_vals)
         self.out_cha = QLabel(self.centralwidget)
         self.out_cha.setGeometry(qt.QtCore.QRect(410, 50, 61, 20))
         self.out_cha.setObjectName("out_cha")
@@ -404,14 +216,37 @@ class Daq_Main_Window(QMainWindow):
         self.out_set.setObjectName("out_set")
         self.setCentralWidget(self.centralwidget)
         
+        # Buttons
+        self.updateButton = QPushButton(self.centralwidget)
+        self.updateButton.setGeometry(qt.QtCore.QRect(410, 170, 201, 41))
+        self.updateButton.setObjectName("updateButton")
+        self.updateButton.clicked.connect(self.set_vals)
+        self.connectButton = QPushButton(self.centralwidget)
+        self.connectButton.setGeometry(qt.QtCore.QRect(410, 220, 201, 41))
+        self.connectButton.setObjectName("connectButton")
+        self.connectButton.clicked.connect(self.reconnect)
+        
         # Menu Bar
         self.menubar = QMenuBar(self)
         self.menubar.setGeometry(qt.QtCore.QRect(0, 0, 800, 21))
         self.menubar.setObjectName("menubar")
+        
+        # File Menu
         self.menuFile = QMenu(self.menubar)
         self.menuFile.setObjectName("menuFile")
+        quitAction = QAction('&Quit', self)
+        quitAction.triggered.connect(self.close)
+        self.menuFile.addAction(quitAction)
+        
+        # Experiment Menu
         self.menuExperiments = QMenu(self.menubar)
         self.menuExperiments.setObjectName("menuExperiments")
+        sweep1dAction = QAction('&1D Sweep', self)
+        sweep1dAction.triggered.connect(self.disp_1D_Sweep)
+        self.menuExperiments.addAction(sweep1dAction)
+        sweep2dAction = QAction('&2D Sweep', self)
+        sweep2dAction.triggered.connect(self.disp_2D_Sweep)
+        self.menuExperiments.addAction(sweep2dAction)
         
         self.setMenuBar(self.menubar)
         self.statusbar = QStatusBar(self)
@@ -431,6 +266,13 @@ class Daq_Main_Window(QMainWindow):
         
         qt.QtCore.QMetaObject.connectSlotsByName(self)
 
+    def disp_1D_Sweep(self):
+        self.sweep_window = Sweep1DWindow(parent=self)
+        self.sweep_window.show()
+    
+    def disp_2D_Sweep(self):
+        pass
+    
     def set_label_names(self):
         self.setWindowTitle("DAQ Controller - MeasureIt")
         self.input_channels.setText("Input Channels")
@@ -472,6 +314,7 @@ class Daq_Main_Window(QMainWindow):
         self.ao1_label.setText("AO1")
         self.ao0_val.setText("TextLabel")
         self.updateButton.setText("Update Output")
+        self.connectButton.setText("Connect DAQ")
         self.out_cha.setText("Channel")
         self.out_val.setText("Value")
         self.out_set.setText("Set Value")
@@ -493,23 +336,41 @@ class Daq_Main_Window(QMainWindow):
     
     def set_vals(self):
         if self.daq is not None:
-            value0 = self.ao0_set.text()
-            value1 = self.ao1_set.text()
-            
-            if value0.isdigit():
+            invalid=0
+            try:
+                value0 = float(self.ao0_set.text())
+                
                 task=nidaqmx.Task()
                 self.daq.submodules["ao0"].add_self_to_task(task)
                 self.daq.ao0.set("voltage", float(value0))
                 self.daq.submodules["ao0"].clear_task()
                 task.close()
-            if value1.isdigit():
+                
+            except ValueError:
+                invalid += 1
+            
+            try:
+                value1 = float(self.ao1_set.text())
+            
                 task=nidaqmx.Task()
                 self.daq.submodules["ao1"].add_self_to_task(task)
                 self.daq.ao1.set("voltage", float(value1))
                 self.daq.submodules["ao1"].clear_task()
+                task.close()
+            except ValueError:
+                invalid += 1
             
+            if invalid == 2:
+                msg = QMessageBox()
+                msg.setText("No valid inputs given")
+                msg.setWindowTitle("Error")
+                msg.setStandardButtons(QMessageBox.Close)
+                msg.exec_()
+                
             self.update_vals()
-            
+
+
+        
 def main():
 #    do_sweep()
     app = QApplication(sys.argv)
