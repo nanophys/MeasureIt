@@ -4,7 +4,7 @@ import numpy as np
 import qcodes as qc
 from qcodes.dataset.measurements import Measurement
 from qcodes.dataset.database import initialise_or_create_database_at
-from daq_driver import Daq
+from daq_driver import Daq, _value_parser
 import PyQt5 as qt
 from PyQt5.QtWidgets import qApp, QSizePolicy, QWidget, QAction, QApplication, QLabel, QMainWindow, QPushButton, QComboBox, QMessageBox, QLineEdit, QMenu, QMenuBar, QStatusBar, QGridLayout
 from PyQt5.QtCore import Qt
@@ -46,7 +46,7 @@ class Daq_Main_Window(QMainWindow):
     def connect(self):
         try:
             importlib.reload(nidaqmx)
-            self.daq = Daq("Dev1", "daq", 2, 24)
+            self.daq = Daq("Dev1", "daq")
         except:
             msg = QMessageBox()
             msg.setText("Could not connect to the DAQ")
@@ -55,7 +55,6 @@ class Daq_Main_Window(QMainWindow):
             msg.exec_()
         
     def reconnect(self):
-        #print(self.daq)
         if self.daq is not None:
             msg = QMessageBox()
             msg.setText("Already connected to a DAQ")
@@ -82,45 +81,45 @@ class Daq_Main_Window(QMainWindow):
         self.ai0_val = QLabel(self.ai_grid)
         self.ai0_val.setObjectName("ai0_val")
         self.gridLayout.addWidget(self.ai0_val, 0, 1, 1, 1)
-        self.ai13_label = QLabel(self.ai_grid)
-        self.ai13_label.setObjectName("ai13_label")
-        self.gridLayout.addWidget(self.ai13_label, 5, 2, 1, 1)
-        self.ai10_val = QLabel(self.ai_grid)
-        self.ai10_val.setObjectName("ai10_val")
-        self.gridLayout.addWidget(self.ai10_val, 2, 3, 1, 1)
-        self.ai11_label = QLabel(self.ai_grid)
-        self.ai11_label.setObjectName("ai11_label")
-        self.gridLayout.addWidget(self.ai11_label, 3, 2, 1, 1)
-        self.ai9_label = QLabel(self.ai_grid)
-        self.ai9_label.setObjectName("ai9_label")
-        self.gridLayout.addWidget(self.ai9_label, 1, 2, 1, 1)
-        self.ai14_label = QLabel(self.ai_grid)
-        self.ai14_label.setObjectName("ai14_label")
-        self.gridLayout.addWidget(self.ai14_label, 6, 2, 1, 1)
-        self.ai12_label = QLabel(self.ai_grid)
-        self.ai12_label.setObjectName("ai12_label")
-        self.gridLayout.addWidget(self.ai12_label, 4, 2, 1, 1)
-        self.ai10_label = QLabel(self.ai_grid)
-        self.ai10_label.setObjectName("ai10_label")
-        self.gridLayout.addWidget(self.ai10_label, 2, 2, 1, 1)
-        self.ai8_label = QLabel(self.ai_grid)
-        self.ai8_label.setObjectName("ai8_label")
-        self.gridLayout.addWidget(self.ai8_label, 0, 2, 1, 1)
-        self.ai9_val = QLabel(self.ai_grid)
-        self.ai9_val.setObjectName("ai9_val")
-        self.gridLayout.addWidget(self.ai9_val, 1, 3, 1, 1)
-        self.ai14_val = QLabel(self.ai_grid)
-        self.ai14_val.setObjectName("ai14_val")
-        self.gridLayout.addWidget(self.ai14_val, 6, 3, 1, 1)
-        self.ai13_val = QLabel(self.ai_grid)
-        self.ai13_val.setObjectName("ai13_val")
-        self.gridLayout.addWidget(self.ai13_val, 5, 3, 1, 1)
-        self.ai12_val = QLabel(self.ai_grid)
-        self.ai12_val.setObjectName("ai12_val")
-        self.gridLayout.addWidget(self.ai12_val, 4, 3, 1, 1)
-        self.ai15_val = QLabel(self.ai_grid)
-        self.ai15_val.setObjectName("ai15_val")
-        self.gridLayout.addWidget(self.ai15_val, 7, 3, 1, 1)
+        self.ai21_label = QLabel(self.ai_grid)
+        self.ai21_label.setObjectName("ai21_label")
+        self.gridLayout.addWidget(self.ai21_label, 5, 2, 1, 1)
+        self.ai18_val = QLabel(self.ai_grid)
+        self.ai18_val.setObjectName("ai18_val")
+        self.gridLayout.addWidget(self.ai18_val, 2, 3, 1, 1)
+        self.ai19_label = QLabel(self.ai_grid)
+        self.ai19_label.setObjectName("ai19_label")
+        self.gridLayout.addWidget(self.ai19_label, 3, 2, 1, 1)
+        self.ai17_label = QLabel(self.ai_grid)
+        self.ai17_label.setObjectName("ai17_label")
+        self.gridLayout.addWidget(self.ai17_label, 1, 2, 1, 1)
+        self.ai22_label = QLabel(self.ai_grid)
+        self.ai22_label.setObjectName("ai22_label")
+        self.gridLayout.addWidget(self.ai22_label, 6, 2, 1, 1)
+        self.ai20_label = QLabel(self.ai_grid)
+        self.ai20_label.setObjectName("ai20_label")
+        self.gridLayout.addWidget(self.ai20_label, 4, 2, 1, 1)
+        self.ai18_label = QLabel(self.ai_grid)
+        self.ai18_label.setObjectName("ai18_label")
+        self.gridLayout.addWidget(self.ai18_label, 2, 2, 1, 1)
+        self.ai16_label = QLabel(self.ai_grid)
+        self.ai16_label.setObjectName("ai16_label")
+        self.gridLayout.addWidget(self.ai16_label, 0, 2, 1, 1)
+        self.ai17_val = QLabel(self.ai_grid)
+        self.ai17_val.setObjectName("ai17_val")
+        self.gridLayout.addWidget(self.ai17_val, 1, 3, 1, 1)
+        self.ai22_val = QLabel(self.ai_grid)
+        self.ai22_val.setObjectName("ai22_val")
+        self.gridLayout.addWidget(self.ai22_val, 6, 3, 1, 1)
+        self.ai21_val = QLabel(self.ai_grid)
+        self.ai21_val.setObjectName("ai21_val")
+        self.gridLayout.addWidget(self.ai21_val, 5, 3, 1, 1)
+        self.ai20_val = QLabel(self.ai_grid)
+        self.ai20_val.setObjectName("ai20_val")
+        self.gridLayout.addWidget(self.ai20_val, 4, 3, 1, 1)
+        self.ai23_val = QLabel(self.ai_grid)
+        self.ai23_val.setObjectName("ai23_val")
+        self.gridLayout.addWidget(self.ai23_val, 7, 3, 1, 1)
         self.ai7_label = QLabel(self.ai_grid)
         self.ai7_label.setObjectName("ai7_label")
         self.gridLayout.addWidget(self.ai7_label, 7, 0, 1, 1)
@@ -130,15 +129,15 @@ class Daq_Main_Window(QMainWindow):
         self.ai6_val = QLabel(self.ai_grid)
         self.ai6_val.setObjectName("ai6_val")
         self.gridLayout.addWidget(self.ai6_val, 6, 1, 1, 1)
-        self.ai15_label = QLabel(self.ai_grid)
-        self.ai15_label.setObjectName("ai15_label")
-        self.gridLayout.addWidget(self.ai15_label, 7, 2, 1, 1)
-        self.ai11_val = QLabel(self.ai_grid)
-        self.ai11_val.setObjectName("ai11_val")
-        self.gridLayout.addWidget(self.ai11_val, 3, 3, 1, 1)
-        self.ai8_val = QLabel(self.ai_grid)
-        self.ai8_val.setObjectName("ai8_val")
-        self.gridLayout.addWidget(self.ai8_val, 0, 3, 1, 1)
+        self.ai23_label = QLabel(self.ai_grid)
+        self.ai23_label.setObjectName("ai23_label")
+        self.gridLayout.addWidget(self.ai23_label, 7, 2, 1, 1)
+        self.ai19_val = QLabel(self.ai_grid)
+        self.ai19_val.setObjectName("ai19_val")
+        self.gridLayout.addWidget(self.ai19_val, 3, 3, 1, 1)
+        self.ai16_val = QLabel(self.ai_grid)
+        self.ai16_val.setObjectName("ai16_val")
+        self.gridLayout.addWidget(self.ai16_val, 0, 3, 1, 1)
         self.ai6_label = QLabel(self.ai_grid)
         self.ai6_label.setObjectName("ai6_label")
         self.gridLayout.addWidget(self.ai6_label, 6, 0, 1, 1)
@@ -257,8 +256,8 @@ class Daq_Main_Window(QMainWindow):
 
         self.set_label_names()
         self.input_vals = [self.ai0_val, self.ai1_val, self.ai2_val, self.ai3_val, self.ai4_val, self.ai5_val, self.ai6_val, 
-                           self.ai7_val, self.ai8_val, self.ai9_val, self.ai10_val, self.ai11_val, self.ai12_val, self.ai13_val, 
-                           self.ai14_val, self.ai15_val]
+                           self.ai7_val, self.ai16_val, self.ai17_val, self.ai18_val, self.ai19_val, self.ai20_val, self.ai21_val, 
+                           self.ai22_val, self.ai23_val]
         self.output_vals = [self.ao0_val, self.ao1_val]
         
         
@@ -277,25 +276,25 @@ class Daq_Main_Window(QMainWindow):
         self.setWindowTitle("DAQ Controller - MeasureIt")
         self.input_channels.setText("Input Channels")
         self.ai0_val.setText("TextLabel")
-        self.ai13_label.setText("AI13")
-        self.ai10_val.setText("TextLabel")
-        self.ai11_label.setText("AI11")
-        self.ai9_label.setText("AI9")
-        self.ai14_label.setText("AI14")
-        self.ai12_label.setText("AI12")
-        self.ai10_label.setText("AI10")
-        self.ai8_label.setText("AI8")
-        self.ai9_val.setText("TextLabel")
-        self.ai14_val.setText("TextLabel")
-        self.ai13_val.setText("TextLabel")
-        self.ai12_val.setText("TextLabel")
-        self.ai15_val.setText("TextLabel")
+        self.ai21_label.setText("AI21")
+        self.ai18_val.setText("TextLabel")
+        self.ai19_label.setText("AI19")
+        self.ai17_label.setText("AI17")
+        self.ai22_label.setText("AI22")
+        self.ai20_label.setText("AI20")
+        self.ai18_label.setText("AI18")
+        self.ai16_label.setText("AI16")
+        self.ai17_val.setText("TextLabel")
+        self.ai22_val.setText("TextLabel")
+        self.ai21_val.setText("TextLabel")
+        self.ai20_val.setText("TextLabel")
+        self.ai16_val.setText("TextLabel")
         self.ai7_label.setText("AI7")
         self.ai6_val.setText("TextLabel")
         self.ai7_val.setText("TextLabel")
-        self.ai15_label.setText("AI15")
-        self.ai11_val.setText("TextLabel")
-        self.ai8_val.setText("TextLabel")
+        self.ai23_label.setText("AI23")
+        self.ai19_val.setText("TextLabel")
+        self.ai23_val.setText("TextLabel")
         self.ai6_label.setText("AI6")
         self.ai1_label.setText("AI1")
         self.ai1_val.setText("TextLabel")
@@ -324,15 +323,15 @@ class Daq_Main_Window(QMainWindow):
     def update_vals(self):
         if self.daq is not None:
             self.daq.update_all_inputs()
-            for num, label in enumerate(self.input_vals):
+            for n,num in enumerate([0,1,2,3,4,5,6,7,16,17,18,19,20,21,22,23]):
                 name = "ai"+str(num)
                 channel = self.daq.submodules[name]
-                label.setText(str(channel.get("voltage"))[0:7])
+                self.input_vals[n].setText(str(channel.get("voltage"))[0:7])
                 
-            for num, label in enumerate(self.output_vals):
+            for n,num in enumerate([0,1]):
                 name = "ao"+str(num)
                 channel = self.daq.submodules[name]
-                label.setText(str(channel.get("voltage"))[0:7])
+                self.output_vals[n].setText(str(channel.get("voltage"))[0:7])
     
     def set_vals(self):
         if self.daq is not None:
