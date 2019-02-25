@@ -1,35 +1,44 @@
 # daq_driver.py
 
+import re
 import nidaqmx, time
 import qcodes as qc
 from qcodes import (Instrument, validators as vals)
 from qcodes.instrument.channel import InstrumentChannel
 
 class Daq(Instrument):
-    
-    def __init__(self, address, name, ao_num, ai_num):
+    """
+    QCoDeS instrument driver for the National Instruments DAQ. Defines Parameters for each of the IO channels.
+    """
+    def __init__(self, address="", name="Daq"):
+        """
+        Initialization for the DAQ driver. Takes in the machine given device address (typically "Dev1"), a user-defined
+        name, and the number of ao and ai ports. Creates QCoDeS Parameters for each of the io channels.
+        """
+        
         super().__init__(address)
         system = nidaqmx.system.System.local()
         self.name=address
         self.device = system.devices[self.name]
-        self.ao_num = ao_num
-        self.ai_num = ai_num
+        self.ao_num = len(self.device.ao_physical_chans.channel_names)
+        self.ai_num = len(self.device.ai_physical_chans.channel_names)
         
         reader_tasks = []
         
-        for a in range(ao_num):
-            ch_name = 'ao'+str(a)
-            channel = DaqAOChannel(self, self.device, self.name, ch_name)
-            self.add_submodule(ch_name, channel)
-        for b in range(ai_num):
-            ch_name = 'ai'+str(b)
-            channel = DaqAIChannel(self, self.device, self.name, ch_name)
-            self.add_submodule(ch_name, channel)
-            task=nidaqmx.Task("reading " + ch_name)
-            channel.add_self_to_task(task)
-            reader_tasks.append(task)
-            
-        
+        for a in range(self.ao_num):
+            if int(a/8)%2 == 0:
+                ch_name = 'ao'+str(a)
+                channel = DaqAOChannel(self, self.device, self.name, ch_name)
+                self.add_submodule(ch_name, channel)
+        for b in range(self.ai_num):
+            if int(b/8)%2 == 0:
+                ch_name = 'ai'+str(b)
+                channel = DaqAIChannel(self, self.device, self.name, ch_name)
+                self.add_submodule(ch_name, channel)
+                task=nidaqmx.Task("reading " + ch_name)
+                channel.add_self_to_task(task)
+                reader_tasks.append(task)
+             
     def get_ao_num(self):
         return self.ao_num
     
@@ -37,36 +46,51 @@ class Daq(Instrument):
         return self.ai_num
     
     def update_all_inputs(self):
-        for a in range(self.ai_num):
-            ch_name = 'ai' + str(a)
-            channel = self.submodules[ch_name]
-            
-            channel.get("voltage")
+        """
+        Updates all the AI channel voltage values.
+        """
+        for chan_name in self.submodules:
+            self.submodules[chan_name].get("voltage")
     
     def __del__(self):
+        """
+        Destructor method. Seemingly necessary for the nidaqmx library to not cause issues upon
+        relaunching the software.
+        """
         try:
             for a,c in self.submodules.items():
-#                print(a, c)
+#               Removes all Task objects from the channels, so system doesn't complain
                 if c.task is not None:
                     c.task.close()
         except:
             pass
         
+        # Makes sure the Instrument destructor is called
         super().__del__()
         
         
 class DaqAOChannel(InstrumentChannel):
+    """
+    
+    """
     def get_gain(self):
-        return self.gain
+        return (self.gain, self.parameters["gain"].unit)
     
     def set_gain(self, _gain):
-        self.gain = _gain
-        if self.channel != None:
-            self.channel.ao_gain=_gain
+        self.gain = _gain[0]
+        self.parameters["gain"].unit=_gain[1]
+#        if self.channel != None:
+#            self.channel.ao_gain=_gain
         
     def get_voltage(self):
         return self._voltage
     
+    def get_value(self):
+        parts = self.parameters["gain"].unit.split("/")
+        self.parameters["value"].unit=parts[0]
+        self._value = self.gain * self._voltage
+        return self._value
+        
     def set_voltage(self, _voltage):
         if self.task != None:
             self.task.write(_voltage)
@@ -88,18 +112,20 @@ class DaqAOChannel(InstrumentChannel):
         self.name=str(channel)
         self.fullname=self.address+"/"+self.name
         
-        self.gain=-1
+        self.gain=1
         self._voltage=0
-        self.impedance=-1
+        self.impedance=None
+        self._value=0
         
         self.task=None
         self.channel=None
         
         self.add_parameter('gain',
                            get_cmd=self.get_gain,
-                           get_parser=float,
+                           get_parser=str,
                            set_cmd=self.set_gain,
                            label='Output Gain',
+                           unit='V/V',
                            val=vals.Numbers(0,1000)
                            )
         
@@ -111,6 +137,12 @@ class DaqAOChannel(InstrumentChannel):
                            vals=vals.Numbers(0,1000)
                            )
         
+        self.add_parameter('value',
+                           get_cmd=self.get_value,
+                           get_parser=float,
+                           label='Voltage * Factor',
+                           val=vals.Numbers(0,10000000))
+        
         self.add_parameter('voltage',
                            get_cmd=self.get_voltage,
                            get_parser=float,
@@ -121,6 +153,9 @@ class DaqAOChannel(InstrumentChannel):
                            )
         
     def add_self_to_task(self, task):
+        if self.task is not None:
+            self.clear_task()
+            
         task.ao_channels.add_ao_voltage_chan(self.fullname)
         self.task=task
         self.channel=nidaqmx._task_modules.channels.ao_channel.AOChannel(self.task._handle, self.channel)
@@ -130,6 +165,8 @@ class DaqAOChannel(InstrumentChannel):
             task.ao_load_impedance=self.impedance
             
     def clear_task(self):
+        if self.task is not None:
+            self.task.close()
         self.task=None
         self.channel=None
         
@@ -141,18 +178,25 @@ class DaqAOChannel(InstrumentChannel):
 class DaqAIChannel(InstrumentChannel):
     
     def get_gain(self):
-        return self.gain
+        return (self.gain, self.parameters["gain"].unit)
     
     def set_gain(self, _gain):
-        self.gain = _gain
-        if self.channel != None:
-            self.channel.ai_gain=_gain
+        self.gain = _gain[0]
+        self.parameters["gain"].unit=_gain[1]
+#        if self.channel != None:
+#            self.channel.ai_gain=_gain
         
     def get_voltage(self):
         if self.task != None:
             self._voltage = self.task.read()
         return self._voltage
         
+    def get_value(self):
+        parts = self.parameters["gain"].unit.split("/")
+        self.parameters["value"].unit=parts[0]
+        self._value = self.gain * self._voltage
+        return self._value
+    
     def get_load_impedance(self):
         return self.impedance
     
@@ -169,18 +213,20 @@ class DaqAIChannel(InstrumentChannel):
         self.name=str(channel)
         self.fullname=self.address+"/"+self.name
         
-        self.gain=-1
+        self.gain=1
         self._voltage=0
-        self.impedance=-1
+        self.impedance=None
+        self._value=0
         
         self.task=None
         self.channel=None
         
         self.add_parameter('gain',
                            get_cmd=self.get_gain,
-                           get_parser=float,
+                           get_parser=str,
                            set_cmd=self.set_gain,
                            label='Input Gain',
+                           unit='V/V',
                            vals=vals.Numbers(0,1000)
                            )
         
@@ -192,6 +238,12 @@ class DaqAIChannel(InstrumentChannel):
                            vals=vals.Numbers(0,1000)
                            )
         
+        self.add_parameter('value',
+                           get_cmd=self.get_value,
+                           get_parser=float,
+                           label='Voltage * Factor',
+                           vals=vals.Numbers(0,100000000))
+        
         self.add_parameter('voltage',
                            get_cmd=self.get_voltage,
                            get_parser=float,
@@ -202,7 +254,7 @@ class DaqAIChannel(InstrumentChannel):
         
     def add_self_to_task(self, task):
         if self.task is not None:
-            return 0
+            self.clear_task()
         
         task.ai_channels.add_ai_voltage_chan(self.fullname)
         self.task=task
@@ -215,14 +267,52 @@ class DaqAIChannel(InstrumentChannel):
         return 1
     
     def clear_task(self):
+        if self.task is not None:
+            self.task.close()
         self.task=None
         self.channel=None
         
     def __del__(self):
         self.clear_task()
-        
-        
+
+def _value_parser(value):
+    value = str(value).strip()
+    
+    # regex testing stripped value as valid factor string
+    # must be exactly a number followed by (space optional) single valid factor char 
+    # f = femto p = pico u = micro m = milli k = kilo M = Mega G = Giga
+    regex = re.compile(r"^([-]?[\d]*.[\d]+[\s]?)([fpnumkMG]?)$")
+    
+    parsedVal = regex.search(value)
+    if not parsedVal:
+        return -1
+    
+    return (float(parsedVal.groups(' ')[0]), parsedVal.groups(' ')[1])
+    
+#    valid_prefix = ['f','p','n','u','m','k','M','G']
+#    unit_prefix = ''
+#    for pos, char in enumerate(value):
+#        if char.isalpha():
+#            unit_prefix = char
+#            if (pos+1) != len(value) or unit_prefix not in valid_prefix:
+#                return -1
+#            value = value[0:pos].strip()
+#    
+#    for char in value:
+#        if not char.isnumeric() and char !='-' and char !='.':
+#            return -1
+#    
+#    return (float(value), unit_prefix)
+            
 def main():
+    print(_value_parser('  -.005p'))
+    print(_value_parser(' 2.1 '))
+    print(_value_parser('2.5  u'))
+    print(_value_parser('2.5 U'))
+    print(_value_parser(' -2.5 G'))
+    print(_value_parser(''))
+    
+def main_daq():
     daq=Daq("Dev1","test",2,24)
     print(daq.ai1)
     print(daq.ao1)
