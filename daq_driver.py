@@ -1,6 +1,5 @@
 # daq_driver.py
 
-import re
 import nidaqmx, time
 import qcodes as qc
 from qcodes import (Instrument, validators as vals)
@@ -275,42 +274,19 @@ class DaqAIChannel(InstrumentChannel):
     def __del__(self):
         self.clear_task()
 
-def _value_parser(value):
-    value = str(value).strip()
-    
-    # regex testing stripped value as valid factor string
-    # must be exactly a number followed by (space optional) single valid factor char 
-    # f = femto p = pico u = micro m = milli k = kilo M = Mega G = Giga
-    regex = re.compile(r"^([-]?[\d]*.[\d]+[\s]?)([fpnumkMG]?)$")
-    
-    parsedVal = regex.search(value)
-    if not parsedVal:
-        return -1
-    
-    return (float(parsedVal.groups(' ')[0]), parsedVal.groups(' ')[1])
-    
-#    valid_prefix = ['f','p','n','u','m','k','M','G']
-#    unit_prefix = ''
-#    for pos, char in enumerate(value):
-#        if char.isalpha():
-#            unit_prefix = char
-#            if (pos+1) != len(value) or unit_prefix not in valid_prefix:
-#                return -1
-#            value = value[0:pos].strip()
-#    
-#    for char in value:
-#        if not char.isnumeric() and char !='-' and char !='.':
-#            return -1
-#    
-#    return (float(value), unit_prefix)
+
             
 def main():
+    from util import _value_parser
     print(_value_parser('  -.005p'))
     print(_value_parser(' 2.1 '))
     print(_value_parser('2.5  u'))
     print(_value_parser('2.5 U'))
     print(_value_parser(' -2.5 G'))
-    print(_value_parser(''))
+    print(_value_parser('.'))
+    print(_value_parser('2f'))
+    print(_value_parser('.05f'))
+    print(_value_parser('2.u'))
     
 def main_daq():
     daq=Daq("Dev1","test",2,24)

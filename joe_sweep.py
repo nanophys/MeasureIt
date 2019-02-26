@@ -130,7 +130,7 @@ class Sweep(object):
                 
                 fig.tight_layout()
                 fig.canvas.draw()
-                plt.pause(0.001)
+                #plt.pause(0.001)
 
             d = time.monotonic() - t0
             h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
