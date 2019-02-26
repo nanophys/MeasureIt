@@ -8,20 +8,6 @@ from qcodes.dataset.measurements import Measurement
 from IPython import display
 from PyQt5.QtCore import QThread, pyqtSignal
 
-def _autorange_srs(srs, max_changes=1):
-    def autorange_once():
-        r = srs.R.get()
-        sens = srs.sensitivity.get()
-        if r > 0.9 * sens:
-            return srs.increment_sensitivity()
-        elif r < 0.1 * sens:
-            return srs.decrement_sensitivity()
-        return False
-    sets = 0
-    while autorange_once() and sets < max_changes:
-        sets += 1
-        time.sleep(10*srs.time_constant.get())
-
 class Sweep1D(object):
     """
     Class to control sweeping along 1 parameter, while tracking multiple other parameters.
@@ -32,7 +18,7 @@ class Sweep1D(object):
     SR830s are not currently implemented.
     """
     
-    def __init__(self, set_param, start, stop, step, freq, meas=None, plot=False, auto_figs=False):
+    def __init__(self, set_param, start, stop, step, freq, bidirectional=False, meas=None, plot=False, auto_figs=False):
         """
         Initializes the Sweep object. Takes in the parameter to be swept (set_param), the 
         value to start and stop sweeping at (start/stop, respectively), the step spacing (step),
@@ -47,15 +33,14 @@ class Sweep1D(object):
         self.inter_delay = 1/freq
         self.t0 = time.monotonic()
         self.setpoint = self.start - self.step
+        self.bidirectional = bidirectional
         
         d = (stop-start)/step*self.inter_delay
         h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
         print(f'Minimum duration: {h}h {m}m {s}s')
         
         # Either mark or save the measurement object
-        if meas is None:
-            self.meas = self._create_measurement(self.set_param)
-        else:
+        if meas is not None:
             self.meas = meas
             
         # Saves our plotting flags
@@ -144,7 +129,7 @@ class Sweep1D(object):
 
             self.plines.append(self.axes[i].plot([], [])[0])
     
-    def autorun(self):
+    def autorun(self, datasaver=None):
         """
         Run a sweep through this class. Makes call to create_figs if needed.
         Calls self.iterate to move through each data point.
@@ -158,11 +143,30 @@ class Sweep1D(object):
             return 0
         
         # Run the loop
-        with self.meas.run() as datasaver:
+        if datasaver is None:
+            with self.meas.run() as datasaver:
+                # Check if we are within the stopping condition
+                while abs(self.setpoint - self.stop) > abs(self.step/2):
+                    self.iterate(datasaver)
+                
+                # If we want to go both ways, we flip the start and stop, and run again
+                if self.bidirectional:
+                    self.flip_direction()
+                    while abs(self.setpoint - self.stop) > abs(self.step/2):
+                        self.iterate(datasaver)
+                    self.flip_direction()
+        else:
             # Check if we are within the stopping condition
             while abs(self.setpoint - self.stop) > abs(self.step/2):
                 self.iterate(datasaver)
-        
+                
+            # If we want to go both ways, we flip the start and stop, and run again
+            if self.bidirectional:
+                self.flip_direction()
+                while abs(self.setpoint - self.stop) > abs(self.step/2):
+                    self.iterate(datasaver)
+                self.flip_direction()
+                
         return 1
             
     def iterate(self, datasaver):
@@ -220,6 +224,16 @@ class Sweep1D(object):
         # Finally return all data
         return data
     
+    def flip_direction(self):
+        """
+        Flips the direction of the sweep, to do bidirectional sweeping.
+        """
+        temp = self.start
+        self.start = self.stop
+        self.stop = temp
+        self.step = -1 * self.step
+        self.bidirectional = False
+        
     def get_measurement(self):
         """
         Returns the measurement object.
@@ -235,10 +249,112 @@ class Sweep1D(object):
         self.fig.savefig(b, format='png')
 
 
+class Sweep2D(object):
+    
+    def __init__(self, inner_sweep_parameters, outer_sweep_parameters, freq, follow_param):
+        """
+        We initialize our 2D sweep by taking in the parameters for each sweep, and the frequency.
+        The inner_sweep_parameters and outer_sweep_parameters MUST be a list, conforming to the 
+        following standard:
+        
+            [ <QCoDeS Parameter>, <start value>, <stop value>, <step size> ]
+        """
+        
+        # Ensure that the inputs were passed (at least somewhat) correctly
+        if len(inner_sweep_parameters) != 4 or len(outer_sweep_parameters) != 4:
+            raise TypeError('For 2D Sweep, must pass list of 4 object for each sweep parameter, \
+                             in order: [ <QCoDeS Parameter>, <start value>, <stop value>, <step size> ]')
+            
+        # Save our input variables
+        self.in_param = inner_sweep_parameters[0]
+        self.in_start = inner_sweep_parameters[1]
+        self.in_stop = inner_sweep_parameters[2]
+        self.in_step = inner_sweep_parameters[3]
+        
+        self.out_param = outer_sweep_parameters[0]
+        self.out_start = outer_sweep_parameters[1]
+        self.out_stop = outer_sweep_parameters[2]
+        self.out_step = outer_sweep_parameters[3]
+        self.out_setpoint = self.out_start - self.out_step
+        
+        self.inter_delay = 1/freq
+            
+        # Sets a flag to ensure that the figures have been created before trying to plot
+        self.figs_set = False
+        self._params = []
+        
+        self.follow_param(follow_param) 
+        self.meas = self._create_measurement([self.out_param, self.in_param])
+        
+        # Create the inner sweep
+        self.inner_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, self.freq, 
+                                   meas=self.meas, bidirectional=True, plot=True, auto_figs=True)
+        self.t0 = time.monotonic()
+    
+    def autorun(self, update_rule=None):
+        if update_rule is None:
+            update_rule=self.no_change
+            
+        with self.meas.run() as datasaver:
+            
+            while abs(self.out_setpoint - self.out_stop) > abs(self.out_step/2):
+                self.iterate(datasaver)
+                update_rule()
+        
+    def iterate(self, datasaver):
+        t = time.monotonic() - self.t0
+        # Step the setpoint, and update the value
+        self.out_setpoint = self.out_step + self.out_setpoint
+        self.out_param.set(self.out_setpoint)
+        
+        # Pause if desired
+        if self.inter_delay is not None:
+            time.sleep(self.inter_delay)
+            
+        # Create our data storage object, which is a list of tuples of the parameter
+        # and its value
+        data = [
+            (self.out_param, self.out_setpoint),
+            ('time', t)
+        ]
+        
+        datasaver.add_result(*data)
+        self.inner_sweep.autorun(datasaver)
+    
+    def no_change(self):
+        pass
+    
+    def follow_param(self, p):
+        """
+        This function takes in a QCoDeS Parameter p, and tracks it through each sweep.
+        """
+        self._params.append(p)
 
+    def follow_sr830(self, l, name, gain=1.0):
+        """
+        This function adds an SR830, but (as of now) does not do anything with it.
+        """
+        self._sr830s.append((l, name, gain))
 
-
-
+    def _create_measurement(self, *set_params):
+        """
+        Creates a QCoDeS Measurement object. This controls the saving of data by registering
+        QCoDeS Parameter objects, which this function does. Registers all 'sweeping' parameters
+        (set_params), and all 'tracked' parameters, 'self._params'. Returns the measurement
+        object.
+        """
+        self.meas = Measurement()
+        for p in set_params:
+            self.meas.register_parameter(p)
+        self.meas.register_custom_parameter('time', label='Time', unit='s')
+        for p in self._params:
+            self.meas.register_parameter(p, setpoints=(*set_params, 'time',))
+        for l, _, _ in self._sr830s:
+            self.meas.register_parameter(l.X, setpoints=(*set_params, 'time',))
+            self.meas.register_parameter(l.Y, setpoints=(*set_params, 'time',))
+            
+        return self.meas
+        
 class SweepThread(QThread):
     """
     SweepThread uses QThread to separate data taking from the GUI, in order to still run.
@@ -282,40 +398,16 @@ class SweepThread(QThread):
                 self.update_plot.emit()
                 # Check to see if our break condition has been met.
                 if abs(self.parent.curr_val - self.parent.v_end) <= abs(self.parent.v_step/2):
-                    self.completed.emit()
-                    break
+                    # See if we want to do a bidirectional scan
+                    if self.s.bidirectional: 
+                        self.s.flip_direction()
+                    else:
+                        self.completed.emit()
+                        break
 
 
 
         
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
