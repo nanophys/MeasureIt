@@ -17,7 +17,7 @@ daq = Daq("Dev1", "testdaq")
 try:
     experimentName = 'demotest4'
     sampleName = 'daq sample5'
-    initialise_or_create_database_at('C:\\Users\\erunb\\MeasureIt\\testdatabase.db')
+    initialise_or_create_database_at('C:\\Users\\erunb\\MeasureIt\\Databases\\testdatabase.db')
     qc.new_experiment(name=experimentName, sample_name=sampleName)
 except:
     print("Error opening database")
@@ -32,8 +32,9 @@ step = 0.001
 freq = 10000.0
  
 # Create the sweep argument, tell it which channel to listen to
-s = Sweep1D(daq.submodules["ao0"].voltage, min_v, max_v, step, freq, meas=None, plot=True, auto_figs=True)
+s = Sweep1D(daq.submodules["ao0"].voltage, min_v, max_v, step, freq, bidirectional=True, meas=None, plot=True, auto_figs=True)
 s.follow_param(daq.submodules["ai3"].voltage)
+s._create_measurement((s.set_param))
 
 # Need to add a task to the output channels! VERY IMPORTANT!
 task = nidaqmx.Task()
