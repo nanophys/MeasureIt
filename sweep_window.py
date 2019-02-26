@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
-from sweep import Sweep, SweepThread
+from sweep import Sweep1D, SweepThread
 from daq_driver import _value_parser, Daq
 import qcodes as qc
 import nidaqmx
@@ -191,9 +191,9 @@ class Sweep1DWindow(QMainWindow):
         
         self.sweep_task = nidaqmx.Task()
         self.daq.submodules[self.ochannel].add_self_to_task(self.sweep_task)
-        self.s = Sweep()
+        self.s = Sweep1D(self.daq.submodules[self.ochannel].voltage, self.v_start, self.v_end, self.v_step, self.freq)
         self.s.follow_param(self.daq.submodules[ichannel].voltage)
-        self.meas = self.s.init_sweep(self.daq.submodules[self.ochannel].voltage, self.v_start, self.v_end, self.v_step, self.freq)
+        self.meas = self.s.get_measurement()
         
         self.counter=0
         self.init_plot(self.daq.submodules[self.ochannel].voltage, self.daq.submodules[ichannel].voltage)
