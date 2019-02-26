@@ -1,6 +1,6 @@
 # Example script to run a simple sweep with the DAQ and the sweep/plotting class
 
-from joe_sweep import Sweep
+from sweep import Sweep1D
 from daq_driver import Daq, DaqAOChannel, DaqAIChannel
 import nidaqmx
 import numpy as np
@@ -11,35 +11,40 @@ from qcodes.dataset.data_export import get_data_by_id
 
 
 # Create the DAQ object
-daq = Daq("Dev1", "testdaq", 2, 24)
+daq = Daq("Dev1", "testdaq")
     
 # Initialize the database you want to save data to
-experimentName = 'demotest1'
-sampleName = 'daq sample1'
-initialise_or_create_database_at('C:\\Users\\nanouser\\MeasureIt\\testdatabase.db')
-qc.new_experiment(name=experimentName, sample_name=sampleName)
-    
+try:
+    experimentName = 'demotest4'
+    sampleName = 'daq sample5'
+    initialise_or_create_database_at('C:\\Users\\erunb\\MeasureIt\\testdatabase.db')
+    qc.new_experiment(name=experimentName, sample_name=sampleName)
+except:
+    print("Error opening database")
+    daq.device.reset_device()
+    daq.__del__()
+    quit()
+
+# Set our sweeping parameters
+min_v = 0
+max_v = .1
+step = 0.001
+freq = 10000.0
+ 
 # Create the sweep argument, tell it which channel to listen to
-s = Sweep()
+s = Sweep1D(daq.submodules["ao0"].voltage, min_v, max_v, step, freq, meas=None, plot=True, auto_figs=True)
 s.follow_param(daq.submodules["ai3"].voltage)
 
-# Need to add a task to the output channels!
+# Need to add a task to the output channels! VERY IMPORTANT!
 task = nidaqmx.Task()
 daq.submodules["ao0"].add_self_to_task(task)
     
-# Set our sweeping parameters
-min_v = 0
-max_v = 5
-step = 0.1
-freq = 10
-
-# Run the sweep
-s.sweep(daq.submodules["ao0"].voltage, np.linspace(min_v, max_v, (max_v-min_v)/step+1), inter_delay=1/freq)
+# Run the sweep automatically
+s.autorun()
 
 # Clean up the DAQ
 daq.submodules["ao0"].clear_task()
 task.close()
-daq.device.reset_device()
 daq.__del__()
     
 # Show the experiment data
