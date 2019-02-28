@@ -93,9 +93,9 @@ def do_2d_sweep():
     daq.__del__()
         
     # Show the experiment data
-    ex = qc.dataset.experiment_container.load_experiment_by_name(experimentName, sampleName)
-    fii = get_data_by_id(ex.data_sets()[0].run_id)
-    print(fii)
+    #ex = qc.dataset.experiment_container.load_experiment_by_name(experimentName, sampleName)
+    #fii = get_data_by_id(ex.data_sets()[0].run_id)
+    #print(fii)
 
 
 

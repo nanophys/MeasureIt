@@ -1,12 +1,15 @@
 import io
 import time
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import qcodes as qc
 from qcodes.dataset.measurements import Measurement
 from IPython import display
 from PyQt5.QtCore import QThread, pyqtSignal
+import matplotlib.ticker as plticker
 
 class Sweep1D(object):
     """
@@ -34,6 +37,7 @@ class Sweep1D(object):
         self.t0 = time.monotonic()
         self.setpoint = self.start - self.step
         self.bidirectional = bidirectional
+        self.direction=0 #Forward
         
         d = (stop-start)/step*self.inter_delay
         h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
@@ -101,7 +105,14 @@ class Sweep1D(object):
             self.axes.append(self.fig.add_subplot(self.grid[:, 1 + i]))
             self.axes[i].set_xlabel(f'{self.set_param.label} ({self.set_param.unit})')
             self.axes[i].set_ylabel(f'{p.label} ({p.unit})')
-            self.plines.append(self.axes[i].plot([], [])[0])
+            
+            forward_line = matplotlib.lines.Line2D([],[])
+            forward_line.set_color('b')
+            backward_line = matplotlib.lines.Line2D([],[])
+            backward_line.set_color('r')
+            self.axes[i].add_line(forward_line)
+            self.axes[i].add_line(backward_line)
+            self.plines.append((forward_line, backward_line))
             
         self.figs_set = True
             
@@ -126,8 +137,14 @@ class Sweep1D(object):
         for i, p in enumerate(self._params):
             self.axes[i].set_xlabel(f'{self.set_param.label} ({self.set_param.unit})')
             self.axes[i].set_ylabel(f'{p.label} ({p.unit})')
-
-            self.plines.append(self.axes[i].plot([], [])[0])
+            
+            forward_line = matplotlib.lines.Line2D([],[])
+            forward_line.set_color('b')
+            backward_line = matplotlib.lines.Line2D([],[])
+            backward_line.set_color('r')
+            self.axes[i].add_line(forward_line)
+            self.axes[i].add_line(backward_line)
+            self.plines.append((forward_line, backward_line))
     
     def autorun(self, datasaver=None, persist_data=None):
         """
@@ -209,8 +226,8 @@ class Sweep1D(object):
             data.append((p, v))
             # Update each of the plots for the tracking parameters
             if self.plot is True:
-                self.plines[i].set_xdata(np.append(self.plines[i].get_xdata(), self.setpoint))
-                self.plines[i].set_ydata(np.append(self.plines[i].get_ydata(), v))
+                self.plines[i][self.direction].set_xdata(np.append(self.plines[i][self.direction].get_xdata(), self.setpoint))
+                self.plines[i][self.direction].set_ydata(np.append(self.plines[i][self.direction].get_ydata(), v))
                 self.axes[i].relim()
                 self.axes[i].autoscale_view()
         
@@ -234,7 +251,13 @@ class Sweep1D(object):
         self.start = self.stop
         self.stop = temp
         self.step = -1 * self.step
-        self.bidirectional = not self.bidirectional
+        self.setpoint -= self.step
+        
+        # If backwards, go forwards, and vice versa
+        if self.direction:
+            self.direction = 0
+        else:
+            self.direction = 1
     
     def reset(self, new_params=None):
         if new_params is not None:
@@ -252,8 +275,10 @@ class Sweep1D(object):
             self.setax.autoscale_view()
         
             for i, p in enumerate(self._params):    
-                self.plines[i].set_xdata(np.array([]))
-                self.plines[i].set_ydata(np.array([]))
+                self.plines[i][0].set_xdata(np.array([]))
+                self.plines[i][0].set_ydata(np.array([]))
+                self.plines[i][1].set_xdata(np.array([]))
+                self.plines[i][1].set_ydata(np.array([]))
                 self.axes[i].relim()
                 self.axes[i].autoscale_view()
         
@@ -318,6 +343,9 @@ class Sweep2D(object):
         self.create_figs()
         self.inner_sweep.set_figs(self.fig, self.setax, self.axes)
         self.t0 = time.monotonic()
+        
+        self.max_datapt = float("-inf")
+        self.min_datapt = float("inf")
     
     def autorun(self, update_rule=None):
         if update_rule is None:
@@ -327,13 +355,12 @@ class Sweep2D(object):
             count = 0
             while abs(self.out_setpoint - self.out_stop) > abs(self.out_step/2):
                 self.iterate(datasaver)
-                # GRAB THE X AND Y DATA HERE
-                x_data = self.plines[0].get_xdata()
-                y_data = self.plines[0].get_ydata()
-                # ADD THE DATA TO THE HEATMAP
-#                self.heatmap_data[count,:]=y_data
+                
+                self.update_heatmap(count)
                 
                 update_rule(self.inner_sweep)
+                count += 1
+                
             datasaver.flush_data_to_database()
         
     def iterate(self, datasaver):
@@ -366,23 +393,65 @@ class Sweep2D(object):
         self.setax.set_ylabel(f'{self.in_param.label} ({self.in_param.unit})')
         self.setaxline = self.setax.plot([], [])[0]
         
-        self.plines = []
         self.axes = []
         # Now create a plot for every tracked parameter as a function of sweeping parameter
         for i, p in enumerate(self._params):
             self.axes.append(self.fig.add_subplot(self.grid[:, 1 + i]))
             self.axes[i].set_xlabel(f'{self.in_param.label} ({self.in_param.unit})')
             self.axes[i].set_ylabel(f'{p.label} ({p.unit})')
-            self.plines.append(self.axes[i].plot([], [])[0])
             
         # Create the heatmap
         # First, determine the resolution on each axis
-        self.res_in = abs(int((self.in_stop-self.in_stop)/self.in_step))+1
-        self.res_out = abs(int((self.out_stop-self.out_stop)/self.out_step))+1
+        self.res_in = abs(int((self.in_stop-self.in_start)/self.in_step))+1
+        self.res_out = abs(int((self.out_stop-self.out_start)/self.out_step))+1
         
         self.heatmap_data = np.zeros((self.res_out, self.res_in))
-        self.heatmap = plt.matshow(self.heatmap_data)
+        plt.figure(2)
+        self.heatmap = plt.imshow(self.heatmap_data)
+        plt.ylabel(f'{self.out_param.label} ({self.out_param.unit})')
+        plt.xlabel(f'{self.in_param.label} ({self.in_param.unit})')
+#        inner_tick_lbls = np.linspace(self.in_start, self.in_stop, 5)
+#        outer_tick_lbls = np.linspace(self.out_stop, self.out_start, 5)
+#        plt.yticks(np.linspace(0,self.res_out,5), outer_tick_lbls)
+#        plt.xticks(np.linspace(0,self.res_in,5), inner_tick_lbls)
+        
+        ax = plt.gca()
+        loc = plticker.MultipleLocator(base=1.0) # this locator puts ticks at regular intervals
+        ax.xaxis.set_major_locator(loc)
+        ax.yaxis.set_major_locator(loc)
+        locs, vals = plt.xticks()
+        plt.xticks(locs, np.linspace(self.in_start, self.in_stop, len(locs)))
+        locs, vals = plt.yticks()
+        plt.yticks(locs, np.linspace(self.out_stop, self.out_start, len(locs)))
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+
+        cbar = plt.colorbar(self.heatmap, cax=cax)
+        cbar.set_label(f'{self._params[0].label} ({self._params[0].unit})')
+        
         self.figs_set = True
+       
+    def update_heatmap(self, count):
+        # GRAB THE X AND Y DATA HERE
+        forward_line = self.axes[0].get_lines()[0]
+        backward_line = self.axes[0].get_lines()[1]
+        
+        x_data_forward = forward_line.get_xdata()
+        y_data_forward = forward_line.get_ydata()
+        
+        x_data_backward = backward_line.get_xdata()
+        y_data_backward = backward_line.get_ydata()
+        
+        # ADD THE DATA TO THE HEATMAP
+        for i,x in enumerate(x_data_forward):
+            self.heatmap_data[self.res_out-count-1,i]=y_data_forward[i]
+            if y_data_forward[i] > self.max_datapt:
+                self.max_datapt = y_data_forward[i]
+            if y_data_forward[i] < self.min_datapt:
+                self.min_datapt = y_data_forward[i]
+        
+        self.heatmap.set_data(self.heatmap_data)
+        self.heatmap.set_clim(self.min_datapt, self.max_datapt)
         
     def no_change(self, sweep):
         sweep.reset()
@@ -415,7 +484,7 @@ class Sweep2D(object):
         for l, _, _ in self._sr830s:
             self.meas.register_parameter(l.X, setpoints=(*set_params, 'time',))
             self.meas.register_parameter(l.Y, setpoints=(*set_params, 'time',))
-        print(self.meas.parameters)
+        
         return self.meas
         
     
