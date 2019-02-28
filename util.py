@@ -4,6 +4,17 @@
 import re
 import time
 
+unit_dict = [
+        {'f', 10**-15},
+        {'p', 10**-12},
+        {'n', 10**-9},
+        {'u', 10**-6},
+        {'m', 10**-3},
+        {'k', 10**3},
+        {'M', 10**6},
+        {'G', 10**9}
+        ]
+
 def _value_parser(value):
     """
     Parses user input for a float and a unit prefix character. Returns a float
@@ -23,7 +34,7 @@ def _value_parser(value):
         return -1
     
     return (float(parsedVal.groups(' ')[0]), parsedVal.groups(' ')[1])
-
+    
 def _autorange_srs(srs, max_changes=1):
     """
     Joe's code, unedited
