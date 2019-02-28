@@ -1,3 +1,4 @@
+# example_sweep.py
 # Example script to run a simple sweep with the DAQ and the sweep/plotting class
 
 from sweep import Sweep1D, Sweep2D
@@ -35,17 +36,11 @@ def do_1d_sweep(_min_v, _max_v, _step, _freq, _expName, _sampleName):
     s = Sweep1D(daq.submodules["ao0"].voltage, min_v, max_v, step, freq, bidirectional=True, meas=None, plot=True, auto_figs=True)
     s.follow_param(daq.submodules["ai3"].voltage)
     s._create_measurement((s.set_param))
-
-    # Need to add a task to the output channels! VERY IMPORTANT!
-#    task = nidaqmx.Task()
-#    daq.submodules["ao0"].add_self_to_task(task)
     
     # Run the sweep automatically
     s.autorun()
 
     # Clean up the DAQ
-    daq.submodules["ao0"].clear_task()
-    task.close()
     daq.__del__()
         
     # Show the experiment data
