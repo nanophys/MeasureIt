@@ -15,28 +15,40 @@ class Daq(Instrument):
         name, and the number of ao and ai ports. Creates QCoDeS Parameters for each of the io channels.
         """
         
+        # Initialize the DAQ system
         super().__init__(address)
         system = nidaqmx.system.System.local()
         self.name=address
         self.device = system.devices[self.name]
+        # Grab the number of AO, AI channels
         self.ao_num = len(self.device.ao_physical_chans.channel_names)
         self.ai_num = len(self.device.ai_physical_chans.channel_names)
         
-        reader_tasks = []
-        
+        # For each output channel, create a corresponding DaqAOChannel object
         for a in range(self.ao_num):
-            if int(a/8)%2 == 0:
-                ch_name = 'ao'+str(a)
-                channel = DaqAOChannel(self, self.device, self.name, ch_name)
-                self.add_submodule(ch_name, channel)
+            ch_name = 'ao'+str(a)
+            channel = DaqAOChannel(self, self.device, self.name, ch_name)
+            self.add_submodule(ch_name, channel)
+            # We now automatically create a task to write on each channel (NECESSARY!)
+            task=nidaqmx.Task("writing " + ch_name)
+            channel.add_self_to_task(task)
+        # Similarly, create a DaqAIChannel object for each (real) input channel
         for b in range(self.ai_num):
+            # NI DAQs can use each of the coax pins as analog inputs separately, and
+            # numbers them as such. (AI0-7 is voltage-part of coax reading for first 
+            # 8 pins, 8-15 is ground reading of coax for first 8 pins).
+            # We don't want this behavior, we use each port as one input (ground and 
+            # voltage), so we make sure to only grab the "real" analog inputs
+            count = 0
             if int(b/8)%2 == 0:
                 ch_name = 'ai'+str(b)
                 channel = DaqAIChannel(self, self.device, self.name, ch_name)
                 self.add_submodule(ch_name, channel)
                 task=nidaqmx.Task("reading " + ch_name)
                 channel.add_self_to_task(task)
-                reader_tasks.append(task)
+                count += 1
+            # Update the actual number of ai ports
+            self.ai_num = count
              
     def get_ao_num(self):
         return self.ao_num
@@ -59,8 +71,9 @@ class Daq(Instrument):
         try:
             for a,c in self.submodules.items():
 #               Removes all Task objects from the channels, so system doesn't complain
-                if c.task is not None:
-                    c.task.close()
+#                if c.task is not None:
+#                    c.task.close()
+                c.__del__()
         except:
             pass
         
@@ -100,8 +113,8 @@ class DaqAOChannel(InstrumentChannel):
     
     def set_load_impedance(self, _imp):
         self.impedance = _imp
-        if self.channel != None:
-            self.channel.ao_load_impedance=_imp
+#        if self.channel != None:
+#            self.channel.ao_load_impedance=_imp
         
     def __init__(self, parent: Instrument, device, address, channel):
         super().__init__(parent, channel)
@@ -158,10 +171,10 @@ class DaqAOChannel(InstrumentChannel):
         task.ao_channels.add_ao_voltage_chan(self.fullname)
         self.task=task
         self.channel=nidaqmx._task_modules.channels.ao_channel.AOChannel(self.task._handle, self.channel)
-        if self.gain != -1:
-            task.ao_channels.ao_gain=self.gain
-        if self.impedance != -1:
-            task.ao_load_impedance=self.impedance
+#        if self.gain != -1:
+#            task.ao_channels.ao_gain=self.gain
+#        if self.impedance != -1:
+#            task.ao_load_impedance=self.impedance
             
     def clear_task(self):
         if self.task is not None:
@@ -171,7 +184,6 @@ class DaqAOChannel(InstrumentChannel):
         
     def __del__(self):
         self.clear_task()
-    
     
         
 class DaqAIChannel(InstrumentChannel):
@@ -201,8 +213,8 @@ class DaqAIChannel(InstrumentChannel):
     
     def set_load_impedance(self, _imp):
         self.impedance = _imp
-        if self.channel != None:
-            self.channel.ai_load_impedance=_imp
+#        if self.channel != None:
+#            self.channel.ai_load_impedance=_imp
         
     def __init__(self, parent: Instrument, device, address, channel):
         super().__init__(parent, channel)
@@ -258,10 +270,10 @@ class DaqAIChannel(InstrumentChannel):
         task.ai_channels.add_ai_voltage_chan(self.fullname)
         self.task=task
         self.channel=nidaqmx._task_modules.channels.ai_channel.AIChannel(self.task._handle, self.channel)
-        if self.gain != -1:
-            task.ai_channels.ai_gain=self.gain
-        if self.impedance != -1:
-            task.ai_load_impedance=self.impedance
+#        if self.gain != -1:
+#            task.ai_channels.ai_gain=self.gain
+#        if self.impedance != -1:
+#            task.ai_load_impedance=self.impedance
         
         return 1
     
