@@ -129,7 +129,7 @@ class Sweep1D(object):
 
             self.plines.append(self.axes[i].plot([], [])[0])
     
-    def autorun(self, datasaver=None):
+    def autorun(self, datasaver=None, persist_data=None):
         """
         Run a sweep through this class. Makes call to create_figs if needed.
         Calls self.iterate to move through each data point.
@@ -158,18 +158,18 @@ class Sweep1D(object):
         else:
             # Check if we are within the stopping condition
             while abs(self.setpoint - self.stop) > abs(self.step/2):
-                self.iterate(datasaver)
+                self.iterate(datasaver, persist_data)
                 
             # If we want to go both ways, we flip the start and stop, and run again
             if self.bidirectional:
                 self.flip_direction()
                 while abs(self.setpoint - self.stop) > abs(self.step/2):
-                    self.iterate(datasaver)
+                    self.iterate(datasaver, persist_data)
                 self.flip_direction()
                 
         return 1
             
-    def iterate(self, datasaver):
+    def iterate(self, datasaver, persist_data=None):
         """
         Runs one 'step' in the sweep. Takes in only the datasaver object, which is always
         a Measurement object's run() function (see autorun()). Iterate will update the 
@@ -195,10 +195,12 @@ class Sweep1D(object):
 
         # Create our data storage object, which is a list of tuples of the parameter
         # and its value
-        data = [
-            (self.set_param, self.setpoint),
-            ('time', t)
-        ]
+        data = []
+        if persist_data is not None:
+            data.append(persist_data)
+        data.append((self.set_param, self.setpoint))
+        data.append(('time', t))
+        
         
         # Loop through each of the tracking parameters
         for i, p in enumerate(self._params):
@@ -211,7 +213,7 @@ class Sweep1D(object):
                 self.plines[i].set_ydata(np.append(self.plines[i].get_ydata(), v))
                 self.axes[i].relim()
                 self.axes[i].autoscale_view()
-            
+        
         # Add this point to the dataset
         datasaver.add_result(*data)
         
@@ -232,7 +234,28 @@ class Sweep1D(object):
         self.start = self.stop
         self.stop = temp
         self.step = -1 * self.step
-        self.bidirectional = False
+        self.bidirectional = not self.bidirectional
+    
+    def reset(self, new_params=None):
+        if new_params is not None:
+            self.start = new_params[0]
+            self.stop = new_params[1]
+            self.step = new_params[2]
+            self.inter_delay = 1/new_params[3]
+
+        self.setpoint = self.start - self.step
+        
+        if self.plot is True:
+            self.setaxline.set_xdata(np.array([]))
+            self.setaxline.set_ydata(np.array([]))
+            self.setax.relim()
+            self.setax.autoscale_view()
+        
+            for i, p in enumerate(self._params):    
+                self.plines[i].set_xdata(np.array([]))
+                self.plines[i].set_ydata(np.array([]))
+                self.axes[i].relim()
+                self.axes[i].autoscale_view()
         
     def get_measurement(self):
         """
@@ -282,13 +305,18 @@ class Sweep2D(object):
         # Sets a flag to ensure that the figures have been created before trying to plot
         self.figs_set = False
         self._params = []
+        self._sr830s = []
         
         self.follow_param(follow_param) 
-        self.meas = self._create_measurement([self.out_param, self.in_param])
+        self.meas = self._create_measurement(self.out_param, self.in_param)
         
         # Create the inner sweep
-        self.inner_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, self.freq, 
-                                   meas=self.meas, bidirectional=True, plot=True, auto_figs=True)
+        self.inner_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, freq, 
+                                   meas=self.meas, bidirectional=True, plot=True, auto_figs=False)
+        self.inner_sweep._params.append(follow_param)
+        
+        self.create_figs()
+        self.inner_sweep.set_figs(self.fig, self.setax, self.axes)
         self.t0 = time.monotonic()
     
     def autorun(self, update_rule=None):
@@ -296,10 +324,17 @@ class Sweep2D(object):
             update_rule=self.no_change
             
         with self.meas.run() as datasaver:
-            
+            count = 0
             while abs(self.out_setpoint - self.out_stop) > abs(self.out_step/2):
                 self.iterate(datasaver)
-                update_rule()
+                # GRAB THE X AND Y DATA HERE
+                x_data = self.plines[0].get_xdata()
+                y_data = self.plines[0].get_ydata()
+                # ADD THE DATA TO THE HEATMAP
+#                self.heatmap_data[count,:]=y_data
+                
+                update_rule(self.inner_sweep)
+            datasaver.flush_data_to_database()
         
     def iterate(self, datasaver):
         t = time.monotonic() - self.t0
@@ -313,16 +348,44 @@ class Sweep2D(object):
             
         # Create our data storage object, which is a list of tuples of the parameter
         # and its value
-        data = [
-            (self.out_param, self.out_setpoint),
-            ('time', t)
-        ]
+        data = (self.out_param, self.out_setpoint)
         
-        datasaver.add_result(*data)
-        self.inner_sweep.autorun(datasaver)
+        self.inner_sweep.autorun(datasaver, data)
+        
     
-    def no_change(self):
-        pass
+    def create_figs(self):
+        """
+        Creates default figures for each of the parameters. Plots them in a new, separate window.
+        Also creates a 2D heatmap of the data.
+        """
+        self.fig = plt.figure(figsize=(4*(2 + len(self._params) + len(self._sr830s)),4))
+        self.grid = plt.GridSpec(4, 1 + len(self._params) + len(self._sr830s), hspace=0)
+        self.setax = self.fig.add_subplot(self.grid[:, 0])
+        # First, create a plot of the sweeping parameters value against time
+        self.setax.set_xlabel('Time (s)')
+        self.setax.set_ylabel(f'{self.in_param.label} ({self.in_param.unit})')
+        self.setaxline = self.setax.plot([], [])[0]
+        
+        self.plines = []
+        self.axes = []
+        # Now create a plot for every tracked parameter as a function of sweeping parameter
+        for i, p in enumerate(self._params):
+            self.axes.append(self.fig.add_subplot(self.grid[:, 1 + i]))
+            self.axes[i].set_xlabel(f'{self.in_param.label} ({self.in_param.unit})')
+            self.axes[i].set_ylabel(f'{p.label} ({p.unit})')
+            self.plines.append(self.axes[i].plot([], [])[0])
+            
+        # Create the heatmap
+        # First, determine the resolution on each axis
+        self.res_in = abs(int((self.in_stop-self.in_stop)/self.in_step))+1
+        self.res_out = abs(int((self.out_stop-self.out_stop)/self.out_step))+1
+        
+        self.heatmap_data = np.zeros((self.res_out, self.res_in))
+        self.heatmap = plt.matshow(self.heatmap_data)
+        self.figs_set = True
+        
+    def no_change(self, sweep):
+        sweep.reset()
     
     def follow_param(self, p):
         """
@@ -352,9 +415,10 @@ class Sweep2D(object):
         for l, _, _ in self._sr830s:
             self.meas.register_parameter(l.X, setpoints=(*set_params, 'time',))
             self.meas.register_parameter(l.Y, setpoints=(*set_params, 'time',))
-            
+        print(self.meas.parameters)
         return self.meas
         
+    
 class SweepThread(QThread):
     """
     SweepThread uses QThread to separate data taking from the GUI, in order to still run.
