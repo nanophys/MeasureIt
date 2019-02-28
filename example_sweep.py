@@ -37,8 +37,8 @@ def do_1d_sweep(_min_v, _max_v, _step, _freq, _expName, _sampleName):
     s._create_measurement((s.set_param))
 
     # Need to add a task to the output channels! VERY IMPORTANT!
-    task = nidaqmx.Task()
-    daq.submodules["ao0"].add_self_to_task(task)
+#    task = nidaqmx.Task()
+#    daq.submodules["ao0"].add_self_to_task(task)
     
     # Run the sweep automatically
     s.autorun()
@@ -70,26 +70,19 @@ def do_2d_sweep():
         quit()
 
     # Create the sweep argument, tell it which channel to listen to
+    # Sweep parameter arguments are:
+    # [ <QCoDeS Parameter>, start value, stop value, step value ]
     in_sweep_params = [daq.submodules["ao0"].voltage, 0, 1, 0.1]
     out_sweep_params = [daq.submodules["ao1"].voltage, 0, 5, 1]
     freq = 1000
+    # "measured" parameter
     param = daq.submodules["ai3"].voltage
     s = Sweep2D(in_sweep_params, out_sweep_params, freq, param)
-    
-    # Need to add a task to the output channels! VERY IMPORTANT!
-    in_task = nidaqmx.Task()
-    daq.submodules["ao0"].add_self_to_task(in_task)
-    out_task = nidaqmx.Task()
-    daq.submodules["ao1"].add_self_to_task(out_task)
     
     # Run the sweep automatically
     s.autorun()
 
     # Clean up the DAQ
-    daq.submodules["ao0"].clear_task()
-    daq.submodules["ao1"].clear_task()
-    in_task.close()
-    out_task.close()
     daq.__del__()
         
     # Show the experiment data
