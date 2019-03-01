@@ -260,14 +260,24 @@ class Sweep1D(object):
             self.direction = 1
     
     def reset(self, new_params=None):
+        """
+        Resets the Sweep1D to reuse the same object with the same plots.
+        
+        Arguments:
+            new_params - list of 4 values to determine how we sweep. In order, 
+                         must be [ start value, stop value, step, frequency ]
+        """
+        # Set our new values if desired
         if new_params is not None:
             self.start = new_params[0]
             self.stop = new_params[1]
             self.step = new_params[2]
             self.inter_delay = 1/new_params[3]
 
+        # Reset our setpoint
         self.setpoint = self.start - self.step
         
+        # Reset our plots
         if self.plot is True:
             self.setaxline.set_xdata(np.array([]))
             self.setaxline.set_ydata(np.array([]))
@@ -306,6 +316,12 @@ class Sweep2D(object):
         following standard:
         
             [ <QCoDeS Parameter>, <start value>, <stop value>, <step size> ]
+            
+        Arguments: 
+            inner_sweep_parameters - list conforming to above standard for the inner sweep
+            outer_sweep_parameters - list conforming to above standard for the inner sweep
+            freq - the frequency of measurement
+            follow_param - the parameter to be tracked while other two are swept
         """
         
         # Ensure that the inputs were passed (at least somewhat) correctly
@@ -332,39 +348,67 @@ class Sweep2D(object):
         self._params = []
         self._sr830s = []
         
+        # Add the tracking parameter, and create the measurement
         self.follow_param(follow_param) 
         self.meas = self._create_measurement(self.out_param, self.in_param)
         
         # Create the inner sweep
         self.inner_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, freq, 
                                    meas=self.meas, bidirectional=True, plot=True, auto_figs=False)
+        # Make sure the inner sweep knows what parameter it should be reading
         self.inner_sweep._params.append(follow_param)
         
+        # Deal with creating the figures
         self.create_figs()
         self.inner_sweep.set_figs(self.fig, self.setax, self.axes)
-        self.t0 = time.monotonic()
         
+        self.t0 = time.monotonic()
+        # The origin of the plot is top left, we want it to be bottom left,
+        # so we keep count of what number sweep we are at to put it into the
+        # matrix backwards
+        self.count = 0
+        
+        # We want to track the max and min values seen to autorange the heatmap
         self.max_datapt = float("-inf")
         self.min_datapt = float("inf")
     
     def autorun(self, update_rule=None):
+        """
+        Run the 2D Sweep. Creates the datasaver and passes it to the iterate function.
+        Updates the plots, and then updates the inner sweep if desired.
+        
+        Arguments:
+            update_rule - function to call, accepting the Sweep1D object as an argument,
+                          to determine how the next inner sweep should behave
+        """
+        # If there is not an update_rule passed, then call our own no_change function
+        # to run the same sweep again
         if update_rule is None:
             update_rule=self.no_change
             
-        with self.meas.run() as datasaver:
-            count = 0
+        
+        with self.meas.run() as datasaver:            
+            # Loop until we are done
             while abs(self.out_setpoint - self.out_stop) > abs(self.out_step/2):
                 self.iterate(datasaver)
                 
-                self.update_heatmap(count)
+                self.update_heatmap(self.count)
                 
                 update_rule(self.inner_sweep)
-                count += 1
+                self.count += 1
                 
             datasaver.flush_data_to_database()
+            # Make the plots persist after finishing plotting
+            plt.show()
         
     def iterate(self, datasaver):
-        t = time.monotonic() - self.t0
+        """
+        This function is one iteration of the outer sweep, which steps the outer parameter,
+        and then runs the inner sweep.
+        
+        Arguments:
+            datasaver - the Runner object created from calling Measurement.run()
+        """
         # Step the setpoint, and update the value
         self.out_setpoint = self.out_step + self.out_setpoint
         self.out_param.set(self.out_setpoint)
@@ -377,6 +421,8 @@ class Sweep2D(object):
         # and its value
         data = (self.out_param, self.out_setpoint)
         
+        # We pass to the inner sweep the datasaver, and pass it the information about
+        # the outer sweep parameter
         self.inner_sweep.autorun(datasaver, data)
         
     
@@ -406,23 +452,21 @@ class Sweep2D(object):
         self.res_out = abs(int((self.out_stop-self.out_start)/self.out_step))+1
         
         self.heatmap_data = np.zeros((self.res_out, self.res_in))
-        plt.figure(2)
+        self.heat_fig = plt.figure(2)
         self.heatmap = plt.imshow(self.heatmap_data)
+        ax = plt.gca()
+        self.heat_ax = ax
+        
         plt.ylabel(f'{self.out_param.label} ({self.out_param.unit})')
         plt.xlabel(f'{self.in_param.label} ({self.in_param.unit})')
-#        inner_tick_lbls = np.linspace(self.in_start, self.in_stop, 5)
-#        outer_tick_lbls = np.linspace(self.out_stop, self.out_start, 5)
-#        plt.yticks(np.linspace(0,self.res_out,5), outer_tick_lbls)
-#        plt.xticks(np.linspace(0,self.res_in,5), inner_tick_lbls)
+        inner_tick_lbls = np.linspace(self.in_start, self.in_stop, 5)
+        outer_tick_lbls = np.linspace(self.out_stop, self.out_start, 5)
         
-        ax = plt.gca()
-        loc = plticker.MultipleLocator(base=1.0) # this locator puts ticks at regular intervals
-        ax.xaxis.set_major_locator(loc)
-        ax.yaxis.set_major_locator(loc)
-        locs, vals = plt.xticks()
-        plt.xticks(locs, np.linspace(self.in_start, self.in_stop, len(locs)))
-        locs, vals = plt.yticks()
-        plt.yticks(locs, np.linspace(self.out_stop, self.out_start, len(locs)))
+        ax.set_xticks(np.linspace(0, self.res_in-1, 5))
+        ax.set_yticks(np.linspace(0, self.res_out-1, 5))
+        ax.set_xticklabels(inner_tick_lbls)
+        ax.set_yticklabels(outer_tick_lbls)
+
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
 
@@ -452,8 +496,13 @@ class Sweep2D(object):
         
         self.heatmap.set_data(self.heatmap_data)
         self.heatmap.set_clim(self.min_datapt, self.max_datapt)
+        self.heat_fig.canvas.draw()
+        self.heat_fig.canvas.flush_events()
         
     def no_change(self, sweep):
+        """
+        This function is the default update_rule function. It simply runs the same sweep over again.
+        """
         sweep.reset()
     
     def follow_param(self, p):
