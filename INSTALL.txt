@@ -1,4 +1,5 @@
 - Download Anaconda3 https://www.anaconda.com/download/
+- Download Git https://git-scm.com/download/win
 - Download QCoDeS repository 'git clone https://github.com/QCoDeS/Qcodes.git' (will download QCoDeS repository at current location)
 - From Anaconda Prompt, move into QCoDeS repository, and run:
     - conda env create -f environment.yml
