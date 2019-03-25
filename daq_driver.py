@@ -133,6 +133,13 @@ class DaqAOChannel(InstrumentChannel):
         self._value = self.gain * self._voltage
         return (self._value, self.parameters["value"].unit)
     
+    def set_value(self, value):
+        """
+        Sets the voltage to the appropriate value, given the gain.
+        """
+        self._value = value
+        self.set_voltage(self._value/self.gain)
+        
     def get_load_impedance(self):
         """
         Returns the impedance
@@ -194,6 +201,7 @@ class DaqAOChannel(InstrumentChannel):
         self.add_parameter('value',
                            get_cmd=self.get_value,
                            get_parser=float,
+                           set_cmd=self.set_value,
                            label='Voltage * Factor',
                            val=vals.Numbers(0,10000000))
         

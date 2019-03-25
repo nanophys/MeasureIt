@@ -54,7 +54,7 @@ def do_2d_sweep():
     
     # Initialize the database you want to save data to
     try:
-        experimentName = "testexp-2d_4"
+        experimentName = "testexp-2d_5"
         sampleName = "sampletest-2d"
         initialise_or_create_database_at('C:\\Users\\erunb\\MeasureIt\\Databases\\testdatabase.db')
         qc.new_experiment(name=experimentName, sample_name=sampleName)
