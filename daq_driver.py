@@ -181,11 +181,9 @@ class DaqAOChannel(InstrumentChannel):
         # Add a Parameter for the output gain, set the unit to 'V/V' as default
         self.add_parameter('gain',
                            get_cmd=self.get_gain,
-                           get_parser=str,
                            set_cmd=self.set_gain,
                            label='Output Gain',
-                           unit='V/V',
-                           val=vals.Numbers(0,1000)
+                           unit='V/V'
                            )
         
         # Add a Parameter for the output impedance
@@ -200,10 +198,9 @@ class DaqAOChannel(InstrumentChannel):
         # Add a Parameter for the value
         self.add_parameter('value',
                            get_cmd=self.get_value,
-                           get_parser=float,
                            set_cmd=self.set_value,
-                           label='Voltage * Factor',
-                           val=vals.Numbers(0,10000000))
+                           label='Voltage * Factor'
+                           )
         
         # Add a Parameter for the voltage
         self.add_parameter('voltage',
@@ -333,11 +330,9 @@ class DaqAIChannel(InstrumentChannel):
         # Create the Parameter for gain, with default unit 'V/V'
         self.add_parameter('gain',
                            get_cmd=self.get_gain,
-                           get_parser=str,
                            set_cmd=self.set_gain,
                            label='Input Gain',
-                           unit='V/V',
-                           vals=vals.Numbers(0,1000)
+                           unit='V/V'
                            )
         
         # Create the Parameter for impedance
@@ -352,9 +347,8 @@ class DaqAIChannel(InstrumentChannel):
         # Create the Parameter for value, which is the voltage * gain
         self.add_parameter('value',
                            get_cmd=self.get_value,
-                           get_parser=float,
                            label='Voltage * Factor',
-                           vals=vals.Numbers(0,100000000))
+                           set_cmd=self.set_gain)
         
         # Create the Parameter for input voltage
         self.add_parameter('voltage',
