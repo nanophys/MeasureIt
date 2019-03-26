@@ -186,7 +186,7 @@ class Sweep1D(object):
                 
         return 1
             
-    def iterate(self, datasaver, persist_data=None):
+    def iterate(self, datasaver=None, persist_data=None):
         """
         Runs one 'step' in the sweep. Takes in only the datasaver object, which is always
         a Measurement object's run() function (see autorun()). Iterate will update the 
@@ -232,7 +232,8 @@ class Sweep1D(object):
                 self.axes[i].autoscale_view()
         
         # Add this point to the dataset
-        datasaver.add_result(*data)
+        if datasaver is not None:
+            datasaver.add_result(*data)
         
         # Set the plots
         if self.plot is True:        
@@ -243,6 +244,18 @@ class Sweep1D(object):
         # Finally return all data
         return data
     
+    def ramp_to_zero(self):
+        self.stop = 0
+        if self.setpoint - self.step > 0:
+            self.step = (-1) * abs(self.step)
+        else:
+            self.step = abs(self.step)
+            
+        while abs(self.setpoint - self.stop) > abs(self.step/2):
+            self.iterate()
+            
+        self.set_param.set(0)
+        
     def flip_direction(self):
         """
         Flips the direction of the sweep, to do bidirectional sweeping.
@@ -425,7 +438,25 @@ class Sweep2D(object):
         # the outer sweep parameter
         self.inner_sweep.autorun(datasaver, data)
         
-    
+    def ramp_to_zero(self):
+        self.out_stop = 0
+        if self.out_setpoint - self.out_step > 0:
+            self.out_step = (-1) * abs(self.out_step)
+        else:
+            self.out_step = abs(self.out_step)
+        
+        with self.meas.run() as datasaver:
+            self.inner_sweep.ramp_to_zero()
+               
+            while abs(self.out_setpoint - self.out_stop) > abs(self.out_step/2):
+                # Step the setpoint, and update the value
+                self.out_setpoint = self.out_step + self.out_setpoint
+                self.out_param.set(self.out_setpoint)
+        
+                # Pause if desired
+                if self.inter_delay is not None:
+                    time.sleep(self.inter_delay)
+        
     def create_figs(self):
         """
         Creates default figures for each of the parameters. Plots them in a new, separate window.
@@ -588,7 +619,78 @@ class SweepThread(QThread):
                         break
 
 
-
+def FollowPlotParams(object):
+    
+    def __init__(self, params, inter_delay=0.01, save_data=False):
+        self._params = []
+        self.save_data = save_data
+        self.inter_delay = inter_delay
+        self.pause = False
+        
+        for p in params:
+            self._params.append(p)
+        
+        if self.save_data:
+            self._create_measurement()
+        
+        self.create_figs()
+        self.t0 = time.monotonic()
+        
+    def _create_measurement(self):
+        """
+        Creates a QCoDeS Measurement object. This controls the saving of data by registering
+        QCoDeS Parameter objects, which this function does. Registers all 'tracked' parameters, 
+        Returns the measurement object.
+        """
+        
+        self.meas.register_custom_parameter('time', label='Time', unit='s')
+        for p in self._params:
+            self.meas.register_parameter(p, setpoints=('time'))
+            
+        return self.meas
+        
+    def create_figs(self):
+        """
+        Creates default figures for each of the parameters. Plots them in a new, separate window.
+        """
+        
+        self.fig = plt.figure(figsize=(4*(2 + len(self._params)),4))
+        self.grid = plt.GridSpec(4, 1 + len(self._params), hspace=0)
+        self.setax = []
+        self.setaxline=[]
+        
+        for i, p in enumerate(self._params):
+            self.setax.append(self.fig.add_subplot(self.grid[:, i]))
+            # First, create a plot of the sweeping parameters value against time
+            self.setax[i].set_xlabel('Time (s)')
+            self.setax[i].set_ylabel(f'{p.label} ({p.unit})')
+            self.setaxline.append(self.setax[i].plot([], [])[0])
+            
+    def pause(self):
+        self.pause = not self.pause
+        
+    def autorun(self):
+        
+        while self.pause is False:
+            t = time.monotonic() - self.t0
+            
+            data = []
+            data.append(('time', t))
+            
+            for i,p in enumerate(self._params):
+                v = p.get()
+                data.append((p, v))
+                
+                self.setaxline[i].set_xdata(np.append(self.setaxline.get_xdata(), t))
+                self.setaxline[i].set_ydata(np.append(self.setaxline.get_ydata(), v))
+                self.setax[i].relim()
+                self.setax[i].autoscale_view()
+                
+            plt.pause(self.inter_delay)
+        
+        
+        
+        
         
 
 
