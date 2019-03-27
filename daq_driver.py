@@ -182,7 +182,7 @@ class DaqAOChannel(InstrumentChannel):
         self.add_parameter('gain',
                            get_cmd=self.get_gain,
                            set_cmd=self.set_gain,
-                           label='Output Gain',
+                           label=f'{self.name} Gain',
                            unit='V/V'
                            )
         
@@ -191,7 +191,7 @@ class DaqAOChannel(InstrumentChannel):
                            get_cmd=self.get_load_impedance,
                            get_parser=float,
                            set_cmd=self.set_load_impedance,
-                           label='Output Load Impedance',
+                           label=f'{self.name} Load Impedance',
                            vals=vals.Numbers(0,1000)
                            )
         
@@ -207,7 +207,7 @@ class DaqAOChannel(InstrumentChannel):
                            get_cmd=self.get_voltage,
                            get_parser=float,
                            set_cmd=self.set_voltage,
-                           label='Output Voltage',
+                           label=f'{self.name} Voltage',
                            unit='V',
                            val=vals.Numbers(-10,10)
                            )
@@ -331,7 +331,7 @@ class DaqAIChannel(InstrumentChannel):
         self.add_parameter('gain',
                            get_cmd=self.get_gain,
                            set_cmd=self.set_gain,
-                           label='Input Gain',
+                           label=f'{self.name} Gain',
                            unit='V/V'
                            )
         
@@ -340,7 +340,7 @@ class DaqAIChannel(InstrumentChannel):
                            get_cmd=self.get_load_impedance,
                            get_parser=float,
                            set_cmd=self.set_load_impedance,
-                           label='Input Load Impedance',
+                           label=f'{self.name} Load Impedance',
                            vals=vals.Numbers(0,1000)
                            )
         
@@ -354,7 +354,7 @@ class DaqAIChannel(InstrumentChannel):
         self.add_parameter('voltage',
                            get_cmd=self.get_voltage,
                            get_parser=float,
-                           label='Input Voltage',
+                           label=f'{self.name} Voltage',
                            unit='V',
                            vals=vals.Numbers(-10,10)
                            )
