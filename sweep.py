@@ -33,6 +33,12 @@ class Sweep1D(object):
         self.start = start
         self.stop = stop
         self.step = step
+        
+        if (self.stop - self.start) > 0:
+            self.step = abs(self.step)
+        else:
+            self.step = (-1) * abs(self.step)
+            
         self.inter_delay = 1/freq
         self.t0 = time.monotonic()
         self.setpoint = self.start - self.step
@@ -335,10 +341,21 @@ class Sweep2D(object):
         self.in_stop = inner_sweep_parameters[2]
         self.in_step = inner_sweep_parameters[3]
         
+        if (self.in_stop - self.in_start) > 0:
+            self.in_step = abs(self.in_step)
+        else:
+            self.in_step = (-1) * abs(self.in_step)
+            
         self.out_param = outer_sweep_parameters[0]
         self.out_start = outer_sweep_parameters[1]
         self.out_stop = outer_sweep_parameters[2]
         self.out_step = outer_sweep_parameters[3]
+        
+        if (self.out_stop - self.out_start) > 0:
+            self.out_step = abs(self.out_step)
+        else:
+            self.out_step = (-1) * abs(self.out_step)
+        
         self.out_setpoint = self.out_start - self.out_step
         
         self.inter_delay = 1/freq
