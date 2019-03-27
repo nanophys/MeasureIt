@@ -250,11 +250,13 @@ class Sweep1D(object):
             self.step = (-1) * abs(self.step)
         else:
             self.step = abs(self.step)
-            
+        
+        print(f'Ramping {self.set_param.label} to 0 . . . ')
         while abs(self.setpoint - self.stop) > abs(self.step/2):
             self.iterate()
             
         self.set_param.set(0)
+        print(f'Done ramping {self.set_param.label} to 0!')
         
     def flip_direction(self):
         """
@@ -439,23 +441,29 @@ class Sweep2D(object):
         self.inner_sweep.autorun(datasaver, data)
         
     def ramp_to_zero(self):
+        """
+        Ramps the parameter down to 0.
+        """
         self.out_stop = 0
         if self.out_setpoint - self.out_step > 0:
             self.out_step = (-1) * abs(self.out_step)
         else:
             self.out_step = abs(self.out_step)
         
-        with self.meas.run() as datasaver:
-            self.inner_sweep.ramp_to_zero()
-               
-            while abs(self.out_setpoint - self.out_stop) > abs(self.out_step/2):
-                # Step the setpoint, and update the value
-                self.out_setpoint = self.out_step + self.out_setpoint
-                self.out_param.set(self.out_setpoint)
+        self.inner_sweep.ramp_to_zero()
         
-                # Pause if desired
-                if self.inter_delay is not None:
-                    time.sleep(self.inter_delay)
+        print(f'Ramping {self.out_param.label} to 0 . . . ')
+        
+        while abs(self.out_setpoint - self.out_stop) > abs(self.out_step/2):
+            # Step the setpoint, and update the value
+            self.out_setpoint = self.out_step + self.out_setpoint
+            self.out_param.set(self.out_setpoint)
+    
+            # Pause if desired
+            if self.inter_delay is not None:
+                time.sleep(self.inter_delay)
+        
+        print(f'Done ramping {self.out_param.label} to 0!')
         
     def create_figs(self):
         """
