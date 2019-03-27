@@ -91,22 +91,29 @@ class DaqAOChannel(InstrumentChannel):
         voltage, gain, impedance, and value (the multiplication of voltage and gain)
     Defines utility functions for each Parameter.
     """
-    def get_gain(self):
+    def get_gain_factor(self):
         """
         Returns the gain value and the unit conversion (e.g., mA/V) as a tuple.
         """
-        return (self.gain, self.parameters["gain"].unit)
+        return (self.gain, self.parameters["gain factor"].unit)
     
-    def set_gain(self, _gain):
+    def set_gain_factor(self, _gain):
         """
         Sets the gain value and the unit conversion (e.g., uV/V).
         Arguments:
-            _gain = ( value, unit conversion )
+            _gain = value
         """
-        self.gain = _gain[0]
-        self.parameters["gain"].unit=_gain[1]
+        self.gain = _gain
 #        if self.channel != None:
-#            self.channel.ao_gain=_gain
+#            self.channel.ai_gain=_gain
+        
+    def set_gain_units(self, units):
+        """
+        Sets the gain unit conversion (e.g., uV/V).
+        Arguments:
+            units = string for characters
+        """
+        self.parameters["gain factor"].unit=units
         
     def get_voltage(self):
         """
@@ -128,7 +135,7 @@ class DaqAOChannel(InstrumentChannel):
         Returns:
             ( value, unit )
         """
-        parts = self.parameters["gain"].unit.split("/")
+        parts = self.parameters["gain factor"].unit.split("/")
         self.parameters["value"].unit=parts[0]
         self._value = self.gain * self._voltage
         return (self._value, self.parameters["value"].unit)
@@ -179,11 +186,17 @@ class DaqAOChannel(InstrumentChannel):
         self.channel=None
         
         # Add a Parameter for the output gain, set the unit to 'V/V' as default
-        self.add_parameter('gain',
-                           get_cmd=self.get_gain,
-                           set_cmd=self.set_gain,
-                           label=f'{self.name} Gain',
+        self.add_parameter('gain factor',
+                           get_cmd=self.get_gain_factor,
+                           set_cmd=self.set_gain_factor,
+                           label=f'{self.name} Gain factor',
                            unit='V/V'
+                           )
+        
+        # Create the Parameter for the units of gain
+        self.add_parameter('gain units',
+                           set_cmd=self.set_gain_units,
+                           label=f'{self.name} Gain units',
                            )
         
         # Add a Parameter for the output impedance
@@ -255,22 +268,29 @@ class DaqAIChannel(InstrumentChannel):
         voltage, gain, impedance, and value (the multiplication of voltage and gain)
     Defines utility functions for each Parameter.
     """
-    def get_gain(self):
+    def get_gain_factor(self):
         """
         Returns the gain value and the unit conversion (e.g., mA/V) as a tuple.
         """
-        return (self.gain, self.parameters["gain"].unit)
+        return (self.gain, self.parameters["gain factor"].unit)
     
-    def set_gain(self, _gain):
+    def set_gain_factor(self, _gain):
         """
         Sets the gain value and the unit conversion (e.g., uV/V).
         Arguments:
-            _gain = ( value, unit conversion )
+            _gain = value
         """
-        self.gain = _gain[0]
-        self.parameters["gain"].unit=_gain[1]
+        self.gain = _gain
 #        if self.channel != None:
 #            self.channel.ai_gain=_gain
+        
+    def set_gain_units(self, units):
+        """
+        Sets the gain unit conversion (e.g., uV/V).
+        Arguments:
+            units = string for characters
+        """
+        self.parameters["gain"].unit=units
         
     def get_voltage(self):
         """
@@ -286,7 +306,7 @@ class DaqAIChannel(InstrumentChannel):
         Returns:
             ( value, unit )
         """
-        parts = self.parameters["gain"].unit.split("/")
+        parts = self.parameters["gain factor"].unit.split("/")
         self.parameters["value"].unit=parts[0]
         self._value = self.gain * self._voltage
         return (self._value, self.parameters["value"].unit)
@@ -328,11 +348,17 @@ class DaqAIChannel(InstrumentChannel):
         self.channel=None
         
         # Create the Parameter for gain, with default unit 'V/V'
-        self.add_parameter('gain',
-                           get_cmd=self.get_gain,
-                           set_cmd=self.set_gain,
+        self.add_parameter('gain factor',
+                           get_cmd=self.get_gain_factor,
+                           set_cmd=self.set_gain_factor,
                            label=f'{self.name} Gain',
                            unit='V/V'
+                           )
+        
+        # Create the Parameter for the units of gain
+        self.add_parameter('gain units',
+                           set_cmd=self.set_gain_units,
+                           label=f'{self.name} Gain units',
                            )
         
         # Create the Parameter for impedance
@@ -347,8 +373,7 @@ class DaqAIChannel(InstrumentChannel):
         # Create the Parameter for value, which is the voltage * gain
         self.add_parameter('value',
                            get_cmd=self.get_value,
-                           label='Voltage * Factor',
-                           set_cmd=self.set_gain)
+                           label='Voltage * Factor')
         
         # Create the Parameter for input voltage
         self.add_parameter('voltage',
@@ -415,7 +440,7 @@ def main_daq():
     daq=Daq("Dev1","test",2,24)
     print(daq.ai1)
     print(daq.ao1)
-    daq.ao1.set("gain",4)
+    daq.ao1.set("gain factor",4)
     print(daq.ao1.get("gain"))
     writer=nidaqmx.Task()
     reader=nidaqmx.Task()
