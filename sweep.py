@@ -58,6 +58,7 @@ class Sweep1D(object):
         self.auto_figs = auto_figs
         # Sets a flag to ensure that the figures have been created before trying to plot
         self.figs_set = False
+        self.pause = False
         self._sr830s = []
         self._params = []
     
@@ -250,6 +251,12 @@ class Sweep1D(object):
         # Finally return all data
         return data
     
+    def pause_run(self):
+        self.pause = not self.pause
+        
+    def is_paused(self):
+        return self.pause
+        
     def ramp_to_zero(self):
         self.stop = 0
         if self.setpoint - self.step > 0:
@@ -403,6 +410,8 @@ class Sweep2D(object):
         # We want to track the max and min values seen to autorange the heatmap
         self.max_datapt = float("-inf")
         self.min_datapt = float("inf")
+        
+        self.pause = False
     
     def autorun(self, update_rule=None):
         """
@@ -421,7 +430,7 @@ class Sweep2D(object):
         
         with self.meas.run() as datasaver:            
             # Loop until we are done
-            while abs(self.out_setpoint - self.out_stop) > abs(self.out_step/2):
+            while abs(self.out_setpoint - self.out_stop) > abs(self.out_step/2) and self.pause is False:
                 self.iterate(datasaver)
                 
                 self.update_heatmap(self.count)
@@ -481,6 +490,12 @@ class Sweep2D(object):
                 time.sleep(self.inter_delay)
         
         print(f'Done ramping {self.out_param.label} to 0!')
+    
+    def pause_run(self):
+        if self.pause is False:
+            self.pause = True
+        else:
+            self.pause = False
         
     def create_figs(self):
         """
@@ -643,6 +658,53 @@ class SweepThread(QThread):
                         self.completed.emit()
                         break
 
+class SweepThreadGeneric(QThread):
+    """
+    SweepThread uses QThread to separate data taking from the GUI, in order to still run.
+    Written specifically for use in Sweep1DWindow.
+    """
+    # One signal created for when thread is completed
+    completed = pyqtSignal()
+    
+    def __init__(self, sweep, signal_finished_func, datasaver=None, update_func=None):
+        """
+        Initializes the thread. Takes in the parent (which is generally Sweep1DWindow), and the
+        Sweep1D object which is to be used.
+        """
+        self.s = sweep
+        self.ds = datasaver
+        self.update_func = update_func
+        
+        QThread.__init__(self)
+        # Connect our signals to the functions in Sweep1DWindow
+        self.completed.connect(signal_finished_func)
+        
+    def __del__(self):
+        """
+        Standard destructor.
+        """
+        self.wait()
+        
+    def run(self):
+        """
+        Function to run the thread, and thus the sweep.
+        """
+        # Always check to ensure that we want to continue running, aka we haven't paused
+        while self.s.is_paused() is False: 
+            # Iterate the sweep
+            data = self.s.iterate(datasaver)
+            # Tell our parent what the data is, and tell it to update the plot
+            if self.update_func is not None:
+                self.update_func(data[0][1])
+            
+            # Check to see if our break condition has been met.
+            if abs(self.s.setpoint - self.s.stop) <= abs(self.s.step/2):
+                # See if we want to do a bidirectional scan
+                if self.s.bidirectional: 
+                    self.s.flip_direction()
+                else:
+                    self.completed.emit()
+                    break
 
 def FollowPlotParams(object):
     
@@ -691,8 +753,11 @@ def FollowPlotParams(object):
             self.setax[i].set_ylabel(f'{p.label} ({p.unit})')
             self.setaxline.append(self.setax[i].plot([], [])[0])
             
-    def pause(self):
+    def pause_run(self):
         self.pause = not self.pause
+        
+    def is_paused(self):
+        return self.pause
         
     def autorun(self):
         
