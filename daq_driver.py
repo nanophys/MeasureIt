@@ -351,14 +351,14 @@ class DaqAIChannel(InstrumentChannel):
         self.add_parameter('gain factor',
                            get_cmd=self.get_gain_factor,
                            set_cmd=self.set_gain_factor,
-                           label=f'{self.name} Gain',
+                           label=f'{self.name} gain',
                            unit='V/V'
                            )
         
         # Create the Parameter for the units of gain
         self.add_parameter('gain units',
                            set_cmd=self.set_gain_units,
-                           label=f'{self.name} Gain units',
+                           label=f'{self.name} gain units',
                            )
         
         # Create the Parameter for impedance
