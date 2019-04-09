@@ -186,7 +186,7 @@ class DaqAOChannel(InstrumentChannel):
         self.channel=None
         
         # Add a Parameter for the output gain, set the unit to 'V/V' as default
-        self.add_parameter('gain factor',
+        self.add_parameter('gain_factor',
                            get_cmd=self.get_gain_factor,
                            set_cmd=self.set_gain_factor,
                            label=f'{self.name} Gain factor',
@@ -194,7 +194,7 @@ class DaqAOChannel(InstrumentChannel):
                            )
         
         # Create the Parameter for the units of gain
-        self.add_parameter('gain units',
+        self.add_parameter('gain_units',
                            set_cmd=self.set_gain_units,
                            label=f'{self.name} Gain units',
                            )
@@ -348,7 +348,7 @@ class DaqAIChannel(InstrumentChannel):
         self.channel=None
         
         # Create the Parameter for gain, with default unit 'V/V'
-        self.add_parameter('gain factor',
+        self.add_parameter('gain_factor',
                            get_cmd=self.get_gain_factor,
                            set_cmd=self.set_gain_factor,
                            label=f'{self.name} gain',
@@ -356,7 +356,7 @@ class DaqAIChannel(InstrumentChannel):
                            )
         
         # Create the Parameter for the units of gain
-        self.add_parameter('gain units',
+        self.add_parameter('gain_units',
                            set_cmd=self.set_gain_units,
                            label=f'{self.name} gain units',
                            )
