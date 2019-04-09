@@ -706,7 +706,7 @@ class SweepThreadGeneric(QThread):
                     self.completed.emit()
                     break
 
-def FollowPlotParams(object):
+class FollowPlotParams(object):
     
     def __init__(self, params, inter_delay=0.01, save_data=False):
         self._params = []
@@ -760,7 +760,9 @@ def FollowPlotParams(object):
         return self.pause
         
     def autorun(self):
-        
+        if self.save_data:
+            datasaver = self.meas.run()
+            
         while self.pause is False:
             t = time.monotonic() - self.t0
             
@@ -771,10 +773,13 @@ def FollowPlotParams(object):
                 v = p.get()
                 data.append((p, v))
                 
-                self.setaxline[i].set_xdata(np.append(self.setaxline.get_xdata(), t))
-                self.setaxline[i].set_ydata(np.append(self.setaxline.get_ydata(), v))
+                self.setaxline[i].set_xdata(np.append(self.setaxline[i].get_xdata(), t))
+                self.setaxline[i].set_ydata(np.append(self.setaxline[i].get_ydata(), v))
                 self.setax[i].relim()
                 self.setax[i].autoscale_view()
+                
+            if self.save_data:
+                datasaver.add_result(*data)
                 
             plt.pause(self.inter_delay)
         
