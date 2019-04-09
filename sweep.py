@@ -777,6 +777,7 @@ class FollowPlotParams(object):
                 self.setaxline[i].set_ydata(np.append(self.setaxline[i].get_ydata(), v))
                 self.setax[i].relim()
                 self.setax[i].autoscale_view()
+                self.setax[i].tight_layout()
                 
             if self.save_data:
                 datasaver.add_result(*data)
