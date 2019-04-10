@@ -730,9 +730,10 @@ class FollowPlotParams(object):
         Returns the measurement object.
         """
         
+        self.meas = Measurement()
         self.meas.register_custom_parameter('time', label='Time', unit='s')
         for p in self._params:
-            self.meas.register_parameter(p, setpoints=('time'))
+            self.meas.register_parameter(p)
             
         return self.meas
         
@@ -761,28 +762,27 @@ class FollowPlotParams(object):
         
     def autorun(self):
         if self.save_data:
-            datasaver = self.meas.run()
+            with self.meas.run() as datasaver:
             
-        while self.pause is False:
-            t = time.monotonic() - self.t0
+                while self.pause is False:
+                    t = time.monotonic() - self.t0
             
-            data = []
-            data.append(('time', t))
+                    data = []
+                    data.append(('time', t))
             
-            for i,p in enumerate(self._params):
-                v = p.get()
-                data.append((p, v))
+                    for i,p in enumerate(self._params):
+                        v = p.get()
+                        data.append((p, v))
                 
-                self.setaxline[i].set_xdata(np.append(self.setaxline[i].get_xdata(), t))
-                self.setaxline[i].set_ydata(np.append(self.setaxline[i].get_ydata(), v))
-                self.setax[i].relim()
-                self.setax[i].autoscale_view()
-                self.setax[i].tight_layout()
+                        self.setaxline[i].set_xdata(np.append(self.setaxline[i].get_xdata(), t))
+                        self.setaxline[i].set_ydata(np.append(self.setaxline[i].get_ydata(), v))
+                        self.setax[i].relim()
+                        self.setax[i].autoscale_view()
                 
-            if self.save_data:
-                datasaver.add_result(*data)
+                    if self.save_data:
+                        datasaver.add_result(*data)
                 
-            plt.pause(self.inter_delay)
+                    plt.pause(self.inter_delay)
         
         
         
