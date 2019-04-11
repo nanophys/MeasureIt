@@ -52,32 +52,9 @@ class BaseSweep(object):
     def stop(self):
         self.is_running = False
         
-    def update_values(self, datasaver = None):
-        t = time.monotonic() - self.t0
-
-        data = []
-        data.append(('time', t))
-
-        if self.set_param is not None:
-            data.append(self.step_param())
-            
-        for i,p in enumerate(self._params):
-            v = p.get()
-            data.append((p, v))
+    def is_running(self):
+        return self.is_running
     
-        if self.save_data:
-            datasaver.add_result(*data)
-      
-        return data
-        
-class Sweep0D(BaseSweep):
-    
-    def __init__(self, runner = None, plotter = None, set_param = None, inter_delay = 0.01, save_data = False):
-        super().__init__(set_param, inter_delay, save_data)
-        
-        self.runner = runner
-        self.plotter = plotter
-
     def start(self):
         if self.plotter is None:
             self.plotter = PlotterThread(self)
@@ -92,7 +69,35 @@ class Sweep0D(BaseSweep):
         self.plotter.start()
         self.runner.start()
         
- class Sweep1D(BaseSweep):
+    def update_values(self, datasaver = None):
+        t = time.monotonic() - self.t0
+
+        data = []
+        data.append(('time', t))
+
+        if self.set_param is not None:
+            data.append(self.step_param())
+            
+        for i,p in enumerate(self._params):
+            v = p.get()
+            data.append((p, v))
+    
+        if self.save_data and self.is_running():
+            datasaver.add_result(*data)
+      
+        return data
+        
+
+class Sweep0D(BaseSweep):
+    
+    def __init__(self, runner = None, plotter = None, set_param = None, inter_delay = 0.01, save_data = False):
+        super().__init__(set_param, inter_delay, save_data)
+        
+        self.runner = runner
+        self.plotter = plotter
+ 
+       
+class Sweep1D(BaseSweep):
     
     def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, 
                  inter_delay = 0.01, save_data = False):
@@ -111,30 +116,24 @@ class Sweep0D(BaseSweep):
         self.bidirectional = bidirectional
         self.runner = runner
         self.plotter = plotter
-
-    def start(self):
-        if self.plotter is None:
-            self.plotter = PlotterThread(self)
-            self.plotter.create_figs()
-        
-        if self.runner is None:
-            self.runner = RunnerThread(self)
-            self.runner.add_plotter(self.plotter)
-        
-        self.is_running = True
-        
-        self.plotter.start()
-        self.runner.start()       
+        self.direction = 0    
     
+    def start(self):
+        print(f"Ramping {self.set_param.label} to {self.setpoint} {self.set_param.unit}")
+        super().start()
+        
     def step_param(self):
         if abs(self.setpoint - self.stop) > abs(self.step/2):
-                self.setpoint = self.setpoint + self.step
+            self.setpoint = self.setpoint + self.step
+            return (self.set_param, self.set_param.get())
         # If we want to go both ways, we flip the start and stop, and run again
-        if self.bidirectional:
+        elif self.bidirectional:
             self.flip_direction()
-            while abs(self.setpoint - self.stop) > abs(self.step/2):
-                self.iterate(datasaver, persist_data)
-                self.flip_direction()
+            return (self.set_param, self.set_param.get())
+        else:
+            self.is_running = False
+            print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
+            return (self.set_param, -1)
                 
     def flip_direction(self):
         """
@@ -154,17 +153,13 @@ class Sweep0D(BaseSweep):
     
     def ramp_to_zero(self):
         self.stop = 0
-        if self.setpoint - self.step > 0:
+        if self.setpoint - self.stop > 0:
             self.step = (-1) * abs(self.step)
         else:
             self.step = abs(self.step)
         
         print(f'Ramping {self.set_param.label} to 0 . . . ')
-        while abs(self.setpoint - self.stop) > abs(self.step/2):
-            self.iterate()
-            
-        self.set_param.set(0)
-        print(f'Done ramping {self.set_param.label} to 0!')
+        self.start()
         
     def reset(self, new_params=None):
         """
@@ -174,6 +169,7 @@ class Sweep0D(BaseSweep):
             new_params - list of 4 values to determine how we sweep. In order, 
                          must be [ start value, stop value, step, frequency ]
         """
+        
         # Set our new values if desired
         if new_params is not None:
             self.start = new_params[0]
@@ -210,11 +206,13 @@ class RunnerThread(QThread):
             with self.sweep.meas.run() as datasaver:
                 while self.sweep.is_running() is True:            
                     data = self.sweep.update_values(datasaver)
-                    self.plotter.add_data_to_queue(data)
+                    if self.sweep.is_running() is True:
+                        self.plotter.add_data_to_queue(data)
 
         else:    
             while self.sweep.is_running() is True:            
-                    data = self.sweep.update_values()
+                data = self.sweep.update_values()
+                if self.sweep.is_running() is True:
                     self.plotter.add_data_to_queue(data)
     
     
