@@ -471,7 +471,7 @@ class Sweep2D(object):
         Ramps the parameter down to 0.
         """
         self.out_stop = 0
-        if self.out_setpoint - self.out_step > 0:
+        if self.out_setpoint - self.out_stop > 0:
             self.out_step = (-1) * abs(self.out_step)
         else:
             self.out_step = abs(self.out_step)
@@ -706,6 +706,25 @@ class SweepThreadGeneric(QThread):
                     self.completed.emit()
                     break
 
+class RunnerThread(QThread):
+    
+    completed = pyqtSignal()
+    
+    def __init__(self, sweep):
+        self.sweep = sweep
+        
+    def __del__(self):
+        """
+        Standard destructor.
+        """
+        self.wait()
+        
+    def run(self):
+        with self.sweep.meas.run() as datasaver:
+            while self.sweep.is_running() is True:            
+                data = self.sweep.iterate(datasaver)
+                
+
 class FollowPlotParams(object):
     
     def __init__(self, params, inter_delay=0.01, save_data=False):
@@ -784,7 +803,25 @@ class FollowPlotParams(object):
                 
                     plt.pause(self.inter_delay)
         
-        
+    def iterate(self):
+        t = time.monotonic() - self.t0
+
+        data = []
+        data.append(('time', t))
+
+        for i,p in enumerate(self._params):
+            v = p.get()
+            data.append((p, v))
+    
+            self.setaxline[i].set_xdata(np.append(self.setaxline[i].get_xdata(), t))
+            self.setaxline[i].set_ydata(np.append(self.setaxline[i].get_ydata(), v))
+            self.setax[i].relim()
+            self.setax[i].autoscale_view()
+    
+        if self.save_data:
+            datasaver.add_result(*data)
+    
+        plt.pause(self.inter_delay)
         
         
         
