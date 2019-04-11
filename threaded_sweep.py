@@ -52,7 +52,7 @@ class BaseSweep(object):
     def stop(self):
         self.is_running = False
         
-    def is_running(self):
+    def check_running(self):
         return self.is_running
     
     def start(self):
@@ -82,9 +82,11 @@ class BaseSweep(object):
             v = p.get()
             data.append((p, v))
     
-        if self.save_data and self.is_running():
+        if self.save_data and self.is_running:
             datasaver.add_result(*data)
-      
+        
+#        print("got data : ")
+#        print(data)
         return data
         
 
@@ -103,28 +105,29 @@ class Sweep1D(BaseSweep):
                  inter_delay = 0.01, save_data = False):
         super().__init__(set_param, inter_delay, save_data)
         
-        self.start = start
-        self.stop = stop
+        self.begin = start
+        self.end = stop
         self.step = step
         
-        if (self.stop - self.start) > 0:
+        if (self.end - self.begin) > 0:
             self.step = abs(self.step)
         else:
             self.step = (-1) * abs(self.step)
         
-        self.setpoint = self.start - self.step
+        self.setpoint = self.begin - self.step
         self.bidirectional = bidirectional
         self.runner = runner
         self.plotter = plotter
         self.direction = 0    
     
     def start(self):
-        print(f"Ramping {self.set_param.label} to {self.setpoint} {self.set_param.unit}")
+        print(f"Ramping {self.set_param.label} to {self.end} {self.set_param.unit}")
         super().start()
         
     def step_param(self):
-        if abs(self.setpoint - self.stop) > abs(self.step/2):
+        if abs(self.setpoint - self.end) > abs(self.step/2):
             self.setpoint = self.setpoint + self.step
+            self.set_param.set(self.setpoint)
             return (self.set_param, self.set_param.get())
         # If we want to go both ways, we flip the start and stop, and run again
         elif self.bidirectional:
@@ -139,9 +142,9 @@ class Sweep1D(BaseSweep):
         """
         Flips the direction of the sweep, to do bidirectional sweeping.
         """
-        temp = self.start
-        self.start = self.stop
-        self.stop = temp
+        temp = self.begin
+        self.begin = self.end
+        self.end = temp
         self.step = -1 * self.step
         self.setpoint -= self.step
         
@@ -152,8 +155,8 @@ class Sweep1D(BaseSweep):
             self.direction = 1
     
     def ramp_to_zero(self):
-        self.stop = 0
-        if self.setpoint - self.stop > 0:
+        self.end = 0
+        if self.setpoint - self.end > 0:
             self.step = (-1) * abs(self.step)
         else:
             self.step = abs(self.step)
@@ -172,13 +175,13 @@ class Sweep1D(BaseSweep):
         
         # Set our new values if desired
         if new_params is not None:
-            self.start = new_params[0]
-            self.stop = new_params[1]
+            self.begin = new_params[0]
+            self.end = new_params[1]
             self.step = new_params[2]
             self.inter_delay = 1/new_params[3]
 
         # Reset our setpoint
-        self.setpoint = self.start - self.step
+        self.setpoint = self.begin - self.step
         
         # Reset our plots
         self.plotter.reset()
@@ -192,6 +195,8 @@ class RunnerThread(QThread):
         self.sweep = sweep
         self.plotter = None
         
+        QThread.__init__(self)
+        
     def __del__(self):
         """
         Standard destructor.
@@ -204,15 +209,15 @@ class RunnerThread(QThread):
     def run(self):
         if self.sweep.save_data is True:
             with self.sweep.meas.run() as datasaver:
-                while self.sweep.is_running() is True:            
+                while self.sweep.is_running is True:            
                     data = self.sweep.update_values(datasaver)
-                    if self.sweep.is_running() is True:
+                    if self.sweep.is_running is True:
                         self.plotter.add_data_to_queue(data)
 
         else:    
-            while self.sweep.is_running() is True:            
+            while self.sweep.is_running is True:            
                 data = self.sweep.update_values()
-                if self.sweep.is_running() is True:
+                if self.sweep.is_running is True:
                     self.plotter.add_data_to_queue(data)
     
     
@@ -228,6 +233,8 @@ class PlotterThread(QThread):
         self.setax = setax
         self.axesline = axesline
         self.axes = axes
+        
+        QThread.__init__(self)
         
     def __del__(self):
         """
@@ -245,8 +252,17 @@ class PlotterThread(QThread):
         self.axes = []
         self.axesline=[]
         
+        if self.sweep.set_param is not None:
+            self.setax = self.fig.add_subplot(self.grid[:,0])
+            self.setax.set_xlabel('Time (s)')
+            self.setax.set_ylabel(f'{self.sweep.set_param.label} ({self.sweep.set_param.unit})')
+            self.setaxline = self.setax.plot([], [])[0]
+            
         for i, p in enumerate(self.sweep._params):
-            self.axes.append(self.fig.add_subplot(self.grid[:, i]))
+            pos = i
+            if self.sweep.set_param is not None:
+                pos += 1
+            self.axes.append(self.fig.add_subplot(self.grid[:, pos]))
             # Create a plot of the sweeping parameters value against time
             self.axes[i].set_xlabel('Time (s)')
             self.axes[i].set_ylabel(f'{p.label} ({p.unit})')
@@ -256,7 +272,7 @@ class PlotterThread(QThread):
         self.data_queue.append(data)
         
     def run(self):
-        while self.sweep.is_running() is True:
+        while self.sweep.is_running is True:
             t = time.monotonic()
             
             while len(self.data_queue) > 0:
@@ -277,6 +293,8 @@ class PlotterThread(QThread):
                     self.axes[i].relim()
                     self.axes[i].autoscale_view()
     
+            self.fig.tight_layout()
+            self.fig.canvas.draw()
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
             if sleep_time > 0:
                 time.sleep(sleep_time)
