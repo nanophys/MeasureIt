@@ -9,25 +9,45 @@ from matplotlib.ticker import ScalarFormatter
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import qcodes as qc
 from qcodes.dataset.measurements import Measurement
+from qcodes.dataset.database import initialise_or_create_database_at
 from IPython import display
 from PyQt5.QtCore import QThread, pyqtSignal
 import matplotlib.ticker as plticker
 from collections import deque
 
 class BaseSweep(object):
-    
-    def __init__(self, set_param = None, inter_delay = 0.01, save_data = False):
+    """
+    This is the base class for the 0D (tracking) sweep class and the 1D sweep class. Each of these functions
+    is used by both classes.
+    """
+    def __init__(self, set_param = None, inter_delay = 0.01, save_data = False, plot_data = True):
+        """
+        Initializer for both classes, called by super().__init__() in Sweep0D and Sweep1D classes.
+        Simply initializes the variables and flags.
+        
+        Arguments:
+            set_param - QCoDeS Parameter to be swept
+            inter_delay - Time (in seconds) to wait between data points
+            save_data - Flag used to determine if the data should be saved or not
+            plot_data - Flag to determine if we should live-plot data
+        """
         self._params = []
         self.set_param = set_param
         self.inter_delay = 0.01
         self.save_data = save_data
+        self.plot_data = plot_data
         
         self.is_running = False
         self.t0 = time.monotonic()
         
     def follow_param(self, *p):
         """
-        This function takes in a QCoDeS Parameter p, and tracks it through each sweep.
+        This function saves parameters to be tracked, for both saving and plotting data.
+        The parameters must be followed before '_create_measurement()' is called.
+        
+        Arguments:
+            *p - Variable number of arguments, each of which must be a QCoDeS Parameter
+                 that you want the sweep to follow
         """
         for param in p:
             self._params.append(param)
@@ -37,39 +57,75 @@ class BaseSweep(object):
         Creates a QCoDeS Measurement object. This controls the saving of data by registering
         QCoDeS Parameter objects, which this function does. Registers all 'tracked' parameters, 
         Returns the measurement object.
+        This function will register only parameters that are followed BEFORE this function is
+        called.
         """
         
+        # First, create time parameter
         self.meas = Measurement()
         self.meas.register_custom_parameter('time', label='Time', unit='s')
         
+        # Check if we are 'setting' a parameter, and register it
         if self.set_param is not None:
             self.meas.register_parameter(self.set_param)
+        # Register all parameters we are following
         for p in self._params:
             self.meas.register_parameter(p)
             
         return self.meas
     
     def stop(self):
+        """
+        Stops/pauses the program from running by setting the 'is_running' flag to false. This is
+        the flag that the children threads check in their loop to determine if they should
+        continue running.
+        """
         self.is_running = False
         
     def check_running(self):
+        """
+        Returns the status of the sweep.
+        """
         return self.is_running
     
     def start(self):
-        if self.plotter is None:
+        """
+        Starts the sweep by creating and running the worker threads. Used to both start the 
+        program and unpause after calling 'stop()'
+        """
+        
+        # If we don't have a plotter yet want to plot, create it and the figures
+        if self.plotter is None and self.plot_data is True:
             self.plotter = PlotterThread(self)
             self.plotter.create_figs()
         
+        # If we don't have a runner, create it and tell it of the plotter,
+        # which is where it will send data to be plotted
         if self.runner is None:
             self.runner = RunnerThread(self)
             self.runner.add_plotter(self.plotter)
         
+        # Flag that we are now running.
         self.is_running = True
         
+        # Tells the threads to begin
         self.plotter.start()
         self.runner.start()
         
     def update_values(self, datasaver = None):
+        """
+        Iterates our data points, changing our setpoint if we are sweeping, and refreshing
+        the values of all our followed parameters. If we are saving data, it happens here,
+        and the data is returned.
+        
+        Arguments:
+            datasaver (optional) - Data saving object-- usually an instance of Measurement.run()
+                                   from a runner thread
+        Returns:
+            data - A list of tuples with the new data. Each tuple is of the format 
+                   (<QCoDeS Parameter>, measurement value). The tuples are passed in order of
+                   time, then set_param (if applicable), then all the followed params.
+        """
         t = time.monotonic() - self.t0
 
         data = []
@@ -85,24 +141,37 @@ class BaseSweep(object):
         if self.save_data and self.is_running:
             datasaver.add_result(*data)
         
-#        print("got data : ")
-#        print(data)
         return data
         
 
 class Sweep0D(BaseSweep):
-    
+    """
+    Class for the following/live plotting, i.e. "0-D sweep" class. As of now, is just an extension of
+    BaseSweep, but has been separated for future convenience.
+    """
     def __init__(self, runner = None, plotter = None, set_param = None, inter_delay = 0.01, save_data = False):
+        """
+        Initialization class. Simply calls the BaseSweep initialization, and saves a few extra variables.
+        
+        Arguments (distinct from BaseSweep):
+            runner - RunnerThread object, if prepared ahead of time, i.e. if a GUI is creating these first.
+            plotter - PlotterThread object, passed if a GUI has plots it wants the thread to use instead
+                      of creating it's own automatically.
+        """
         super().__init__(set_param, inter_delay, save_data)
         
         self.runner = runner
         self.plotter = plotter
+        # Direction variable, not used here, but kept to maintain consistency with Sweep1D.
+        self.direction = 0
  
        
 class Sweep1D(BaseSweep):
     
+    completed = pyqtSignal()
+    
     def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, 
-                 inter_delay = 0.01, save_data = False):
+                 inter_delay = 0.01, save_data = False, complete_func = None):
         super().__init__(set_param, inter_delay, save_data)
         
         self.begin = start
@@ -119,6 +188,11 @@ class Sweep1D(BaseSweep):
         self.runner = runner
         self.plotter = plotter
         self.direction = 0    
+        
+        if complete_func is not None:
+            self.completed.connect(complete_func)
+        else:
+            self.completed.connect(self.no_change)
     
     def start(self):
         print(f"Ramping {self.set_param.label} to {self.end} {self.set_param.unit}")
@@ -136,6 +210,7 @@ class Sweep1D(BaseSweep):
         else:
             self.is_running = False
             print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
+            self.completed.emit()
             return (self.set_param, -1)
                 
     def flip_direction(self):
@@ -163,7 +238,10 @@ class Sweep1D(BaseSweep):
         
         print(f'Ramping {self.set_param.label} to 0 . . . ')
         self.start()
-        
+    
+    def no_change(self):
+        pass
+    
     def reset(self, new_params=None):
         """
         Resets the Sweep1D to reuse the same object with the same plots.
@@ -184,14 +262,24 @@ class Sweep1D(BaseSweep):
         self.setpoint = self.begin - self.step
         
         # Reset our plots
-        self.plotter.reset()
+        self.plotter = None
+        self.runner = None
         
         
 class RunnerThread(QThread):
-    
-    completed = pyqtSignal()
+    """
+    Class to separate to a new thread the communications with the instruments.
+    """
     
     def __init__(self, sweep):
+        """
+        Initializes the object by taking in the parent sweep object, initializing the 
+        plotter object, and calling the QThread initialization.
+        
+        Arguments:
+            sweep - Object of type BaseSweep (or its children) that is controlling
+                    this thread
+        """
         self.sweep = sweep
         self.plotter = None
         
@@ -204,20 +292,49 @@ class RunnerThread(QThread):
         self.wait()
     
     def add_plotter(self, plotter):
+        """
+        Adds the PlotterThread object, so the Runner knows where to send the new
+        data for plotting.
+        
+        Arguments:
+            plotter - PlotterThread object, should be same plotter created by parent
+                      sweep
+        """
         self.plotter = plotter
         
+    def _set_parent(self, sweep):
+        """
+        Function to tell the runner who the parent is, if created independently.
+        
+        Arguments:
+            sweep - Object of type BaseSweep, that Runner will be taking data for
+        """
+        self.sweep = sweep
+        
     def run(self):
+        """
+        Function that is called when new thread is created. NOTE: start() is called
+        externally to start the thread, but run() defines the behavior of the thread.
+        Iterates the sweep, then hands the data to the plotter for live plotting.
+        """
+        # Check if we want to save the data
         if self.sweep.save_data is True:
+            # Create the datasaver
             with self.sweep.meas.run() as datasaver:
-                while self.sweep.is_running is True:            
+                # Check if we are still running
+                while self.sweep.is_running is True:
+                    # Get the new data
                     data = self.sweep.update_values(datasaver)
-                    if self.sweep.is_running is True:
+                    # Send it to the plotter if we are going
+                    # Note: we check again if running, because we won't know if we are
+                    # done until we try to step the parameter once more
+                    if self.sweep.is_running is True and self.plotter is not None:
                         self.plotter.add_data_to_queue(data)
-
+        # Do the same thing, without saving the data
         else:    
             while self.sweep.is_running is True:            
                 data = self.sweep.update_values()
-                if self.sweep.is_running is True:
+                if self.sweep.is_running is True and self.plotter is not None:
                     self.plotter.add_data_to_queue(data)
     
     
@@ -266,7 +383,13 @@ class PlotterThread(QThread):
             # Create a plot of the sweeping parameters value against time
             self.axes[i].set_xlabel('Time (s)')
             self.axes[i].set_ylabel(f'{p.label} ({p.unit})')
-            self.axesline.append(self.axes[i].plot([], [])[0])
+            forward_line = matplotlib.lines.Line2D([],[])
+            forward_line.set_color('b')
+            backward_line = matplotlib.lines.Line2D([],[])
+            backward_line.set_color('r')
+            self.axes[i].add_line(forward_line)
+            self.axes[i].add_line(backward_line)
+            self.axesline.append((forward_line, backward_line))
             
     def add_data_to_queue(self, data):
         self.data_queue.append(data)
@@ -288,8 +411,8 @@ class PlotterThread(QThread):
                     self.setax.autoscale_view()
                     
                 for i,data_pair in enumerate(data):                
-                    self.axesline[i].set_xdata(np.append(self.axesline[i].get_xdata(), time_data[1]))
-                    self.axesline[i].set_ydata(np.append(self.axesline[i].get_ydata(), data_pair[1]))
+                    self.axesline[i][self.sweep.direction].set_xdata(np.append(self.axesline[i].get_xdata(), time_data[1]))
+                    self.axesline[i][self.sweep.direction].set_ydata(np.append(self.axesline[i].get_ydata(), data_pair[1]))
                     self.axes[i].relim()
                     self.axes[i].autoscale_view()
     
@@ -312,13 +435,104 @@ class PlotterThread(QThread):
             self.axes[i].autoscale_view()
 
     
+class SweepQueue(object):
+    """
+    SweepQueue is a modifieded double-ended queue (deque) object meant for continuously
+    running different sweeps. 
+    """
+    def __init__(self):
+        self.queue = deque([])
+        self.current_sweep = None
+        self.database = None
+        self.exp_name = ""
+        self.sample_name = ""
     
+    def append(self, sweep : BaseSweep):
+        self.queue.append(sweep)
+        
+    def start(self):
+        if len(self.queue) == 0:
+            print("No sweeps loaded!")
+            return
+        
+        print(f"Starting sweeps")
+        self.current_sweep = self.queue.popleft()
+        self.set_database()
+        print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
+              {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
+        self.current_sweep.start()
+        
+    def begin_next(self):
+        print(f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
+              {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
+        
+        if len(self.queue) > 0:
+            self.current_sweep = self.queue.popleft()
+            self.set_database()
+            print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
+                  {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
+            self.current_sweep.start()
+        else:
+            print("Finished all sweeps!")
     
+    def load_database_info(self, db, exps, samples):
+        if isinstance(db, list):
+            self.database = deque(db)
+        elif isinstance(db, str):
+            self.database = db
+        else:
+            print("Database info loaded incorrectly!")
+            
+        if isinstance(exps, list):
+            self.exp_name = deque(exps)
+        elif isinstance(exps, str):
+            self.exp_name = exps
+        else:
+            print("Database info loaded incorrectly!")
+            
+        if isinstance(samples, list):
+            self.sample_name = deque(samples)
+        elif isinstance(samples, str):
+            self.sample_name = samples
+        else:
+            print("Database info loaded incorrectly!")
     
+    def set_database(self):
+        db = ""
+        if isinstance(self.database, str):
+            db = self.database
+        elif isinstance(self.database, deque):
+            db = self.database.popleft()
+            
+        sample = ""
+        if isinstance(self.sample_name, str):
+            sample = self.sample_name
+        elif isinstance(self.sample_name, deque):
+            sample = self.sample_name.popleft()
     
-    
-    
-    
-    
-    
-    
+        exp = ""
+        if isinstance(self.exp_name, str):
+            exp = self.exp_name
+        elif isinstance(self.exp_name, deque):
+            exp = self.exp_name.popleft()
+        
+        try:
+            initialise_or_create_database_at('C:\\Users\\Nanouser\\Documents\\MeasureIt\\Databases\\' + db + '.db')
+            qc.new_experiment(name=exp, sample_name=sample)
+        except:
+            print("Database info loaded incorrectly!")
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
