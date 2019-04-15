@@ -664,8 +664,10 @@ class PlotterThread(QThread):
         self.setax.autoscale_view()
         
         for i,p in enumerate(self.sweep._params):
-            self.axes[i].set_xdata(np.array([]))
-            self.axes[i].set_ydata(np.array([]))
+            self.axes[i][0].set_xdata(np.array([]))
+            self.axes[i][0].set_ydata(np.array([]))
+            self.axes[i][1].set_xdata(np.array([]))
+            self.axes[i][1].set_ydata(np.array([]))
             self.axes[i].relim()
             self.axes[i].autoscale_view()
 
