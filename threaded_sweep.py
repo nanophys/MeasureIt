@@ -1,18 +1,13 @@
 #threaded_sweeps.py
 
-import io
 import time
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.ticker import ScalarFormatter
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 import qcodes as qc
 from qcodes.dataset.measurements import Measurement
 from qcodes.dataset.database import initialise_or_create_database_at
-from IPython import display
 from PyQt5.QtCore import QThread, pyqtSignal
-import matplotlib.ticker as plticker
 from collections import deque
 
 class BaseSweep(object):
@@ -167,17 +162,32 @@ class Sweep0D(BaseSweep):
  
        
 class Sweep1D(BaseSweep):
-    
+    """
+    Class extending BaseSweep to sweep one parameter.
+    """
+    # Signal for when the sweep is completed
     completed = pyqtSignal()
     
     def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, 
                  inter_delay = 0.01, save_data = False, complete_func = None):
+        """
+        Initializes the sweep. There are only 5 new arguments to read in.
+        
+        New arguments:
+            set param - parameter to be swept
+            start - value to start the sweep at
+            stop - value to stop the sweep at
+            step - step spacing for each measurement
+            complete_func - optional function to be called when the sweep is finished
+        """
+        # Initialize the BaseSweep
         super().__init__(set_param, inter_delay, save_data)
         
         self.begin = start
         self.end = stop
         self.step = step
         
+        # Make sure the step is in the right direction
         if (self.end - self.begin) > 0:
             self.step = abs(self.step)
         else:
@@ -189,24 +199,33 @@ class Sweep1D(BaseSweep):
         self.plotter = plotter
         self.direction = 0    
         
+        # Set the function to call when we are finished
         if complete_func is not None:
             self.completed.connect(complete_func)
         else:
             self.completed.connect(self.no_change)
     
     def start(self):
+        """
+        Starts the sweep. Runs from the BaseSweep start() function.
+        """
         print(f"Ramping {self.set_param.label} to {self.end} {self.set_param.unit}")
         super().start()
         
     def step_param(self):
+        """
+        Iterates the parameter.
+        """
+        # If we aren't at the end, keep going
         if abs(self.setpoint - self.end) > abs(self.step/2):
             self.setpoint = self.setpoint + self.step
             self.set_param.set(self.setpoint)
             return (self.set_param, self.set_param.get())
         # If we want to go both ways, we flip the start and stop, and run again
-        elif self.bidirectional:
+        elif self.bidirectional and self.direction == 0:
             self.flip_direction()
             return (self.set_param, self.set_param.get())
+        # If neither of the above are triggered, it means we are at the end of the sweep
         else:
             self.is_running = False
             print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
@@ -230,6 +249,9 @@ class Sweep1D(BaseSweep):
             self.direction = 1
     
     def ramp_to_zero(self):
+        """
+        Ramps the set_param to 0, at the same rate as already specified.
+        """
         self.end = 0
         if self.setpoint - self.end > 0:
             self.step = (-1) * abs(self.step)
@@ -239,7 +261,20 @@ class Sweep1D(BaseSweep):
         print(f'Ramping {self.set_param.label} to 0 . . . ')
         self.start()
     
+    def set_complete_func(self, func):
+        """
+        Defines the function to call when finished.
+        
+        Arguments:
+            func - function to call
+        """
+        self.completed.connect(func)
+        
     def no_change(self):
+        """
+        This function is passed when we don't need to connect a function when the 
+        sweep is completed.
+        """
         pass
     
     def reset(self, new_params=None):
@@ -342,8 +377,22 @@ class RunnerThread(QThread):
     
     
 class PlotterThread(QThread):
-    
+    """
+    Thread to control the plotting of a sweep of class BaseSweep. Gets the data
+    from the RunnerThread to plot.
+    """
     def __init__(self, sweep, setaxline=None, setax=None, axesline=None, axes=[]):
+        """
+        Initializes the thread. Takes in the parent sweep and the figure information if you want
+        to use an already-created plot.
+        
+        Arguments:
+            sweep - the parent sweep object
+            setaxline - optional argument (Line2D) for a plot that already exists that you want to use
+            setax - optional argument of type subplot for the setaxes
+            axesline - same as above for following params
+            axes - same as above for following params
+        """
         self.sweep = sweep
         self.data_queue = deque([])
         self.setaxline = setaxline
@@ -363,18 +412,19 @@ class PlotterThread(QThread):
         """
         Creates default figures for each of the parameters. Plots them in a new, separate window.
         """
-        
         self.fig = plt.figure(figsize=(4*(2 + len(self.sweep._params)),4))
         self.grid = plt.GridSpec(4, 1 + len(self.sweep._params), hspace=0)
         self.axes = []
         self.axesline=[]
         
+        # Create the set_param plots 
         if self.sweep.set_param is not None:
             self.setax = self.fig.add_subplot(self.grid[:,0])
             self.setax.set_xlabel('Time (s)')
             self.setax.set_ylabel(f'{self.sweep.set_param.label} ({self.sweep.set_param.unit})')
             self.setaxline = self.setax.plot([], [])[0]
             
+        # Create the following params plots
         for i, p in enumerate(self.sweep._params):
             pos = i
             if self.sweep.set_param is not None:
@@ -392,24 +442,39 @@ class PlotterThread(QThread):
             self.axesline.append((forward_line, backward_line))
             
     def add_data_to_queue(self, data):
+        """
+        Grabs the data to plot.
+        
+        Arguments:
+            data - list of tuples to plot
+        """
         self.data_queue.append(data)
         
     def run(self):
+        """
+        Actual function to run, that controls the plotting of the data.
+        """
+        # Run while the sweep is running
         while self.sweep.is_running is True:
             t = time.monotonic()
             
+            # Remove all the data points from the deque
             while len(self.data_queue) > 0:
                 data = deque(self.data_queue.popleft())
                 
+                # Grab the time data 
                 time_data = data.popleft()
                 
+                # Grab and plot the set_param if we are driving one
                 if self.sweep.set_param is not None:
                     set_param_data = data.popleft()
+                    # Plot as a function of time
                     self.setaxline.set_xdata(np.append(self.setaxline.get_xdata(), time_data[1]))
                     self.setaxline.set_ydata(np.append(self.setaxline.get_ydata(), set_param_data[1]))
                     self.setax.relim()
                     self.setax.autoscale_view()
                     
+                # Now, grab the rest of the following param data
                 for i,data_pair in enumerate(data):                
                     self.axesline[i][self.sweep.direction].set_xdata(np.append(self.axesline[i].get_xdata(), time_data[1]))
                     self.axesline[i][self.sweep.direction].set_ydata(np.append(self.axesline[i].get_ydata(), data_pair[1]))
@@ -418,11 +483,16 @@ class PlotterThread(QThread):
     
             self.fig.tight_layout()
             self.fig.canvas.draw()
+            # Smart sleep, by checking if the whole process has taken longer than
+            # our sleep time
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
     def reset(self):
+        """
+        Resets all the plots
+        """
         self.setaxline.set_xdata(np.array([]))
         self.setaxline.set_ydata(np.array([]))
         self.setax.relim()
@@ -441,28 +511,51 @@ class SweepQueue(object):
     running different sweeps. 
     """
     def __init__(self):
+        """
+        Initializes the variables needed
+        """
         self.queue = deque([])
+        # Pointer to the sweep currently running
         self.current_sweep = None
+        # Database information. Can be updated for each run.
         self.database = None
         self.exp_name = ""
         self.sample_name = ""
     
     def append(self, sweep : BaseSweep):
+        """
+        Adds a sweep to the queue.
+        
+        Arguments:
+            sweep - BaseSweep object to be added to queue
+        """
+        # Set the finished signal to call the begin_next() function here
+        sweep.set_complete_func(self.begin_next)
+        # Add it to the queue
         self.queue.append(sweep)
         
     def start(self):
+        """
+        Starts the sweep. Takes the leftmost object in the queue and starts it.
+        """
+        # Check that there is something in the queue to run
         if len(self.queue) == 0:
             print("No sweeps loaded!")
             return
         
         print(f"Starting sweeps")
         self.current_sweep = self.queue.popleft()
+        # Set the database info
         self.set_database()
         print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
               {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
         self.current_sweep.start()
         
     def begin_next(self):
+        """
+        Function called when one sweep is finished and we want to run the next sweep.
+        Connected to completed pyqtSignals in the sweeps.
+        """
         print(f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
               {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
         
@@ -476,13 +569,26 @@ class SweepQueue(object):
             print("Finished all sweeps!")
     
     def load_database_info(self, db, exps, samples):
+        """
+        Loads in database info for each of the sweeps. Can take in either asingle value for each
+        of the database, experiment name, and sample name arguments, or a list of values, with
+        length equal to the number of sweeps loaded into the queue.
+        
+        Arguments:
+            db - name of the database file you want to run at, either list or string
+            exps - name of experiment you want, can either be list or string
+            samples - name of sample, can be either list or string
+        """
+        # Check if db was loaded correctly
         if isinstance(db, list):
+            # Convert to a deque for easier popping from the queue
             self.database = deque(db)
         elif isinstance(db, str):
             self.database = db
         else:
             print("Database info loaded incorrectly!")
             
+        # Check again for experiments
         if isinstance(exps, list):
             self.exp_name = deque(exps)
         elif isinstance(exps, str):
@@ -490,6 +596,7 @@ class SweepQueue(object):
         else:
             print("Database info loaded incorrectly!")
             
+        # Check if samples were loaded correctly
         if isinstance(samples, list):
             self.sample_name = deque(samples)
         elif isinstance(samples, str):
@@ -498,24 +605,32 @@ class SweepQueue(object):
             print("Database info loaded incorrectly!")
     
     def set_database(self):
+        """
+        Changes the database for the next run. Pops out the next item in a list, if that
+        is what was loaded, or keeps the same string.
+        """
+        # Grab the next database file name
         db = ""
         if isinstance(self.database, str):
             db = self.database
         elif isinstance(self.database, deque):
             db = self.database.popleft()
             
+        # Grab the next sample name
         sample = ""
         if isinstance(self.sample_name, str):
             sample = self.sample_name
         elif isinstance(self.sample_name, deque):
             sample = self.sample_name.popleft()
     
+        # Grab the next experiment name
         exp = ""
         if isinstance(self.exp_name, str):
             exp = self.exp_name
         elif isinstance(self.exp_name, deque):
             exp = self.exp_name.popleft()
         
+        # Initialize the database
         try:
             initialise_or_create_database_at('C:\\Users\\Nanouser\\Documents\\MeasureIt\\Databases\\' + db + '.db')
             qc.new_experiment(name=exp, sample_name=sample)
