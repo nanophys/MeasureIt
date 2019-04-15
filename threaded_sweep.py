@@ -45,7 +45,11 @@ class BaseSweep(object):
                  that you want the sweep to follow
         """
         for param in p:
-            self._params.append(param)
+            if isinstance(param, list):
+                for l in param:
+                    self._params.append(l)
+            else:
+                self._params.append(param)
         
     def _create_measurement(self):
         """
@@ -371,9 +375,6 @@ class RunnerThread(QThread):
                 data = self.sweep.update_values()
                 if self.sweep.is_running is True and self.plotter is not None:
                     self.plotter.add_data_to_queue(data)
-    
-    
-    
     
     
 class PlotterThread(QThread):
