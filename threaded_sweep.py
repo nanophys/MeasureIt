@@ -10,6 +10,7 @@ from qcodes.dataset.database import initialise_or_create_database_at
 from PyQt5.QtCore import QThread, pyqtSignal
 from collections import deque
 
+
 class BaseSweep(object):
     """
     This is the base class for the 0D (tracking) sweep class and the 1D sweep class. Each of these functions
@@ -35,6 +36,7 @@ class BaseSweep(object):
         self.is_running = False
         self.t0 = time.monotonic()
         
+        
     def follow_param(self, *p):
         """
         This function saves parameters to be tracked, for both saving and plotting data.
@@ -50,6 +52,7 @@ class BaseSweep(object):
                     self._params.append(l)
             else:
                 self._params.append(param)
+        
         
     def _create_measurement(self):
         """
@@ -73,6 +76,7 @@ class BaseSweep(object):
             
         return self.meas
     
+    
     def stop(self):
         """
         Stops/pauses the program from running by setting the 'is_running' flag to false. This is
@@ -81,11 +85,13 @@ class BaseSweep(object):
         """
         self.is_running = False
         
+        
     def check_running(self):
         """
         Returns the status of the sweep.
         """
         return self.is_running
+    
     
     def start(self):
         """
@@ -110,6 +116,7 @@ class BaseSweep(object):
         # Tells the threads to begin
         self.plotter.start()
         self.runner.start()
+        
         
     def update_values(self, datasaver = None):
         """
@@ -143,6 +150,7 @@ class BaseSweep(object):
         return data
         
 
+
 class Sweep0D(BaseSweep):
     """
     Class for the following/live plotting, i.e. "0-D sweep" class. As of now, is just an extension of
@@ -164,6 +172,7 @@ class Sweep0D(BaseSweep):
         # Direction variable, not used here, but kept to maintain consistency with Sweep1D.
         self.direction = 0
  
+    
        
 class Sweep1D(BaseSweep):
     """
@@ -209,12 +218,14 @@ class Sweep1D(BaseSweep):
         else:
             self.completed.connect(self.no_change)
     
+    
     def start(self):
         """
         Starts the sweep. Runs from the BaseSweep start() function.
         """
         print(f"Ramping {self.set_param.label} to {self.end} {self.set_param.unit}")
         super().start()
+        
         
     def step_param(self):
         """
@@ -236,7 +247,8 @@ class Sweep1D(BaseSweep):
             print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
             self.completed.emit()
             return (self.set_param, -1)
-                
+             
+        
     def flip_direction(self):
         """
         Flips the direction of the sweep, to do bidirectional sweeping.
@@ -253,6 +265,7 @@ class Sweep1D(BaseSweep):
         else:
             self.direction = 1
     
+    
     def ramp_to_zero(self):
         """
         Ramps the set_param to 0, at the same rate as already specified.
@@ -266,6 +279,7 @@ class Sweep1D(BaseSweep):
         print(f'Ramping {self.set_param.label} to 0 . . . ')
         self.start()
     
+    
     def set_complete_func(self, func):
         """
         Defines the function to call when finished.
@@ -275,12 +289,14 @@ class Sweep1D(BaseSweep):
         """
         self.completed.connect(func)
         
+        
     def no_change(self):
         """
         This function is passed when we don't need to connect a function when the 
         sweep is completed.
         """
         pass
+    
     
     def reset(self, new_params=None):
         """
@@ -304,6 +320,7 @@ class Sweep1D(BaseSweep):
         # Reset our plots
         self.plotter = None
         self.runner = None
+        
         
         
 class Sweep2D(BaseSweep):
@@ -346,14 +363,14 @@ class Sweep2D(BaseSweep):
         else:
             self.out_step = (-1) * abs(self.out_step)
         
-        self.out_setpoint = self.out_start - self.out_step
-        
         # Initialize the BaseSweep
         super().__init__(set_param = self.set_param, inter_delay, save_data, plot_data)
         
         # Create the inner sweep object
         self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
                                 inter_delay = self.inter_delay, save_data = self.save_data, plot_data = plot_data)
+        self.in_sweep.follow_param(self.set_param)
+        self.in_sweep.set_complete_func(self.update_values)
         
         self.runner = runner
         self.plotter = plotter
@@ -364,6 +381,7 @@ class Sweep2D(BaseSweep):
             self.completed.connect(complete_func)
         else:
             self.completed.connect(self.no_change)
+        
         
         def follow_param(self, *p):
             """
@@ -381,17 +399,27 @@ class Sweep2D(BaseSweep):
                     else:
                         self.in_sweep._params.append(param)
         
+        
         def _create_measurement(self):
             self.meas = self.in_sweep._create_measurement()
             return self.meas
         
+        
         def start(self):
-            self.in_sweep.set_complete_func(self.update_values)
-            self.in_sweep.follow_param(self.set_param)
+            print(f"Starting the 2D Sweep. Ramping {self.set_param.label} to {self.end} {self.set_param.unit}, \
+                  while sweeping {self.in_param.label} between {self.in_start} {self.in_param.unit} and \
+                  {self.in_stop} {self.in_param.unit}")
+            
+            self.out_setpoint = self.out_start
+            self.set_param.set(self.out_setpoint)
+            
+            self.in_sweep.start()
+         
             
         def stop(self):
             self.is_running = False
             self.in_sweep.stop()
+            
             
         def update_values(self):
             """
@@ -400,6 +428,7 @@ class Sweep2D(BaseSweep):
             # If we aren't at the end, keep going
             if abs(self.out_setpoint - self.out_stop) > abs(self.out_step/2):
                 self.out_setpoint = self.out_setpoint + self.out_step
+                printf(f"Setting {self.set_param.label} to {self.out_setpoint} {self.set_param.unit}")
                 self.set_param.set(self.out_setpoint)
                 self.in_sweep.plotter.reset()
                 self.in_sweep.start()
@@ -408,6 +437,7 @@ class Sweep2D(BaseSweep):
                 self.is_running = False
                 print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
                 self.completed.emit()
+        
         
             
 class RunnerThread(QThread):
@@ -429,11 +459,13 @@ class RunnerThread(QThread):
         
         QThread.__init__(self)
         
+        
     def __del__(self):
         """
         Standard destructor.
         """
         self.wait()
+    
     
     def add_plotter(self, plotter):
         """
@@ -446,6 +478,7 @@ class RunnerThread(QThread):
         """
         self.plotter = plotter
         
+        
     def _set_parent(self, sweep):
         """
         Function to tell the runner who the parent is, if created independently.
@@ -454,6 +487,7 @@ class RunnerThread(QThread):
             sweep - Object of type BaseSweep, that Runner will be taking data for
         """
         self.sweep = sweep
+        
         
     def run(self):
         """
@@ -482,6 +516,7 @@ class RunnerThread(QThread):
                     self.plotter.add_data_to_queue(data)
     
     
+    
 class PlotterThread(QThread):
     """
     Thread to control the plotting of a sweep of class BaseSweep. Gets the data
@@ -508,11 +543,13 @@ class PlotterThread(QThread):
         
         QThread.__init__(self)
         
+        
     def __del__(self):
         """
         Standard destructor.
         """
         self.wait()
+    
     
     def create_figs(self):
         """
@@ -547,6 +584,7 @@ class PlotterThread(QThread):
             self.axes[i].add_line(backward_line)
             self.axesline.append((forward_line, backward_line))
             
+            
     def add_data_to_queue(self, data):
         """
         Grabs the data to plot.
@@ -555,6 +593,7 @@ class PlotterThread(QThread):
             data - list of tuples to plot
         """
         self.data_queue.append(data)
+        
         
     def run(self):
         """
@@ -595,6 +634,7 @@ class PlotterThread(QThread):
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
+
     def reset(self):
         """
         Resets all the plots
@@ -610,6 +650,7 @@ class PlotterThread(QThread):
             self.axes[i].relim()
             self.axes[i].autoscale_view()
 
+    
     
 class SweepQueue(object):
     """
@@ -628,6 +669,7 @@ class SweepQueue(object):
         self.exp_name = ""
         self.sample_name = ""
     
+    
     def append(self, sweep : BaseSweep):
         """
         Adds a sweep to the queue.
@@ -639,6 +681,7 @@ class SweepQueue(object):
         sweep.set_complete_func(self.begin_next)
         # Add it to the queue
         self.queue.append(sweep)
+        
         
     def start(self):
         """
@@ -657,6 +700,7 @@ class SweepQueue(object):
               {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
         self.current_sweep.start()
         
+        
     def begin_next(self):
         """
         Function called when one sweep is finished and we want to run the next sweep.
@@ -673,6 +717,7 @@ class SweepQueue(object):
             self.current_sweep.start()
         else:
             print("Finished all sweeps!")
+    
     
     def load_database_info(self, db, exps, samples):
         """
@@ -709,6 +754,7 @@ class SweepQueue(object):
             self.sample_name = samples
         else:
             print("Database info loaded incorrectly!")
+    
     
     def set_database(self):
         """
