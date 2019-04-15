@@ -148,7 +148,7 @@ class Sweep0D(BaseSweep):
     Class for the following/live plotting, i.e. "0-D sweep" class. As of now, is just an extension of
     BaseSweep, but has been separated for future convenience.
     """
-    def __init__(self, runner = None, plotter = None, set_param = None, inter_delay = 0.01, save_data = False):
+    def __init__(self, runner = None, plotter = None, set_param = None, inter_delay = 0.01, save_data = False, plot_data = True):
         """
         Initialization class. Simply calls the BaseSweep initialization, and saves a few extra variables.
         
@@ -157,7 +157,7 @@ class Sweep0D(BaseSweep):
             plotter - PlotterThread object, passed if a GUI has plots it wants the thread to use instead
                       of creating it's own automatically.
         """
-        super().__init__(set_param, inter_delay, save_data)
+        super().__init__(set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data)
         
         self.runner = runner
         self.plotter = plotter
@@ -173,7 +173,7 @@ class Sweep1D(BaseSweep):
     completed = pyqtSignal()
     
     def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, 
-                 inter_delay = 0.01, save_data = False, complete_func = None):
+                 inter_delay = 0.01, save_data = False, plot_data = True, complete_func = None):
         """
         Initializes the sweep. There are only 5 new arguments to read in.
         
@@ -185,7 +185,7 @@ class Sweep1D(BaseSweep):
             complete_func - optional function to be called when the sweep is finished
         """
         # Initialize the BaseSweep
-        super().__init__(set_param, inter_delay, save_data)
+        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data)
         
         self.begin = start
         self.end = stop
@@ -232,6 +232,7 @@ class Sweep1D(BaseSweep):
         # If neither of the above are triggered, it means we are at the end of the sweep
         else:
             self.is_running = False
+            self.flip_direction()
             print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
             self.completed.emit()
             return (self.set_param, -1)
@@ -305,6 +306,110 @@ class Sweep1D(BaseSweep):
         self.runner = None
         
         
+class Sweep2D(BaseSweep):
+    
+    def __init__(self, in_params, out_params, runner = None, plotter = None, 
+                 inter_delay = 0.01, save_data = False, plot_data = True, complete_func = None):
+        """
+        Initializes the sweep. There are only 5 new arguments to read in.
+        
+        New arguments:
+            set param - parameter to be swept
+            start - value to start the sweep at
+            stop - value to stop the sweep at
+            step - step spacing for each measurement
+            complete_func - optional function to be called when the sweep is finished
+        """
+        # Ensure that the inputs were passed (at least somewhat) correctly
+        if len(in_params) != 4 or len(out_params) != 4:
+            raise TypeError('For 2D Sweep, must pass list of 4 object for each sweep parameter, \
+                             in order: [ <QCoDeS Parameter>, <start value>, <stop value>, <step size> ]')
+            
+        # Save our input variables
+        self.in_param = in_params[0]
+        self.in_start = in_params[1]
+        self.in_stop = in_params[2]
+        self.in_step = in_params[3]
+        
+        if (self.in_stop - self.in_start) > 0:
+            self.in_step = abs(self.in_step)
+        else:
+            self.in_step = (-1) * abs(self.in_step)
+            
+        self.set_param = out_params[0]
+        self.out_start = out_params[1]
+        self.out_stop = out_params[2]
+        self.out_step = out_params[3]
+        
+        if (self.out_stop - self.out_start) > 0:
+            self.out_step = abs(self.out_step)
+        else:
+            self.out_step = (-1) * abs(self.out_step)
+        
+        self.out_setpoint = self.out_start - self.out_step
+        
+        # Initialize the BaseSweep
+        super().__init__(set_param = self.set_param, inter_delay, save_data, plot_data)
+        
+        # Create the inner sweep object
+        self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
+                                inter_delay = self.inter_delay, save_data = self.save_data, plot_data = plot_data)
+        
+        self.runner = runner
+        self.plotter = plotter
+        self.direction = 0    
+        
+        # Set the function to call when we are finished
+        if complete_func is not None:
+            self.completed.connect(complete_func)
+        else:
+            self.completed.connect(self.no_change)
+        
+        def follow_param(self, *p):
+            """
+            This function saves parameters to be tracked, for both saving and plotting data.
+            The parameters must be followed before '_create_measurement()' is called.
+            
+            Arguments:
+                *p - Variable number of arguments, each of which must be a QCoDeS Parameter
+                     that you want the sweep to follow
+                     """
+            for param in p:
+                if isinstance(param, list):
+                    for l in param:
+                        self.in_sweep._params.append(l)
+                    else:
+                        self.in_sweep._params.append(param)
+        
+        def _create_measurement(self):
+            self.meas = self.in_sweep._create_measurement()
+            return self.meas
+        
+        def start(self):
+            self.in_sweep.set_complete_func(self.update_values)
+            self.in_sweep.follow_param(self.set_param)
+            
+        def stop(self):
+            self.is_running = False
+            self.in_sweep.stop()
+            
+        def update_values(self):
+            """
+            Iterates the parameter.
+            """
+            # If we aren't at the end, keep going
+            if abs(self.out_setpoint - self.out_stop) > abs(self.out_step/2):
+                self.out_setpoint = self.out_setpoint + self.out_step
+                self.set_param.set(self.out_setpoint)
+                self.in_sweep.plotter.reset()
+                self.in_sweep.start()
+            # If neither of the above are triggered, it means we are at the end of the sweep
+            else:
+                self.is_running = False
+                print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
+                self.completed.emit()
+        
+            
 class RunnerThread(QThread):
     """
     Class to separate to a new thread the communications with the instruments.
