@@ -471,7 +471,7 @@ class Sweep2D(object):
         Ramps the parameter down to 0.
         """
         self.out_stop = 0
-        if self.out_setpoint - self.out_step > 0:
+        if self.out_setpoint - self.out_stop > 0:
             self.out_step = (-1) * abs(self.out_step)
         else:
             self.out_step = abs(self.out_step)
