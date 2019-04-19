@@ -16,7 +16,7 @@ class BaseSweep(QObject):
     This is the base class for the 0D (tracking) sweep class and the 1D sweep class. Each of these functions
     is used by both classes.
     """
-    def __init__(self, set_param = None, inter_delay = 0.01, save_data = False, plot_data = True):
+    def __init__(self, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True):
         """
         Initializer for both classes, called by super().__init__() in Sweep0D and Sweep1D classes.
         Simply initializes the variables and flags.
@@ -151,6 +151,13 @@ class BaseSweep(QObject):
         return data
     
     
+    def clear_plot(self):
+        """
+        Clears the currently showing plots.
+        """
+        self.plotter.reset()
+        
+    
     def no_change(self):
         """
         This function is passed when we don't need to connect a function when the 
@@ -165,7 +172,7 @@ class Sweep0D(BaseSweep):
     Class for the following/live plotting, i.e. "0-D sweep" class. As of now, is just an extension of
     BaseSweep, but has been separated for future convenience.
     """
-    def __init__(self, runner = None, plotter = None, set_param = None, inter_delay = 0.01, save_data = False, plot_data = True):
+    def __init__(self, runner = None, plotter = None, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True):
         """
         Initialization class. Simply calls the BaseSweep initialization, and saves a few extra variables.
         
@@ -191,7 +198,7 @@ class Sweep1D(BaseSweep):
     completed = pyqtSignal()
     
     def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, 
-                 inter_delay = 0.01, save_data = False, plot_data = True, complete_func = None):
+                 inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None):
         """
         Initializes the sweep. There are only 5 new arguments to read in.
         
@@ -338,7 +345,7 @@ class Sweep2D(BaseSweep):
     completed = pyqtSignal()
     
     def __init__(self, in_params, out_params, runner = None, plotter = None, 
-                 inter_delay = 0.01, save_data = False, plot_data = True, complete_func = None):
+                 inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None):
         """
         Initializes the sweep. It reads in the settings for each of the sweeps, as well
         as the standard BaseSweep arguments.
@@ -374,6 +381,7 @@ class Sweep2D(BaseSweep):
         self.out_start = out_params[1]
         self.out_stop = out_params[2]
         self.out_step = out_params[3]
+        self.out_setpoint = self.out_start
         
         if (self.out_stop - self.out_start) > 0:
             self.out_step = abs(self.out_step)
@@ -444,14 +452,15 @@ class Sweep2D(BaseSweep):
         Extends the start() function of BaseSweep(). We set our first outer sweep setpoint, then
         start the inner sweep, and let it control the run from there.
         """
-        print(f"Starting the 2D Sweep. Ramping {self.set_param.label} to {self.out_stop} {self.set_param.unit}, \
-              while sweeping {self.in_param.label} between {self.in_start} {self.in_param.unit} and \
-              {self.in_stop} {self.in_param.unit}")
+        print(f"Starting the 2D Sweep. Ramping {self.set_param.label} to {self.out_stop} {self.set_param.unit}, while sweeping {self.in_param.label} between {self.in_start} {self.in_param.unit} and {self.in_stop} {self.in_param.unit}")
             
-        self.out_setpoint = self.out_start
         self.set_param.set(self.out_setpoint)
         
+        self.is_running = True
         self.in_sweep.start()
+        
+        self.plotter = self.in_sweep.plotter
+        self.runner = self.in_sweep.runner
      
             
     def stop(self):
@@ -756,10 +765,11 @@ class PlotterThread(QThread):
         """
         Resets all the plots
         """
-        self.setaxline.set_xdata(np.array([]))
-        self.setaxline.set_ydata(np.array([]))
-        self.setax.relim()
-        self.setax.autoscale_view()
+        if self.sweep.set_param is not None:
+            self.setaxline.set_xdata(np.array([]))
+            self.setaxline.set_ydata(np.array([]))
+            self.setax.relim()
+            self.setax.autoscale_view()
         
         for i,p in enumerate(self.sweep._params):
             self.axesline[i][0].set_xdata(np.array([]))
