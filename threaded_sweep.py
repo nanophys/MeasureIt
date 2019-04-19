@@ -16,7 +16,7 @@ class BaseSweep(QObject):
     This is the base class for the 0D (tracking) sweep class and the 1D sweep class. Each of these functions
     is used by both classes.
     """
-    def __init__(self, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True):
+    def __init__(self, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True, x_axis=1):
         """
         Initializer for both classes, called by super().__init__() in Sweep0D and Sweep1D classes.
         Simply initializes the variables and flags.
@@ -32,6 +32,7 @@ class BaseSweep(QObject):
         self.inter_delay = inter_delay
         self.save_data = save_data
         self.plot_data = plot_data
+        self.x_axis = x_axis
         
         self.is_running = False
         self.t0 = time.monotonic()
@@ -94,7 +95,7 @@ class BaseSweep(QObject):
         return self.is_running
     
     
-    def start(self):
+    def start(self, persist_data=None):
         """
         Starts the sweep by creating and running the worker threads. Used to both start the 
         program and unpause after calling 'stop()'
@@ -113,6 +114,9 @@ class BaseSweep(QObject):
         
         # Flag that we are now running.
         self.is_running = True
+        
+        # Save persistent data from 2D sweep
+        self.persist_data = persist_data
         
         # Tells the threads to begin
         self.plotter.start()
@@ -140,10 +144,16 @@ class BaseSweep(QObject):
 
         if self.set_param is not None:
             data.append(self.step_param())
+        
+        persist_param = None
+        if self.persist_data is not None:
+            data.append(self.persist_data)
+            persist_param = self.persist_data[0]
             
         for i,p in enumerate(self._params):
-            v = p.get()
-            data.append((p, v))
+            if p is not persist_param:
+                v = p.get()
+                data.append((p, v))
     
         if self.save_data and self.is_running:
             datasaver.add_result(*data)
@@ -198,7 +208,7 @@ class Sweep1D(BaseSweep):
     completed = pyqtSignal()
     
     def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, 
-                 inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None):
+                 inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None, x_axis_time = 1):
         """
         Initializes the sweep. There are only 5 new arguments to read in.
         
@@ -208,9 +218,10 @@ class Sweep1D(BaseSweep):
             stop - value to stop the sweep at
             step - step spacing for each measurement
             complete_func - optional function to be called when the sweep is finished
+            x_axis_time - 1 for plotting parameters against time, 0 for set_param
         """
         # Initialize the BaseSweep
-        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data)
+        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data, x_axis=x_axis_time)
         
         self.begin = start
         self.end = stop
@@ -234,12 +245,12 @@ class Sweep1D(BaseSweep):
         self.completed.connect(complete_func)
     
     
-    def start(self):
+    def start(self, persist_data=None):
         """
         Starts the sweep. Runs from the BaseSweep start() function.
         """
         print(f"Ramping {self.set_param.label} to {self.end} {self.set_param.unit}")
-        super().start()
+        super().start(persist_data)
         
         
     def step_param(self):
@@ -345,7 +356,7 @@ class Sweep2D(BaseSweep):
     completed = pyqtSignal()
     
     def __init__(self, in_params, out_params, runner = None, plotter = None, 
-                 inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None):
+                 inter_delay = 0.01, outer_delay = 1, save_data = True, plot_data = True, complete_func = None):
         """
         Initializes the sweep. It reads in the settings for each of the sweeps, as well
         as the standard BaseSweep arguments.
@@ -404,6 +415,7 @@ class Sweep2D(BaseSweep):
         self.runner = runner
         self.plotter = plotter
         self.direction = 0    
+        self.outer_delay = outer_delay
         
         # Flags for ramping to zero
         self.inner_ramp_to_zero = False
@@ -456,6 +468,8 @@ class Sweep2D(BaseSweep):
             
         self.set_param.set(self.out_setpoint)
         
+        time.sleep(self.outer_delay)
+        
         self.is_running = True
         self.in_sweep.start()
         
@@ -495,11 +509,13 @@ class Sweep2D(BaseSweep):
         # If we aren't at the end, keep going
         if abs(self.out_setpoint - self.out_stop) >= abs(self.out_step/2):
             self.out_setpoint = self.out_setpoint + self.out_step
+            time.sleep(self.outer_delay)
             print(f"Setting {self.set_param.label} to {self.out_setpoint} {self.set_param.unit}")
             self.set_param.set(self.out_setpoint)
+            time.sleep(self.outer_delay)
             # Reset our plots
             self.in_sweep.plotter.reset()
-            self.in_sweep.start()
+            self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
         # If neither of the above are triggered, it means we are at the end of the sweep
         else:
             self.is_running = False
@@ -744,10 +760,16 @@ class PlotterThread(QThread):
                     self.setaxline.set_ydata(np.append(self.setaxline.get_ydata(), set_param_data[1]))
                     self.setax.relim()
                     self.setax.autoscale_view()
+                
+                x_data=0
+                if self.sweep.x_axis == 1:
+                    x_data = time_data[1]
+                elif self.sweep.x_axis == 0:
+                    x_data = set_param_data[1]
                     
                 # Now, grab the rest of the following param data
                 for i,data_pair in enumerate(data):                
-                    self.axesline[i][self.sweep.direction].set_xdata(np.append(self.axesline[i][self.sweep.direction].get_xdata(), time_data[1]))
+                    self.axesline[i][self.sweep.direction].set_xdata(np.append(self.axesline[i][self.sweep.direction].get_xdata(), x_data))
                     self.axesline[i][self.sweep.direction].set_ydata(np.append(self.axesline[i][self.sweep.direction].get_ydata(), data_pair[1]))
                     self.axes[i].relim()
                     self.axes[i].autoscale_view()
