@@ -1,7 +1,7 @@
 # daq_driver.py
 
-import nidaqmx, time
-import qcodes as qc
+import nidaqmx, time, os
+from configparser import ConfigParser
 from qcodes import (Instrument, validators as vals)
 from qcodes.instrument.channel import InstrumentChannel
 
@@ -23,6 +23,12 @@ class Daq(Instrument):
         # Grab the number of AO, AI channels
         self.ao_num = len(self.device.ao_physical_chans.channel_names)
         self.ai_num = len(self.device.ai_physical_chans.channel_names)
+        
+        # Read the config file
+        self.cfg_fp = os.getenv('MeasureItHome') + '\\cfg\\daq_output.cfg'
+        self.cfg_obj = ConfigParser()
+        self.cfg_obj.read(self.cfg_fp)
+        self.cfg_output = self.cfg_obj['OUTPUT']
         
         # For each output channel, create a corresponding DaqAOChannel object
         for a in range(self.ao_num):
@@ -49,6 +55,7 @@ class Daq(Instrument):
                 count += 1
             # Update the actual number of ai ports
             self.ai_num = count
+        
              
     def get_ao_num(self):
         """
@@ -119,6 +126,7 @@ class DaqAOChannel(InstrumentChannel):
         """
         Returns the current output voltage.
         """
+        self._voltage=float(self.cfg_output[self.name])
         return self._voltage
         
     def set_voltage(self, _voltage):
@@ -127,6 +135,10 @@ class DaqAOChannel(InstrumentChannel):
         """
         if self.task != None:
             self.task.write(_voltage)
+            self.cfg_output[self.name]=str(_voltage)
+            with open(self.parent.cfg_fp, 'w') as conf:
+                self.parent.cfg_obj.write(conf)
+            
             self._voltage=_voltage
        
     def get_value(self):
@@ -137,7 +149,7 @@ class DaqAOChannel(InstrumentChannel):
         """
         parts = self.parameters["gain factor"].unit.split("/")
         self.parameters["value"].unit=parts[0]
-        self._value = self.gain * self._voltage
+        self._value = self.gain * self.get_voltage()
         return (self._value, self.parameters["value"].unit)
     
     def set_value(self, value):
@@ -178,7 +190,7 @@ class DaqAOChannel(InstrumentChannel):
         
         # Initializes the values of the Parameters
         self.gain=1
-        self._voltage=0
+        self._voltage=float(self.cfg_output[self.name])
         self.impedance=None
         self._value=0
         
@@ -308,7 +320,7 @@ class DaqAIChannel(InstrumentChannel):
         """
         parts = self.parameters["gain factor"].unit.split("/")
         self.parameters["value"].unit=parts[0]
-        self._value = self.gain * self._voltage
+        self._value = self.gain * self.get_voltage()
         return (self._value, self.parameters["value"].unit)
     
     def get_load_impedance(self):
