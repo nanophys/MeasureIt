@@ -1,6 +1,6 @@
 #threaded_sweeps.py
 
-import time
+import time, math
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -9,6 +9,7 @@ from qcodes.dataset.measurements import Measurement
 from qcodes.dataset.database import initialise_or_create_database_at
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 from collections import deque
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 class BaseSweep(QObject):
@@ -16,7 +17,7 @@ class BaseSweep(QObject):
     This is the base class for the 0D (tracking) sweep class and the 1D sweep class. Each of these functions
     is used by both classes.
     """
-    def __init__(self, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True, x_axis=1):
+    def __init__(self, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True, x_axis=1, datasaver = None):
         """
         Initializer for both classes, called by super().__init__() in Sweep0D and Sweep1D classes.
         Simply initializes the variables and flags.
@@ -36,6 +37,8 @@ class BaseSweep(QObject):
         
         self.is_running = False
         self.t0 = time.monotonic()
+        
+        self.datasaver = datasaver
         
         QObject.__init__(self)
         
@@ -75,6 +78,9 @@ class BaseSweep(QObject):
         # Register all parameters we are following
         for p in self._params:
             self.meas.register_parameter(p)
+        
+        if self.save_data and self.datasaver == None:
+            self.datasaver = self.meas.run().__enter__()
             
         return self.meas
     
@@ -123,15 +129,12 @@ class BaseSweep(QObject):
         self.runner.start()
         
         
-    def update_values(self, datasaver = None):
+    def update_values(self):
         """
         Iterates our data points, changing our setpoint if we are sweeping, and refreshing
         the values of all our followed parameters. If we are saving data, it happens here,
         and the data is returned.
         
-        Arguments:
-            datasaver (optional) - Data saving object-- usually an instance of Measurement.run()
-                                   from a runner thread
         Returns:
             data - A list of tuples with the new data. Each tuple is of the format 
                    (<QCoDeS Parameter>, measurement value). The tuples are passed in order of
@@ -156,7 +159,7 @@ class BaseSweep(QObject):
                 data.append((p, v))
     
         if self.save_data and self.is_running:
-            datasaver.add_result(*data)
+            self.datasaver.add_result(*data)
         
         return data
     
@@ -174,6 +177,13 @@ class BaseSweep(QObject):
         sweep is completed.
         """
         pass
+    
+    
+    def __del__(self):
+        if self.datasaver is not None:
+            self.datasaver.__exit__()
+        
+        QObject.__del__()
         
 
 
@@ -207,7 +217,7 @@ class Sweep1D(BaseSweep):
     # Signal for when the sweep is completed
     completed = pyqtSignal()
     
-    def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, 
+    def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, datasaver = None,
                  inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None, x_axis_time = 1):
         """
         Initializes the sweep. There are only 5 new arguments to read in.
@@ -221,7 +231,7 @@ class Sweep1D(BaseSweep):
             x_axis_time - 1 for plotting parameters against time, 0 for set_param
         """
         # Initialize the BaseSweep
-        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data, x_axis=x_axis_time)
+        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data, x_axis=x_axis_time, datasaver=datasaver)
         
         self.begin = start
         self.end = stop
@@ -426,6 +436,10 @@ class Sweep2D(BaseSweep):
             complete_func = self.no_change
         self.completed.connect(complete_func)
         
+        # Initialize our heatmap plotting thread
+        self.heatmap_plotter = HeatmapThread(self)
+        self.heatmap_plotter.create_figs()
+        
         
     def follow_param(self, *p):
         """
@@ -456,6 +470,7 @@ class Sweep2D(BaseSweep):
             self.meas - the Measurement object that runs the sweep
         """
         self.meas = self.in_sweep._create_measurement()
+        
         return self.meas
         
         
@@ -505,6 +520,11 @@ class Sweep2D(BaseSweep):
                 print("Done ramping both parameters to zero")
             # Stop the function from running any further, as we don't want to check anything else
             return
+        
+        # Update our heatmap!
+        lines = self.plotter.axes[2].get_lines()
+        self.heatmap_plotter.add_lines(lines)
+        self.heatmap_plotter.start()
         
         # If we aren't at the end, keep going
         if abs(self.out_setpoint - self.out_stop) >= abs(self.out_step/2):
@@ -623,26 +643,22 @@ class RunnerThread(QThread):
         externally to start the thread, but run() defines the behavior of the thread.
         Iterates the sweep, then hands the data to the plotter for live plotting.
         """
-        # Check if we want to save the data
-        if self.sweep.save_data is True:
-            # Create the datasaver
-            with self.sweep.meas.run() as datasaver:
-                # Check if we are still running
-                while self.sweep.is_running is True:
-                    t = time.monotonic()
-                    
-                    # Get the new data
-                    data = self.sweep.update_values(datasaver)
-                    # Send it to the plotter if we are going
-                    # Note: we check again if running, because we won't know if we are
-                    # done until we try to step the parameter once more
-                    if self.sweep.is_running is True and self.plotter is not None:
-                        self.plotter.add_data_to_queue(data)
-                    # Smart sleep, by checking if the whole process has taken longer than
-                    # our sleep time
-                    sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
-                    if sleep_time > 0:
-                        time.sleep(sleep_time)
+        # Check if we are still running
+        while self.sweep.is_running is True:
+            t = time.monotonic()
+            
+            # Get the new data
+            data = self.sweep.update_values()
+            # Send it to the plotter if we are going
+            # Note: we check again if running, because we won't know if we are
+            # done until we try to step the parameter once more
+            if self.sweep.is_running is True and self.plotter is not None:
+                self.plotter.add_data_to_queue(data)
+            # Smart sleep, by checking if the whole process has taken longer than
+            # our sleep time
+            sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
+            if sleep_time > 0:
+                time.sleep(sleep_time)
         # Do the same thing, without saving the data
         else:    
             while self.sweep.is_running is True:  
@@ -801,6 +817,121 @@ class PlotterThread(QThread):
             self.axes[i].relim()
             self.axes[i].autoscale_view()
 
+
+
+class HeatmapThread(QThread):
+    """
+    Thread to control the plotting of a sweep of class BaseSweep. Gets the data
+    from the RunnerThread to plot.
+    """
+    def __init__(self, sweep):
+        """
+        Initializes the thread. Takes in the parent sweep and the figure information if you want
+        to use an already-created plot.
+        
+        Arguments:
+            sweep - the parent sweep object
+        """
+        self.sweep = sweep
+        # Datastructure to
+        self.lines_to_add = deque([])
+        self.count = 0
+        self.max_datapt = float("-inf")
+        self.min_datapt = float("inf")
+        
+        QThread.__init__(self)
+        
+        
+    def __del__(self):
+        """
+        Standard destructor.
+        """
+        self.wait()
+    
+    
+    def create_figs(self):
+        """
+        Creates the heatmap for the 2D sweep. Creates and initializes new plots
+        """
+        # First, determine the resolution on each axis
+        self.res_in = math.ceil(abs((self.sweep.in_stop-self.sweep.in_start)/self.sweep.in_step))+1
+        self.res_out = math.ceil(abs((self.sweep.out_stop-self.sweep.out_start)/self.sweep.out_step))+1
+        
+        # Create the heatmap data matrix - initially as all 0s
+        self.heatmap_data = np.zeros((self.res_out, self.res_in))
+        # Create a figure
+        self.heat_fig = plt.figure(2)
+        # Use plt.imshow to actually plot the matrix
+        self.heatmap = plt.imshow(self.heatmap_data)
+        ax = plt.gca()
+        self.heat_ax = ax
+        
+        # Set our axes and ticks
+        plt.ylabel(f'{self.sweep.out_param.label} ({self.sweep.out_param.unit})')
+        plt.xlabel(f'{self.sweep.in_param.label} ({self.sweep.in_param.unit})')
+        inner_tick_lbls = np.linspace(self.sweep.in_start, self.sweep.in_stop, 5)
+        outer_tick_lbls = np.linspace(self.sweep.out_stop, self.sweep.out_start, 5)
+        
+        ax.set_xticks(np.linspace(0, self.res_in-1, 5))
+        ax.set_yticks(np.linspace(0, self.res_out-1, 5))
+        ax.set_xticklabels(inner_tick_lbls)
+        ax.set_yticklabels(outer_tick_lbls)
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+
+        # Create our colorbar scale
+        cbar = plt.colorbar(self.heatmap, cax=cax)
+        cbar.set_label(f'{self.sweep._params[1].label} ({self.sweep._params[1].unit})')
+    
+    
+    def add_lines(self, lines):
+        """
+        Feed the thread Line2D objects to add to the heatmap.
+        
+        Arguments:
+            lines - tuple of Line2D objects (backwards and forwards) to be added to heatmap
+        """
+        self.lines_to_add.append(lines)
+        
+        
+    def run(self):
+        """
+        Run function that executes the thread. This takes the lines that have been collected
+        and adds them to the heatmap
+        """
+        while len(self.lines_to_add) != 0:
+            # Grab the lines to add
+            line_pair = self.lines_to_add.popleft()
+            
+            forward_line = line_pair[0]
+            backward_line = line_pair[1]
+            
+            # Get our data
+            x_data_forward = forward_line.get_xdata()
+            y_data_forward = forward_line.get_ydata()
+        
+            x_data_backward = backward_line.get_xdata()
+            y_data_backward = backward_line.get_ydata()
+        
+            # Add the data to the heatmap
+            for i,x in enumerate(x_data_forward):
+                # We need to keep track of where we are in the heatmap, so we use self.count
+                # to make sure we are in the right row
+                self.heatmap_data[self.res_out-self.count-1,i]=y_data_forward[i]
+                if y_data_forward[i] > self.max_datapt:
+                    self.max_datapt = y_data_forward[i]
+                if y_data_forward[i] < self.min_datapt:
+                    self.min_datapt = y_data_forward[i]
+                    
+            self.count += 1
+                        
+        # Refresh the image!
+        self.heatmap.set_data(self.heatmap_data)
+        self.heatmap.set_clim(self.min_datapt, self.max_datapt)
+        self.heat_fig.canvas.draw()
+        self.heat_fig.canvas.flush_events()
+    
     
     
 class SweepQueue(object):
