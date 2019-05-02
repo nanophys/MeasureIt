@@ -438,7 +438,6 @@ class Sweep2D(BaseSweep):
         
         # Initialize our heatmap plotting thread
         self.heatmap_plotter = HeatmapThread(self)
-        self.heatmap_plotter.create_figs()
         
         
     def follow_param(self, *p):
@@ -487,6 +486,7 @@ class Sweep2D(BaseSweep):
         
         self.is_running = True
         self.in_sweep.start()
+        self.heatmap_plotter.create_figs()
         
         self.plotter = self.in_sweep.plotter
         self.runner = self.in_sweep.runner
@@ -525,6 +525,8 @@ class Sweep2D(BaseSweep):
         lines = self.plotter.axes[2].get_lines()
         self.heatmap_plotter.add_lines(lines)
         self.heatmap_plotter.start()
+        
+        print("called update")
         
         # If we aren't at the end, keep going
         if abs(self.out_setpoint - self.out_stop) >= abs(self.out_step/2):
@@ -838,6 +840,7 @@ class HeatmapThread(QThread):
         self.count = 0
         self.max_datapt = float("-inf")
         self.min_datapt = float("inf")
+        self.figs_set = False
         
         QThread.__init__(self)
         
@@ -853,6 +856,9 @@ class HeatmapThread(QThread):
         """
         Creates the heatmap for the 2D sweep. Creates and initializes new plots
         """
+        if self.figs_set == True:
+            return
+        
         # First, determine the resolution on each axis
         self.res_in = math.ceil(abs((self.sweep.in_stop-self.sweep.in_start)/self.sweep.in_step))+1
         self.res_out = math.ceil(abs((self.sweep.out_stop-self.sweep.out_start)/self.sweep.out_step))+1
@@ -867,7 +873,7 @@ class HeatmapThread(QThread):
         self.heat_ax = ax
         
         # Set our axes and ticks
-        plt.ylabel(f'{self.sweep.out_param.label} ({self.sweep.out_param.unit})')
+        plt.ylabel(f'{self.sweep.set_param.label} ({self.sweep.set_param.unit})')
         plt.xlabel(f'{self.sweep.in_param.label} ({self.sweep.in_param.unit})')
         inner_tick_lbls = np.linspace(self.sweep.in_start, self.sweep.in_stop, 5)
         outer_tick_lbls = np.linspace(self.sweep.out_stop, self.sweep.out_start, 5)
@@ -882,8 +888,10 @@ class HeatmapThread(QThread):
 
         # Create our colorbar scale
         cbar = plt.colorbar(self.heatmap, cax=cax)
-        cbar.set_label(f'{self.sweep._params[1].label} ({self.sweep._params[1].unit})')
-    
+        cbar.set_label(f'{self.sweep.in_sweep._params[1].label} ({self.sweep.in_sweep._params[1].unit})')
+        
+        self.figs_set = True
+        
     
     def add_lines(self, lines):
         """
