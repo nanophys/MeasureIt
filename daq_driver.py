@@ -126,7 +126,7 @@ class DaqAOChannel(InstrumentChannel):
         """
         Returns the current output voltage.
         """
-        self._voltage=float(self.cfg_output[self.name])
+        self._voltage=float(self.parent.cfg_output[self.name])
         return self._voltage
         
     def set_voltage(self, _voltage):
@@ -135,7 +135,7 @@ class DaqAOChannel(InstrumentChannel):
         """
         if self.task != None:
             self.task.write(_voltage)
-            self.cfg_output[self.name]=str(_voltage)
+            self.parent.cfg_output[self.name]=str(_voltage)
             with open(self.parent.cfg_fp, 'w') as conf:
                 self.parent.cfg_obj.write(conf)
             
@@ -190,7 +190,7 @@ class DaqAOChannel(InstrumentChannel):
         
         # Initializes the values of the Parameters
         self.gain=1
-        self._voltage=float(self.cfg_output[self.name])
+        self._voltage=float(self.parent.cfg_output[self.name])
         self.impedance=None
         self._value=0
         
