@@ -78,9 +78,6 @@ class BaseSweep(QObject):
         # Register all parameters we are following
         for p in self._params:
             self.meas.register_parameter(p)
-        
-        if self.save_data and self.datasaver == None:
-            self.datasaver = self.meas.run().__enter__()
             
         return self.meas
     
@@ -116,6 +113,7 @@ class BaseSweep(QObject):
         # which is where it will send data to be plotted
         if self.runner is None:
             self.runner = RunnerThread(self)
+            self.datasaver = self.runner.datasaver
             self.runner.add_plotter(self.plotter)
         
         # Flag that we are now running.
@@ -159,7 +157,7 @@ class BaseSweep(QObject):
                 data.append((p, v))
     
         if self.save_data and self.is_running:
-            self.datasaver.add_result(*data)
+            self.runner.datasaver.add_result(*data)
         
         return data
     
@@ -606,6 +604,8 @@ class RunnerThread(QThread):
         """
         self.sweep = sweep
         self.plotter = None
+        self.datasaver = None
+        self.db_set = False
         
         QThread.__init__(self)
         
@@ -645,6 +645,10 @@ class RunnerThread(QThread):
         externally to start the thread, but run() defines the behavior of the thread.
         Iterates the sweep, then hands the data to the plotter for live plotting.
         """
+        # Check database status
+        if self.db_set == False and self.sweep.save_data == True:
+            self.datasaver = self.meas.sweep.run().__enter__()
+            
         # Check if we are still running
         while self.sweep.is_running is True:
             t = time.monotonic()
@@ -661,19 +665,6 @@ class RunnerThread(QThread):
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
             if sleep_time > 0:
                 time.sleep(sleep_time)
-        # Do the same thing, without saving the data
-        else:    
-            while self.sweep.is_running is True:  
-                t = time.monotonic()
-                
-                data = self.sweep.update_values()
-                if self.sweep.is_running is True and self.plotter is not None:
-                    self.plotter.add_data_to_queue(data)
-                # Smart sleep, by checking if the whole process has taken longer than
-                # our sleep time
-                sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
     
     
     
