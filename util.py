@@ -3,6 +3,8 @@
 
 import re
 import time
+import qcodes as qc
+from qcodes.instrument_drivers.stanford_research.SR860 import SR860
 
 unit_dict = [
         {'f', 10**-15},
