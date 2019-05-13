@@ -647,7 +647,7 @@ class RunnerThread(QThread):
         """
         # Check database status
         if self.db_set == False and self.sweep.save_data == True:
-            self.datasaver = self.meas.sweep.run().__enter__()
+            self.datasaver = self.sweep.meas.run().__enter__()
             
         # Check if we are still running
         while self.sweep.is_running is True:
