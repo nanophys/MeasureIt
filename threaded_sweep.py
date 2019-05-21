@@ -112,6 +112,7 @@ class BaseSweep(QObject):
         # If we don't have a runner, create it and tell it of the plotter,
         # which is where it will send data to be plotted
         if self.runner is None:
+            print("creating new runner")
             self.runner = RunnerThread(self)
             self.datasaver = self.runner.datasaver
             self.runner.add_plotter(self.plotter)
@@ -169,7 +170,7 @@ class BaseSweep(QObject):
         self.plotter.reset()
         
     
-    def no_change(self):
+    def no_change(self, *args):
         """
         This function is passed when we don't need to connect a function when the 
         sweep is completed.
@@ -363,8 +364,8 @@ class Sweep2D(BaseSweep):
     """
     completed = pyqtSignal()
     
-    def __init__(self, in_params, out_params, runner = None, plotter = None, 
-                 inter_delay = 0.01, outer_delay = 1, save_data = True, plot_data = True, complete_func = None):
+    def __init__(self, in_params, out_params, runner = None, plotter = None, inter_delay = 0.01, 
+                 outer_delay = 1, save_data = True, plot_data = True, complete_func = None, update_func = None):
         """
         Initializes the sweep. It reads in the settings for each of the sweeps, as well
         as the standard BaseSweep arguments.
@@ -433,6 +434,9 @@ class Sweep2D(BaseSweep):
         if complete_func is None:
             complete_func = self.no_change
         self.completed.connect(complete_func)
+        # Set the fucntion to call when the inner sweep finishes
+        if update_func is None:
+            self.update_rule = self.no_change
         
         # Initialize our heatmap plotting thread
         self.heatmap_plotter = HeatmapThread(self)
@@ -524,7 +528,8 @@ class Sweep2D(BaseSweep):
         self.heatmap_plotter.add_lines(lines)
         self.heatmap_plotter.start()
         
-        print("called update")
+        # Check our update condition
+        self.update_rule(self.in_sweep, lines)
         
         # If we aren't at the end, keep going
         if abs(self.out_setpoint - self.out_stop) >= abs(self.out_step/2):
@@ -552,6 +557,17 @@ class Sweep2D(BaseSweep):
         return s
     
     
+    def set_update_rule(self, func):
+        """
+        Sets the update rule for in between inner sweeps, for example for peak tracking
+        
+        Arguments:
+            func - function handle for update function. Must take in two arguments: the sweep to be updated,
+                   and the previous data
+        """
+        self.update_rule = func
+        
+        
     def ramp_to_zero(self):
         """
         Ramp our set parameters down to zero.
