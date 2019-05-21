@@ -247,6 +247,7 @@ class Sweep1D(BaseSweep):
         self.runner = runner
         self.plotter = plotter
         self.direction = 0    
+        self.is_ramping = False
         
         # Set the function to call when we are finished
         if complete_func == None:
@@ -258,7 +259,14 @@ class Sweep1D(BaseSweep):
         """
         Starts the sweep. Runs from the BaseSweep start() function.
         """
-        print(f"Ramping {self.set_param.label} to {self.end} {self.set_param.unit}")
+        if self.is_ramping == True:
+            print(f"Still ramping. Wait until ramp is done to start the sweep.")
+            return
+        if self.is_running == True:
+            print(f"Sweep is already running.")
+            return
+        
+        print(f"Sweeping {self.set_param.label} to {self.end} {self.set_param.unit}")
         super().start(persist_data)
         
         
@@ -301,9 +309,33 @@ class Sweep1D(BaseSweep):
             self.direction = 1
     
     
+    def ramp_to(self, value):
+        """
+        Ramps the set_param to a given value, at the same rate as already specified.
+        
+        Arguments:
+            value - setpoint to ramp towards
+        """
+        # Create a new sweep to ramp our outer parameter to zero
+        ramp_sweep = Sweep1D(self.set_param, self.setpoint, value, self.step, inter_delay = self.inter_delay, 
+                             complete_func = lambda: self.done_ramping(value), save_data = False, plot_data = False)
+        self.is_running = True
+        self.is_ramping = True
+        ramp_sweep.start()
+        
+        self.end = value
+        if self.setpoint - self.end > 0:
+            self.step = (-1) * abs(self.step)
+        else:
+            self.step = abs(self.step)
+        
+        print(f'Ramping {self.set_param.label} to {value} . . . ')
+        ramp_sweep.start()
+        
+        
     def ramp_to_zero(self):
         """
-        Ramps the set_param to 0, at the same rate as already specified.
+        Deprecated. Ramps the set_param to 0, at the same rate as already specified.
         """
         self.end = 0
         if self.setpoint - self.end > 0:
@@ -314,6 +346,14 @@ class Sweep1D(BaseSweep):
         print(f'Ramping {self.set_param.label} to 0 . . . ')
         self.start()
     
+    
+    def done_ramping(self, value):
+        self.is_ramping = False
+        self.is_running = False
+        print(f'Done ramping {self.set_param.label} to {value}')
+        self.setpoint = value
+        
+        
     def get_param_setpoint(self):
         """
         Utility function to get the current value of the setpoint
