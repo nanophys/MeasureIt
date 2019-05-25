@@ -10,6 +10,7 @@ from qcodes.dataset.database import initialise_or_create_database_at
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 from collections import deque
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from util import _autorange_srs
 
 
 class BaseSweep(QObject):
@@ -29,6 +30,7 @@ class BaseSweep(QObject):
             plot_data - Flag to determine if we should live-plot data
         """
         self._params = []
+        self._srs = []
         self.set_param = set_param
         self.inter_delay = inter_delay
         self.save_data = save_data
@@ -57,6 +59,18 @@ class BaseSweep(QObject):
                     self._params.append(l)
             else:
                 self._params.append(param)
+        
+      
+    def follow_srs(self, l, name, gain=1.0):
+        """
+        Adds an SRS lock-in to ensure that the range is kept correctly.
+        
+        Arguments:
+            l - lockin instrument
+            name - name of instrument
+            gain - current gain value
+        """
+        self._srs.append((l, name, gain))
         
         
     def _create_measurement(self):
@@ -151,7 +165,10 @@ class BaseSweep(QObject):
         if self.persist_data is not None:
             data.append(self.persist_data)
             persist_param = self.persist_data[0]
-            
+        
+        for i, (l, _, gain) in enumerate(self._srs):
+            _autorange_srs(l, 3)
+                    
         for i,p in enumerate(self._params):
             if p is not persist_param:
                 v = p.get()
@@ -248,6 +265,7 @@ class Sweep1D(BaseSweep):
         self.plotter = plotter
         self.direction = 0    
         self.is_ramping = False
+        self.ramp_sweep = None
         
         # Set the function to call when we are finished
         if complete_func == None:
@@ -255,7 +273,7 @@ class Sweep1D(BaseSweep):
         self.completed.connect(complete_func)
     
     
-    def start(self, persist_data=None):
+    def start(self, persist_data=None, ramp_to_start=True):
         """
         Starts the sweep. Runs from the BaseSweep start() function.
         """
@@ -266,8 +284,19 @@ class Sweep1D(BaseSweep):
             print(f"Sweep is already running.")
             return
         
-        print(f"Sweeping {self.set_param.label} to {self.end} {self.set_param.unit}")
-        super().start(persist_data)
+        if ramp_to_start is True:
+            print(f"Ramping to our starting setpoint value of {self.begin}")
+            self.ramp_to(self.begin, start_on_finish=True, persist=persist_data)
+        else:
+            print(f"Sweeping {self.set_param.label} to {self.end} {self.set_param.unit}")
+            super().start(persist_data)
+        
+    
+    def stop(self):
+        if self.is_ramping and self.ramp_sweep is not None:
+            print(f"Stopping the ramp.")
+            self.ramp_sweep.stop()
+        super().stop()
         
         
     def step_param(self):
@@ -278,7 +307,7 @@ class Sweep1D(BaseSweep):
         if abs(self.setpoint - self.end) > abs(self.step/2):
             self.setpoint = self.setpoint + self.step
             self.set_param.set(self.setpoint)
-            return (self.set_param, self.set_param.get())
+            return (self.set_param, self.setpoint)
         # If we want to go both ways, we flip the start and stop, and run again
         elif self.bidirectional and self.direction == 0:
             self.flip_direction()
@@ -309,19 +338,37 @@ class Sweep1D(BaseSweep):
             self.direction = 1
     
     
-    def ramp_to(self, value):
+    def ramp_to(self, value, start_on_finish=False, persist=None, multiplier=1):
         """
         Ramps the set_param to a given value, at the same rate as already specified.
         
         Arguments:
             value - setpoint to ramp towards
+            start_on_finish - flag if we want to begin the sweep as soon as we are done ramping
+            multiplier - multiplier for the step size, to ramp quicker than the sweep speed
         """
+        # Ensure we aren't currently running
+        if self.is_ramping:
+            print(f"Currently ramping. Finish current ramp before starting another.")
+            return
+        if self.is_running:
+            print(f"Already running. Stop the sweep before ramping.")
+            return
+        
+        # Check if we are already at the value
+        curr_value = self.set_param.get()
+        if abs(value - curr_value) <= self.step:
+            print(f"Already within {self.step} of the desired ramp value. Current setpoint: {self.setpoint}, ramp setpoint: {value}.\
+                  Setting our setpoint directly to the ramp value.")
+            self.done_ramping(value, start_on_finish)
+            return
+        
         # Create a new sweep to ramp our outer parameter to zero
-        ramp_sweep = Sweep1D(self.set_param, self.setpoint, value, self.step, inter_delay = self.inter_delay, 
-                             complete_func = lambda: self.done_ramping(value), save_data = False, plot_data = False)
+        self.ramp_sweep = Sweep1D(self.set_param, curr_value, value, multiplier*self.step, inter_delay = self.inter_delay, 
+                             complete_func = lambda: self.done_ramping(value, start_on_finish, persist), save_data = False, plot_data = False)
         self.is_running = True
         self.is_ramping = True
-        ramp_sweep.start()
+        self.ramp_sweep.start()
         
         self.end = value
         if self.setpoint - self.end > 0:
@@ -330,7 +377,6 @@ class Sweep1D(BaseSweep):
             self.step = abs(self.step)
         
         print(f'Ramping {self.set_param.label} to {value} . . . ')
-        ramp_sweep.start()
         
         
     def ramp_to_zero(self):
@@ -347,11 +393,15 @@ class Sweep1D(BaseSweep):
         self.start()
     
     
-    def done_ramping(self, value):
+    def done_ramping(self, value, start_on_finish=False, pd=None):
         self.is_ramping = False
         self.is_running = False
         print(f'Done ramping {self.set_param.label} to {value}')
         self.setpoint = value
+        self.set_param.set(self.setpoint)
+        
+        if start_on_finish == True:
+            self.start(persist_data=pd)
         
         
     def get_param_setpoint(self):
@@ -501,6 +551,18 @@ class Sweep2D(BaseSweep):
             else:
                 self.in_sweep._params.append(param)
         
+      
+    def follow_srs(self, l, name, gain=1.0):
+        """
+        Adds an SRS lock-in to ensure that the range is kept correctly.
+        
+        Arguments:
+            l - lockin instrument
+            name - name of instrument
+            gain - current gain value
+        """
+        self.in_sweep._srs.append((l, name, gain))
+        
         
     def _create_measurement(self):
         """
@@ -551,7 +613,7 @@ class Sweep2D(BaseSweep):
         """
         # If this function was called from a ramp down to 0, a special case of sweeping, deal with that
         # independently
-        if self.inner_ramp_to_zero == True:
+        if self.in_sweep.is_ramping == True:
             # We are no longer ramping to zero
             self.inner_ramp_to_zero = False
             # Check if our outer ramp to zero is still going, and if not, then officially end
@@ -570,6 +632,10 @@ class Sweep2D(BaseSweep):
         
         # Check our update condition
         self.update_rule(self.in_sweep, lines)
+        self.in_sweep.ramp_to(self.in_sweep.begin, start_on_finish=False)
+        
+        while self.in_sweep.is_ramping == True:
+            time.sleep(0.5)
         
         # If we aren't at the end, keep going
         if abs(self.out_setpoint - self.out_stop) >= abs(self.out_step/2):
@@ -614,7 +680,7 @@ class Sweep2D(BaseSweep):
         """
         # Ramp our inner sweep parameter to zero
         self.inner_ramp_to_zero = True
-        self.in_sweep.ramp_to_zero()
+        self.in_sweep.ramp_to(0)
         
         # Check our step sign
         if self.out_setpoint > 0:
@@ -628,6 +694,7 @@ class Sweep2D(BaseSweep):
         self.outer_ramp_to_zero = True
         zero_sweep.start()
         
+        
     def done_ramping_to_zero(self):
         """
         Function called when our outer sweep parameter has finished ramping to zero. Checks if both parameters
@@ -636,11 +703,12 @@ class Sweep2D(BaseSweep):
         # Our outer parameter has finished ramping
         self.outer_ramp_to_zero = False
         # Check if our inner parameter has finished
-        if self.inner_ramp_to_zero == False:
-            # If so, tell the system we are done
-            self.is_running = False
-            self.inner_sweep.is_running = False
-            print("Done ramping both parameters to zero")
+        while self.in_sweep.is_ramping == True:
+            time.sleep(0.5)
+            
+        # If so, tell the system we are done
+        self.is_running = False
+        print("Done ramping both parameters to zero")
     
                 
             
@@ -824,7 +892,7 @@ class PlotterThread(QThread):
                     self.setaxline.set_xdata(np.append(self.setaxline.get_xdata(), time_data[1]))
                     self.setaxline.set_ydata(np.append(self.setaxline.get_ydata(), set_param_data[1]))
                     self.setax.relim()
-                    self.setax.autoscale_view()
+                    self.setax.autoscale()
                 
                 x_data=0
                 if self.sweep.x_axis == 1:
@@ -837,7 +905,7 @@ class PlotterThread(QThread):
                     self.axesline[i][self.sweep.direction].set_xdata(np.append(self.axesline[i][self.sweep.direction].get_xdata(), x_data))
                     self.axesline[i][self.sweep.direction].set_ydata(np.append(self.axesline[i][self.sweep.direction].get_ydata(), data_pair[1]))
                     self.axes[i].relim()
-                    self.axes[i].autoscale_view()
+                    self.axes[i].autoscale()
     
             self.fig.tight_layout()
             self.fig.canvas.draw()
@@ -856,7 +924,7 @@ class PlotterThread(QThread):
             self.setaxline.set_xdata(np.array([]))
             self.setaxline.set_ydata(np.array([]))
             self.setax.relim()
-            self.setax.autoscale_view()
+            self.setax.autoscale()
         
         for i,p in enumerate(self.sweep._params):
             self.axesline[i][0].set_xdata(np.array([]))
@@ -864,7 +932,7 @@ class PlotterThread(QThread):
             self.axesline[i][1].set_xdata(np.array([]))
             self.axesline[i][1].set_ydata(np.array([]))
             self.axes[i].relim()
-            self.axes[i].autoscale_view()
+            self.axes[i].autoscale()
 
 
 
@@ -911,6 +979,14 @@ class HeatmapThread(QThread):
         self.res_out = math.ceil(abs((self.sweep.out_stop-self.sweep.out_start)/self.sweep.out_step))+1
         
         # Create the heatmap data matrix - initially as all 0s
+        self.heatmap_dict = {}
+        for x_out in np.linspace(self.sweep.out_start, self.sweep.out_stop, 
+                                 abs(self.sweep.out_stop-self.sweep.out_start)/self.sweep.out_step+1, endpoint=True):
+            self.heatmap_dict[x_out]={}
+            for x_in in np.linspace(self.sweep.in_start, self.sweep.in_stop, 
+                                 abs(self.sweep.in_stop-self.sweep.in_start)/self.sweep.in_step+1, endpoint=True):
+                self.heatmap_dict[x_out][x_in]=0
+            
         self.heatmap_data = np.zeros((self.res_out, self.res_in))
         # Create a figure
         self.heat_fig = plt.figure(2)
