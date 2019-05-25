@@ -768,7 +768,7 @@ class PlotterThread(QThread):
                     self.setaxline.set_xdata(np.append(self.setaxline.get_xdata(), time_data[1]))
                     self.setaxline.set_ydata(np.append(self.setaxline.get_ydata(), set_param_data[1]))
                     self.setax.relim()
-                    self.setax.autoscale_view()
+                    self.setax.autoscale()
                 
                 x_data=0
                 if self.sweep.x_axis == 1:
