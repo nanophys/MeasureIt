@@ -126,7 +126,6 @@ class BaseSweep(QObject):
         # If we don't have a runner, create it and tell it of the plotter,
         # which is where it will send data to be plotted
         if self.runner is None:
-            print("creating new runner")
             self.runner = RunnerThread(self)
             self.datasaver = self.runner.datasaver
             self.runner.add_plotter(self.plotter)
@@ -198,8 +197,6 @@ class BaseSweep(QObject):
     def __del__(self):
         if self.datasaver is not None:
             self.datasaver.__exit__()
-        
-        QObject.__del__()
         
 
 
@@ -273,7 +270,7 @@ class Sweep1D(BaseSweep):
         self.completed.connect(complete_func)
     
     
-    def start(self, persist_data=None, ramp_to_start=True):
+    def start(self, persist_data=None, ramp_to_start=True, ramp_multiplier=1):
         """
         Starts the sweep. Runs from the BaseSweep start() function.
         """
@@ -286,7 +283,7 @@ class Sweep1D(BaseSweep):
         
         if ramp_to_start is True:
             print(f"Ramping to our starting setpoint value of {self.begin}")
-            self.ramp_to(self.begin, start_on_finish=True, persist=persist_data)
+            self.ramp_to(self.begin, start_on_finish=True, persist=persist_data, multiplier=ramp_multiplier)
         else:
             print(f"Sweeping {self.set_param.label} to {self.end} {self.set_param.unit}")
             super().start(persist_data)
@@ -368,13 +365,7 @@ class Sweep1D(BaseSweep):
                              complete_func = lambda: self.done_ramping(value, start_on_finish, persist), save_data = False, plot_data = False)
         self.is_running = True
         self.is_ramping = True
-        self.ramp_sweep.start()
-        
-        self.end = value
-        if self.setpoint - self.end > 0:
-            self.step = (-1) * abs(self.step)
-        else:
-            self.step = abs(self.step)
+        self.ramp_sweep.start(ramp_to_start=False)
         
         print(f'Ramping {self.set_param.label} to {value} . . . ')
         
@@ -401,7 +392,7 @@ class Sweep1D(BaseSweep):
         self.set_param.set(self.setpoint)
         
         if start_on_finish == True:
-            self.start(persist_data=pd)
+            self.start(ramp_to_start=False, persist_data=pd)
         
         
     def get_param_setpoint(self):
