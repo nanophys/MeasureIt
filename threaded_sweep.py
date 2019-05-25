@@ -983,6 +983,8 @@ class HeatmapThread(QThread):
                                  abs(self.sweep.in_stop-self.sweep.in_start)/self.sweep.in_step+1, endpoint=True):
                 self.heatmap_dict[x_out][x_in]=0
                 self.in_keys.add(x_in)   
+        self.out_keys = sorted(self.out_keys)
+        self.in_keys = sorted(self.in_keys)
         
         self.heatmap_data = np.zeros((self.res_out, self.res_in))
         # Create a figure
@@ -1013,7 +1015,7 @@ class HeatmapThread(QThread):
         self.figs_set = True
         
     
-    def add_lines(self, lines):
+    def add_lines(self, lines, x_out):
         """
         Feed the thread Line2D objects to add to the heatmap.
         
@@ -1024,10 +1026,46 @@ class HeatmapThread(QThread):
         
         
     def add_to_plot(self, line):
-        pass
+        in_key=0
+        
+        x_data, y_data = line.get_data()
+        
+        for key in self.in_keys:
+            if abs(x_data[0] - key) < self.in_step:
+                in_key = key
+        
+        for i,x in enumerate(x_data):
+            self.heatmap_dict[self.res_out-self.count-1][in_key+i*self.in_step]=y_data[i]
+            if y_data[i] > self.max_datapt:
+                self.max_datapt = y_data[i]
+            if y_data[i] < self.min_datapt:
+                self.min_datapt = y_data[i]
+        self.update_data(self.res_out-self.count-1)
+        
+        
+    def update_data(self, x_out):
+        for i,x in enumerate(self.in_keys):
+            self.heatmap_data[x_out][i]=self.heatmap_dict[x_out][x]
         
         
     def run(self):
+        while len(self.lines_to_add) != 0:
+            # Grab the lines to add
+            line_pair = self.lines_to_add.popleft()
+            
+            forward_line = line_pair[0]
+            backward_line = line_pair[1]
+            
+            self.add_to_plot(forward_line)
+            
+        # Refresh the image!
+        self.heatmap.set_data(self.heatmap_data)
+        self.heatmap.set_clim(self.min_datapt, self.max_datapt)
+        self.heat_fig.canvas.draw()
+        self.heat_fig.canvas.flush_events()
+    
+        
+    def run_dep(self):
         """
         Run function that executes the thread. This takes the lines that have been collected
         and adds them to the heatmap
