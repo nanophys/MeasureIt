@@ -971,13 +971,19 @@ class HeatmapThread(QThread):
         
         # Create the heatmap data matrix - initially as all 0s
         self.heatmap_dict = {}
+        self.out_keys = set([])
+        self.in_keys = set([])
+        self.out_step = self.sweep.out_step
+        self.in_step = self.sweep.in_step
         for x_out in np.linspace(self.sweep.out_start, self.sweep.out_stop, 
                                  abs(self.sweep.out_stop-self.sweep.out_start)/self.sweep.out_step+1, endpoint=True):
             self.heatmap_dict[x_out]={}
+            self.out_keys.add(x_out)
             for x_in in np.linspace(self.sweep.in_start, self.sweep.in_stop, 
                                  abs(self.sweep.in_stop-self.sweep.in_start)/self.sweep.in_step+1, endpoint=True):
                 self.heatmap_dict[x_out][x_in]=0
-            
+                self.in_keys.add(x_in)   
+        
         self.heatmap_data = np.zeros((self.res_out, self.res_in))
         # Create a figure
         self.heat_fig = plt.figure(2)
@@ -1015,6 +1021,10 @@ class HeatmapThread(QThread):
             lines - tuple of Line2D objects (backwards and forwards) to be added to heatmap
         """
         self.lines_to_add.append(lines)
+        
+        
+    def add_to_plot(self, line):
+        pass
         
         
     def run(self):
