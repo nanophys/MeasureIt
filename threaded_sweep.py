@@ -282,7 +282,7 @@ class Sweep1D(BaseSweep):
             return
         
         if ramp_to_start is True:
-            print(f"Ramping to our starting setpoint value of {self.begin}")
+            print(f"Ramping to our starting setpoint value of {self.begin} {self.set_param.unit}")
             self.ramp_to(self.begin, start_on_finish=True, persist=persist_data, multiplier=ramp_multiplier)
         else:
             print(f"Sweeping {self.set_param.label} to {self.end} {self.set_param.unit}")
@@ -301,7 +301,7 @@ class Sweep1D(BaseSweep):
         Iterates the parameter.
         """
         # If we aren't at the end, keep going
-        if abs(self.setpoint - self.end) > abs(self.step/2):
+        if abs(self.setpoint - self.end) >= abs(self.step/2):
             self.setpoint = self.setpoint + self.step
             self.set_param.set(self.setpoint)
             return (self.set_param, self.setpoint)
@@ -354,9 +354,8 @@ class Sweep1D(BaseSweep):
         
         # Check if we are already at the value
         curr_value = self.set_param.get()
-        if abs(value - curr_value) <= self.step:
-            print(f"Already within {self.step} of the desired ramp value. Current setpoint: {self.setpoint}, ramp setpoint: {value}.\
-                  Setting our setpoint directly to the ramp value.")
+        if abs(value - curr_value) <= self.step/2:
+#            print(f"Already within {self.step} of the desired ramp value. Current value: {curr_value}, ramp setpoint: {value}.\nSetting our setpoint directly to the ramp value.")
             self.done_ramping(value, start_on_finish)
             return
         
@@ -388,8 +387,8 @@ class Sweep1D(BaseSweep):
         self.is_ramping = False
         self.is_running = False
         print(f'Done ramping {self.set_param.label} to {value}')
-        self.setpoint = value
-        self.set_param.set(self.setpoint)
+        self.set_param.set(value)
+        self.setpoint = value - self.step
         
         if start_on_finish == True:
             self.start(ramp_to_start=False, persist_data=pd)
@@ -552,7 +551,7 @@ class Sweep2D(BaseSweep):
             name - name of instrument
             gain - current gain value
         """
-        self.in_sweep._srs.append((l, name, gain))
+        self.in_sweep.follow_srs((l, name, gain))
         
         
     def _create_measurement(self):
@@ -582,6 +581,7 @@ class Sweep2D(BaseSweep):
         self.is_running = True
         self.in_sweep.start()
         self.heatmap_plotter.create_figs()
+        self.heatmap_plotter.start()
         
         self.plotter = self.in_sweep.plotter
         self.runner = self.in_sweep.runner
@@ -606,6 +606,7 @@ class Sweep2D(BaseSweep):
         # independently
         if self.in_sweep.is_ramping == True:
             # We are no longer ramping to zero
+            
             self.inner_ramp_to_zero = False
             # Check if our outer ramp to zero is still going, and if not, then officially end
             # our ramping to zero
@@ -619,14 +620,14 @@ class Sweep2D(BaseSweep):
         # Update our heatmap!
         lines = self.plotter.axes[2].get_lines()
         self.heatmap_plotter.add_lines(lines)
-        self.heatmap_plotter.start()
+#        self.heatmap_plotter.start()
         
         # Check our update condition
         self.update_rule(self.in_sweep, lines)
-        self.in_sweep.ramp_to(self.in_sweep.begin, start_on_finish=False)
+#        self.in_sweep.ramp_to(self.in_sweep.begin, start_on_finish=False)
         
-        while self.in_sweep.is_ramping == True:
-            time.sleep(0.5)
+#        while self.in_sweep.is_ramping == True:
+#            time.sleep(0.5)
         
         # If we aren't at the end, keep going
         if abs(self.out_setpoint - self.out_stop) >= abs(self.out_step/2):
@@ -774,7 +775,7 @@ class RunnerThread(QThread):
             # Note: we check again if running, because we won't know if we are
             # done until we try to step the parameter once more
             if self.sweep.is_running is True and self.plotter is not None:
-                self.plotter.add_data_to_queue(data)
+                self.plotter.add_data_to_queue(data, self.sweep.direction)
             # Smart sleep, by checking if the whole process has taken longer than
             # our sleep time
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
@@ -806,6 +807,8 @@ class PlotterThread(QThread):
         self.setax = setax
         self.axesline = axesline
         self.axes = axes
+        self.finished = False
+        self.last_pass = False
         
         QThread.__init__(self)
         
@@ -851,14 +854,14 @@ class PlotterThread(QThread):
             self.axesline.append((forward_line, backward_line))
             
             
-    def add_data_to_queue(self, data):
+    def add_data_to_queue(self, data, direction):
         """
         Grabs the data to plot.
         
         Arguments:
             data - list of tuples to plot
         """
-        self.data_queue.append(data)
+        self.data_queue.append((data,direction))
         
         
     def run(self):
@@ -871,7 +874,9 @@ class PlotterThread(QThread):
             
             # Remove all the data points from the deque
             while len(self.data_queue) > 0:
-                data = deque(self.data_queue.popleft())
+                temp = self.data_queue.popleft()
+                data = deque(temp[0])
+                direction = temp[1]
                 
                 # Grab the time data 
                 time_data = data.popleft()
@@ -893,18 +898,53 @@ class PlotterThread(QThread):
                     
                 # Now, grab the rest of the following param data
                 for i,data_pair in enumerate(data):                
-                    self.axesline[i][self.sweep.direction].set_xdata(np.append(self.axesline[i][self.sweep.direction].get_xdata(), x_data))
-                    self.axesline[i][self.sweep.direction].set_ydata(np.append(self.axesline[i][self.sweep.direction].get_ydata(), data_pair[1]))
+                    self.axesline[i][direction].set_xdata(np.append(self.axesline[i][direction].get_xdata(), x_data))
+                    self.axesline[i][direction].set_ydata(np.append(self.axesline[i][direction].get_ydata(), data_pair[1]))
                     self.axes[i].relim()
                     self.axes[i].autoscale()
     
             self.fig.tight_layout()
             self.fig.canvas.draw()
+            
             # Smart sleep, by checking if the whole process has taken longer than
             # our sleep time
-            sleep_time = self.sweep.inter_delay/2 - (time.monotonic() - t)
+            sleep_time = self.sweep.inter_delay/4 - (time.monotonic() - t)
             if sleep_time > 0:
                 time.sleep(sleep_time)
+            if self.sweep.is_running is False:
+                # Remove all the data points from the deque
+                while len(self.data_queue) > 0:
+                    temp = self.data_queue.popleft()
+                    data = deque(temp[0])
+                    direction = temp[1]
+                
+                    # Grab the time data 
+                    time_data = data.popleft()
+                
+                    # Grab and plot the set_param if we are driving one
+                    if self.sweep.set_param is not None:
+                        set_param_data = data.popleft()
+                        # Plot as a function of time
+                        self.setaxline.set_xdata(np.append(self.setaxline.get_xdata(), time_data[1]))
+                        self.setaxline.set_ydata(np.append(self.setaxline.get_ydata(), set_param_data[1]))
+                        self.setax.relim()
+                        self.setax.autoscale()
+                
+                    x_data=0
+                    if self.sweep.x_axis == 1:
+                        x_data = time_data[1]
+                    elif self.sweep.x_axis == 0:
+                        x_data = set_param_data[1]
+                    
+                    # Now, grab the rest of the following param data
+                    for i,data_pair in enumerate(data):                
+                        self.axesline[i][direction].set_xdata(np.append(self.axesline[i][direction].get_xdata(), x_data))
+                        self.axesline[i][direction].set_ydata(np.append(self.axesline[i][direction].get_ydata(), data_pair[1]))
+                        self.axes[i].relim()
+                        self.axes[i].autoscale()
+    
+                self.fig.tight_layout()
+                self.fig.canvas.draw()
 
 
     def reset(self):
@@ -1015,7 +1055,7 @@ class HeatmapThread(QThread):
         self.figs_set = True
         
     
-    def add_lines(self, lines, x_out):
+    def add_lines(self, lines):
         """
         Feed the thread Line2D objects to add to the heatmap.
         
@@ -1031,7 +1071,7 @@ class HeatmapThread(QThread):
         x_data, y_data = line.get_data()
         
         for key in self.in_keys:
-            if abs(x_data[0] - key) < self.in_step:
+            if abs(x_data[0] - key) < self.in_step/2:
                 in_key = key
         
         for i,x in enumerate(x_data):
@@ -1049,20 +1089,29 @@ class HeatmapThread(QThread):
         
         
     def run(self):
-        while len(self.lines_to_add) != 0:
-            # Grab the lines to add
-            line_pair = self.lines_to_add.popleft()
+        while self.sweep.is_running is True:
+            t = time.monotonic()
             
-            forward_line = line_pair[0]
-            backward_line = line_pair[1]
+            while len(self.lines_to_add) != 0:
+                # Grab the lines to add
+                line_pair = self.lines_to_add.popleft()
             
-            self.add_to_plot(forward_line)
+                forward_line = line_pair[0]
+                backward_line = line_pair[1]
             
-        # Refresh the image!
-        self.heatmap.set_data(self.heatmap_data)
-        self.heatmap.set_clim(self.min_datapt, self.max_datapt)
-        self.heat_fig.canvas.draw()
-        self.heat_fig.canvas.flush_events()
+                self.add_to_plot(forward_line)
+            
+            # Refresh the image!
+            self.heatmap.set_data(self.heatmap_data)
+            self.heatmap.set_clim(self.min_datapt, self.max_datapt)
+            self.heat_fig.canvas.draw()
+            self.heat_fig.canvas.flush_events()
+            
+            # Smart sleep, by checking if the whole process has taken longer than
+            # our sleep time
+            sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
+            if sleep_time > 0:
+                time.sleep(sleep_time)
     
         
     def run_dep(self):
