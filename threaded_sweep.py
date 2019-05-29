@@ -1073,9 +1073,11 @@ class HeatmapThread(QThread):
         for key in self.in_keys:
             if abs(x_data[0] - key) < self.in_step/2:
                 in_key = key
+                
+        start_pt = self.in_keys.index(in_key)
         
         for i,x in enumerate(x_data):
-            self.heatmap_dict[self.res_out-self.count-1][in_key+i*self.in_step]=y_data[i]
+            self.heatmap_dict[self.out_keys[self.res_out-self.count-1]][self.in_keys[start_pt+i]]=y_data[i]
             if y_data[i] > self.max_datapt:
                 self.max_datapt = y_data[i]
             if y_data[i] < self.min_datapt:
