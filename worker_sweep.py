@@ -900,7 +900,7 @@ class Plotter(QObject):
         """
         Actual function to run, that controls the plotting of the data.
         """
-        
+        print(f"called plotter from thread: {QThread.currentThreadId()}")
         # Remove all the data points from the deque
         while len(self.data_queue) > 0:
             temp = self.data_queue.popleft()
@@ -1084,7 +1084,7 @@ class Heatmap(QObject):
     def run(self):
         #while self.sweep.is_running is True:
         #    t = time.monotonic()
-            
+        print(f"called heatmap from thread: {QThread.currentThreadId()}")
         while len(self.lines_to_add) != 0:
             # Grab the lines to add
             line_pair = self.lines_to_add.popleft()
