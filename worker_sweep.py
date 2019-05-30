@@ -124,6 +124,16 @@ class BaseSweep(QObject):
         program and unpause after calling 'stop()'
         """
         
+        # Flag that we are now running.
+        self.is_running = True
+        
+        first = False
+        if self.plotter is None and self.runner is None:
+            first = True
+        
+        # Save persistent data from 2D sweep
+        self.persist_data = persist_data
+        
         # If we don't have a plotter yet want to plot, create it and the figures
         if self.plotter is None and self.plot_data is True:
             self.plotter = Plotter(self)
@@ -135,21 +145,17 @@ class BaseSweep(QObject):
             self.runner = Runner(self)
             self.datasaver = self.runner.datasaver
             self.runner.add_plotter(self.plotter)
+            
+        if first is True:
+            # Tells the threads to begin
+            self.runner.moveToThread(self.runnerThread)
+            self.plotter.moveToThread(self.plotterThread)
         
-        # Flag that we are now running.
-        self.is_running = True
+            self.runnerThread.start()
+            self.plotterThread.start()
         
-        # Save persistent data from 2D sweep
-        self.persist_data = persist_data
-        
-        # Tells the threads to begin
-        self.runner.moveToThread(self.runnerThread)
-        self.plotter.moveToThread(self.plotterThread)
-        
-        self.runnerThread.start()
-        self.plotterThread.start()
-        
-        self.start_sweep.connect(self.runner.run)
+            self.start_sweep.connect(self.runner.run)
+
         self.start_sweep.emit()
         
         
@@ -456,7 +462,7 @@ class Sweep2D(BaseSweep):
     Thread objects. 
     """
     completed = pyqtSignal()
-    
+    update_heatmap = pyqtSignal()
     
     def __init__(self, in_params, out_params, runner = None, plotter = None, inter_delay = 0.01, 
                  outer_delay = 1, save_data = True, plot_data = True, complete_func = None, update_func = None):
@@ -529,12 +535,16 @@ class Sweep2D(BaseSweep):
         if complete_func is None:
             complete_func = self.no_change
         self.completed.connect(complete_func)
+        
         # Set the fucntion to call when the inner sweep finishes
         if update_func is None:
             self.update_rule = self.no_change
         
         # Initialize our heatmap plotting thread
+        self.heatmap_thread = QThread()
         self.heatmap_plotter = Heatmap(self)
+        self.heatmap_plotter.moveToThread(self.heatmap_thread)
+        self.update_heatmap.connect(self.heatmap_plotter.run)
         
         
     def follow_param(self, *p):
@@ -596,7 +606,7 @@ class Sweep2D(BaseSweep):
         self.is_running = True
         self.in_sweep.start()
         self.heatmap_plotter.create_figs()
-#        self.heatmap_plotter.start()
+        self.heatmap_thread.start()
         
         self.plotter = self.in_sweep.plotter
         self.runner = self.in_sweep.runner
@@ -635,7 +645,7 @@ class Sweep2D(BaseSweep):
         # Update our heatmap!
         lines = self.plotter.axes[1].get_lines()
         self.heatmap_plotter.add_lines(lines)
-        self.heatmap_plotter.start()
+        self.update_heatmap.emit()
         
         # Check our update condition
         self.update_rule(self.in_sweep, lines)
