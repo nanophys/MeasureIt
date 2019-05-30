@@ -493,7 +493,8 @@ class Sweep2D(BaseSweep):
         
         # Create the inner sweep object
         self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
-                                inter_delay = self.inter_delay, save_data = self.save_data, plot_data = plot_data)
+                                inter_delay = self.inter_delay, save_data = self.save_data, 
+                                x_axis_time=0, plot_data = plot_data)
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
         self.in_sweep.follow_param(self.set_param)
@@ -581,7 +582,7 @@ class Sweep2D(BaseSweep):
         self.is_running = True
         self.in_sweep.start()
         self.heatmap_plotter.create_figs()
-        self.heatmap_plotter.start()
+#        self.heatmap_plotter.start()
         
         self.plotter = self.in_sweep.plotter
         self.runner = self.in_sweep.runner
@@ -618,9 +619,9 @@ class Sweep2D(BaseSweep):
             return
         
         # Update our heatmap!
-        lines = self.plotter.axes[2].get_lines()
+        lines = self.plotter.axes[1].get_lines()
         self.heatmap_plotter.add_lines(lines)
-#        self.heatmap_plotter.start()
+        self.heatmap_plotter.start()
         
         # Check our update condition
         self.update_rule(self.in_sweep, lines)
@@ -765,6 +766,7 @@ class RunnerThread(QThread):
         if self.db_set == False and self.sweep.save_data == True:
             self.datasaver = self.sweep.meas.run().__enter__()
             
+        print(f"called runner from thread: {QThread.currentThreadId()}")
         # Check if we are still running
         while self.sweep.is_running is True:
             t = time.monotonic()
@@ -843,7 +845,10 @@ class PlotterThread(QThread):
                 pos += 1
             self.axes.append(self.fig.add_subplot(self.grid[:, pos]))
             # Create a plot of the sweeping parameters value against time
-            self.axes[i].set_xlabel('Time (s)')
+            if self.sweep.x_axis:
+                self.axes[i].set_xlabel('Time (s)')
+            else:
+                self.axes[i].set_xlabel(f'{self.sweep.set_param.label} ({self.sweep.set_param.unit})')
             self.axes[i].set_ylabel(f'{p.label} ({p.unit})')
             forward_line = matplotlib.lines.Line2D([],[])
             forward_line.set_color('b')
@@ -868,6 +873,7 @@ class PlotterThread(QThread):
         """
         Actual function to run, that controls the plotting of the data.
         """
+        print(f"called plotter from thread: {QThread.currentThreadId()}")
         # Run while the sweep is running
         while self.sweep.is_running is True:
             t = time.monotonic()
@@ -1071,49 +1077,51 @@ class HeatmapThread(QThread):
         x_data, y_data = line.get_data()
         
         for key in self.in_keys:
-            if abs(x_data[0] - key) < self.in_step/2:
+            if abs(x_data[0] - key) < abs(self.in_step/2):
                 in_key = key
                 
         start_pt = self.in_keys.index(in_key)
         
         for i,x in enumerate(x_data):
-            self.heatmap_dict[self.out_keys[self.res_out-self.count-1]][self.in_keys[start_pt+i]]=y_data[i]
+            self.heatmap_dict[self.out_keys[self.count]][self.in_keys[start_pt+i]]=y_data[i]
             if y_data[i] > self.max_datapt:
                 self.max_datapt = y_data[i]
             if y_data[i] < self.min_datapt:
                 self.min_datapt = y_data[i]
         self.update_data(self.res_out-self.count-1)
+        self.count += 1
+        print(f"called heatmap from thread: {QThread.currentThreadId()}")
         
         
     def update_data(self, x_out):
         for i,x in enumerate(self.in_keys):
-            self.heatmap_data[x_out][i]=self.heatmap_dict[x_out][x]
+            self.heatmap_data[x_out][i]=self.heatmap_dict[self.out_keys[x_out]][x]
         
         
     def run(self):
-        while self.sweep.is_running is True:
-            t = time.monotonic()
+        #while self.sweep.is_running is True:
+        #    t = time.monotonic()
             
-            while len(self.lines_to_add) != 0:
-                # Grab the lines to add
-                line_pair = self.lines_to_add.popleft()
+        while len(self.lines_to_add) != 0:
+            # Grab the lines to add
+            line_pair = self.lines_to_add.popleft()
             
-                forward_line = line_pair[0]
-                backward_line = line_pair[1]
+            forward_line = line_pair[0]
+            backward_line = line_pair[1]
             
-                self.add_to_plot(forward_line)
+            self.add_to_plot(forward_line)
             
-            # Refresh the image!
-            self.heatmap.set_data(self.heatmap_data)
-            self.heatmap.set_clim(self.min_datapt, self.max_datapt)
-            self.heat_fig.canvas.draw()
-            self.heat_fig.canvas.flush_events()
+        # Refresh the image!
+        self.heatmap.set_data(self.heatmap_data)
+        self.heatmap.set_clim(self.min_datapt, self.max_datapt)
+        self.heat_fig.canvas.draw()
+        self.heat_fig.canvas.flush_events()
             
             # Smart sleep, by checking if the whole process has taken longer than
             # our sleep time
-            sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
-            if sleep_time > 0:
-                time.sleep(sleep_time)
+        #    sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
+        #    if sleep_time > 0:
+        #        time.sleep(sleep_time)
     
         
     def run_dep(self):
