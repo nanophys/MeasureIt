@@ -1039,7 +1039,7 @@ class HeatmapThread(QThread):
         self.heatmap = plt.imshow(self.heatmap_data)
         ax = plt.gca()
         self.heat_ax = ax
-         
+        
         # Set our axes and ticks
         plt.ylabel(f'{self.sweep.set_param.label} ({self.sweep.set_param.unit})')
         plt.xlabel(f'{self.sweep.in_param.label} ({self.sweep.in_param.unit})')
