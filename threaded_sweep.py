@@ -766,18 +766,20 @@ class RunnerThread(QThread):
         if self.db_set == False and self.sweep.save_data == True:
             self.datasaver = self.sweep.meas.run().__enter__()
             
-        print(f"called runner from thread: {QThread.currentThreadId()}")
+        #print(f"called runner from thread: {QThread.currentThreadId()}")
         # Check if we are still running
         while self.sweep.is_running is True:
             t = time.monotonic()
             
             # Get the new data
             data = self.sweep.update_values()
+            
             # Send it to the plotter if we are going
             # Note: we check again if running, because we won't know if we are
             # done until we try to step the parameter once more
             if self.sweep.is_running is True and self.plotter is not None:
                 self.plotter.add_data_to_queue(data, self.sweep.direction)
+                
             # Smart sleep, by checking if the whole process has taken longer than
             # our sleep time
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
@@ -873,7 +875,7 @@ class PlotterThread(QThread):
         """
         Actual function to run, that controls the plotting of the data.
         """
-        print(f"called plotter from thread: {QThread.currentThreadId()}")
+        #print(f"called plotter from thread: {QThread.currentThreadId()}")
         # Run while the sweep is running
         while self.sweep.is_running is True:
             t = time.monotonic()
@@ -1095,7 +1097,8 @@ class HeatmapThread(QThread):
         
     def update_data(self, x_out):
         for i,x in enumerate(self.in_keys):
-            self.heatmap_data[x_out][i]=self.heatmap_dict[self.out_keys[x_out]][x]
+            print(f"{i} {x} {x_out}")
+            self.heatmap_data[x_out][i]=self.heatmap_dict[self.out_keys[self.count]][x]
         
         
     def run(self):
