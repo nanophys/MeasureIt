@@ -109,6 +109,7 @@ class BaseSweep(QObject):
         
     
     def kill(self):
+        self.is_running = False
         self.runner.kill_flag = True
         
         
@@ -376,7 +377,7 @@ class Sweep1D(BaseSweep):
         # Create a new sweep to ramp our outer parameter to zero
         self.ramp_sweep = Sweep1D(self.set_param, curr_value, value, multiplier*self.step, inter_delay = self.inter_delay, 
                              complete_func = lambda: self.done_ramping(value, start_on_finish, persist), save_data = False, plot_data = False)
-        self.is_running = True
+        self.is_running = False
         self.is_ramping = True
         self.ramp_sweep.start(ramp_to_start=False)
         
