@@ -86,7 +86,7 @@ def track_jump(sweep, lines, pos_jump=True, steps=100):
     
 def adjust_endpoints(sweep, steps, avg_peak_pos):
     new_begin = avg_peak_pos - (steps/2*sweep.step)
-    new_end = sweep.begin + sweep.step*steps 
+    new_end = new_begin + sweep.step*steps 
     
     if sweep.begin < sweep.end:
         if new_begin > sweep.begin:
