@@ -18,7 +18,7 @@ class BaseSweep(QObject):
     This is the base class for the 0D (tracking) sweep class and the 1D sweep class. Each of these functions
     is used by both classes.
     """
-    def __init__(self, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True, x_axis=1, datasaver = None):
+    def __init__(self, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True, x_axis=1, datasaver = None, parent = None):
         """
         Initializer for both classes, called by super().__init__() in Sweep0D and Sweep1D classes.
         Simply initializes the variables and flags.
@@ -102,7 +102,14 @@ class BaseSweep(QObject):
         the flag that the children threads check in their loop to determine if they should
         continue running.
         """
+        if self.save_data and self.runner is not None:
+                self.runner.datasaver.flush_data_to_database()
+                
         self.is_running = False
+        
+    
+    def kill(self):
+        self.runner.kill_flag = True
         
         
     def check_running(self):
@@ -138,7 +145,9 @@ class BaseSweep(QObject):
         
         # Tells the threads to begin
         self.plotter.start()
-        self.runner.start()
+        if not self.runner.isRunning():
+            self.runner.kill_flag = False
+            self.runner.start()
         
         
     def update_values(self):
@@ -205,7 +214,7 @@ class Sweep0D(BaseSweep):
     Class for the following/live plotting, i.e. "0-D sweep" class. As of now, is just an extension of
     BaseSweep, but has been separated for future convenience.
     """
-    def __init__(self, runner = None, plotter = None, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True):
+    def __init__(self, parent = None, runner = None, plotter = None, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True):
         """
         Initialization class. Simply calls the BaseSweep initialization, and saves a few extra variables.
         
@@ -214,7 +223,7 @@ class Sweep0D(BaseSweep):
             plotter - PlotterThread object, passed if a GUI has plots it wants the thread to use instead
                       of creating it's own automatically.
         """
-        super().__init__(set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data)
+        super().__init__(set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data, parent=parent)
         
         self.runner = runner
         self.plotter = plotter
@@ -231,7 +240,7 @@ class Sweep1D(BaseSweep):
     completed = pyqtSignal()
     
     def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, datasaver = None,
-                 inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None, x_axis_time = 1):
+                 inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None, x_axis_time = 1, parent = None):
         """
         Initializes the sweep. There are only 5 new arguments to read in.
         
@@ -244,7 +253,8 @@ class Sweep1D(BaseSweep):
             x_axis_time - 1 for plotting parameters against time, 0 for set_param
         """
         # Initialize the BaseSweep
-        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data, x_axis=x_axis_time, datasaver=datasaver)
+        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data, x_axis=x_axis_time, 
+                         datasaver=datasaver, parent=parent)
         
         self.begin = start
         self.end = stop
@@ -311,10 +321,14 @@ class Sweep1D(BaseSweep):
             return self.step_param()
         # If neither of the above are triggered, it means we are at the end of the sweep
         else:
+            if self.save_data:
+                self.runner.datasaver.flush_data_to_database()
             self.is_running = False
             print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
             self.flip_direction()
             self.completed.emit()
+            if self.parent is None:
+                self.runner.kill_flag = True
             return (self.set_param, -1)
              
         
@@ -389,6 +403,8 @@ class Sweep1D(BaseSweep):
         print(f'Done ramping {self.set_param.label} to {value}')
         self.set_param.set(value)
         self.setpoint = value - self.step
+        if self.ramp_sweep is not None:
+            self.ramp_sweep.plotter.clear()
         
         if start_on_finish == True:
             self.start(ramp_to_start=False, persist_data=pd)
@@ -489,7 +505,7 @@ class Sweep2D(BaseSweep):
             self.out_step = (-1) * abs(self.out_step)
         
         # Initialize the BaseSweep
-        super().__init__(self.set_param, inter_delay, save_data, plot_data)
+        super().__init__(set_param = self.set_param, inter_delay = inter_delay, save_data = save_data, plot_data = plot_data)
         
         # Create the inner sweep object
         self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
@@ -582,7 +598,6 @@ class Sweep2D(BaseSweep):
         self.is_running = True
         self.in_sweep.start()
         self.heatmap_plotter.create_figs()
-#        self.heatmap_plotter.start()
         
         self.plotter = self.in_sweep.plotter
         self.runner = self.in_sweep.runner
@@ -643,7 +658,8 @@ class Sweep2D(BaseSweep):
         # If neither of the above are triggered, it means we are at the end of the sweep
         else:
             self.is_running = False
-            print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
+            print(f"Done with the sweep, {self.set_param.label}={self.out_setpoint}")
+            self.in_sweep.kill()
             self.completed.emit()
     
     
@@ -723,6 +739,7 @@ class RunnerThread(QThread):
         self.plotter = None
         self.datasaver = None
         self.db_set = False
+        self.kill_flag = False
         
         QThread.__init__(self)
         
@@ -768,17 +785,18 @@ class RunnerThread(QThread):
             
         #print(f"called runner from thread: {QThread.currentThreadId()}")
         # Check if we are still running
-        while self.sweep.is_running is True:
+        while self.kill_flag is False:
             t = time.monotonic()
             
-            # Get the new data
-            data = self.sweep.update_values()
+            if self.sweep.is_running is True:
+                # Get the new data
+                data = self.sweep.update_values()
             
-            # Send it to the plotter if we are going
-            # Note: we check again if running, because we won't know if we are
-            # done until we try to step the parameter once more
-            if self.sweep.is_running is True and self.plotter is not None:
-                self.plotter.add_data_to_queue(data, self.sweep.direction)
+                # Send it to the plotter if we are going
+                # Note: we check again if running, because we won't know if we are
+                # done until we try to step the parameter once more
+                if self.sweep.is_running is True and self.plotter is not None:
+                    self.plotter.add_data_to_queue(data, self.sweep.direction)
                 
             # Smart sleep, by checking if the whole process has taken longer than
             # our sleep time
@@ -813,6 +831,7 @@ class PlotterThread(QThread):
         self.axes = axes
         self.finished = False
         self.last_pass = False
+        self.figs_set = False
         
         QThread.__init__(self)
         
@@ -828,6 +847,8 @@ class PlotterThread(QThread):
         """
         Creates default figures for each of the parameters. Plots them in a new, separate window.
         """
+        self.figs_set = True
+        
         self.fig = plt.figure(figsize=(4*(2 + len(self.sweep._params)),4))
         self.grid = plt.GridSpec(4, 1 + len(self.sweep._params), hspace=0)
         self.axes = []
@@ -871,88 +892,65 @@ class PlotterThread(QThread):
         self.data_queue.append((data,direction))
         
         
+    def update_plots(self):
+        # Remove all the data points from the deque
+        while len(self.data_queue) > 0:
+            temp = self.data_queue.popleft()
+            data = deque(temp[0])
+            direction = temp[1]
+            
+            # Grab the time data 
+            time_data = data.popleft()
+            
+            # Grab and plot the set_param if we are driving one
+            if self.sweep.set_param is not None:
+                set_param_data = data.popleft()
+                # Plot as a function of time
+                self.setaxline.set_xdata(np.append(self.setaxline.get_xdata(), time_data[1]))
+                self.setaxline.set_ydata(np.append(self.setaxline.get_ydata(), set_param_data[1]))
+                self.setax.relim()
+                self.setax.autoscale()
+            
+            x_data=0
+            if self.sweep.x_axis == 1:
+                x_data = time_data[1]
+            elif self.sweep.x_axis == 0:
+                x_data = set_param_data[1]
+                
+            # Now, grab the rest of the following param data
+            for i,data_pair in enumerate(data):                
+                self.axesline[i][direction].set_xdata(np.append(self.axesline[i][direction].get_xdata(), x_data))
+                self.axesline[i][direction].set_ydata(np.append(self.axesline[i][direction].get_ydata(), data_pair[1]))
+                self.axes[i].relim()
+                self.axes[i].autoscale()
+        
+        self.fig.tight_layout()
+        self.fig.canvas.draw()
+            
+            
     def run(self):
         """
         Actual function to run, that controls the plotting of the data.
         """
-        #print(f"called plotter from thread: {QThread.currentThreadId()}")
+        if self.figs_set is False:
+            self.create_figs()
+            
         # Run while the sweep is running
         while self.sweep.is_running is True:
             t = time.monotonic()
             
-            # Remove all the data points from the deque
-            while len(self.data_queue) > 0:
-                temp = self.data_queue.popleft()
-                data = deque(temp[0])
-                direction = temp[1]
-                
-                # Grab the time data 
-                time_data = data.popleft()
-                
-                # Grab and plot the set_param if we are driving one
-                if self.sweep.set_param is not None:
-                    set_param_data = data.popleft()
-                    # Plot as a function of time
-                    self.setaxline.set_xdata(np.append(self.setaxline.get_xdata(), time_data[1]))
-                    self.setaxline.set_ydata(np.append(self.setaxline.get_ydata(), set_param_data[1]))
-                    self.setax.relim()
-                    self.setax.autoscale()
-                
-                x_data=0
-                if self.sweep.x_axis == 1:
-                    x_data = time_data[1]
-                elif self.sweep.x_axis == 0:
-                    x_data = set_param_data[1]
-                    
-                # Now, grab the rest of the following param data
-                for i,data_pair in enumerate(data):                
-                    self.axesline[i][direction].set_xdata(np.append(self.axesline[i][direction].get_xdata(), x_data))
-                    self.axesline[i][direction].set_ydata(np.append(self.axesline[i][direction].get_ydata(), data_pair[1]))
-                    self.axes[i].relim()
-                    self.axes[i].autoscale()
-    
-            self.fig.tight_layout()
-            self.fig.canvas.draw()
+            # Update our plots!
+            self.update_plots()
             
             # Smart sleep, by checking if the whole process has taken longer than
             # our sleep time
             sleep_time = self.sweep.inter_delay/4 - (time.monotonic() - t)
             if sleep_time > 0:
                 time.sleep(sleep_time)
+                
             if self.sweep.is_running is False:
-                # Remove all the data points from the deque
-                while len(self.data_queue) > 0:
-                    temp = self.data_queue.popleft()
-                    data = deque(temp[0])
-                    direction = temp[1]
-                
-                    # Grab the time data 
-                    time_data = data.popleft()
-                
-                    # Grab and plot the set_param if we are driving one
-                    if self.sweep.set_param is not None:
-                        set_param_data = data.popleft()
-                        # Plot as a function of time
-                        self.setaxline.set_xdata(np.append(self.setaxline.get_xdata(), time_data[1]))
-                        self.setaxline.set_ydata(np.append(self.setaxline.get_ydata(), set_param_data[1]))
-                        self.setax.relim()
-                        self.setax.autoscale()
-                
-                    x_data=0
-                    if self.sweep.x_axis == 1:
-                        x_data = time_data[1]
-                    elif self.sweep.x_axis == 0:
-                        x_data = set_param_data[1]
-                    
-                    # Now, grab the rest of the following param data
-                    for i,data_pair in enumerate(data):                
-                        self.axesline[i][direction].set_xdata(np.append(self.axesline[i][direction].get_xdata(), x_data))
-                        self.axesline[i][direction].set_ydata(np.append(self.axesline[i][direction].get_ydata(), data_pair[1]))
-                        self.axes[i].relim()
-                        self.axes[i].autoscale()
-    
-                self.fig.tight_layout()
-                self.fig.canvas.draw()
+                # If we're done, update our plots one last time to ensure all data is flushed
+                self.update_plots()
 
 
     def reset(self):
@@ -972,6 +970,11 @@ class PlotterThread(QThread):
             self.axesline[i][1].set_ydata(np.array([]))
             self.axes[i].relim()
             self.axes[i].autoscale()
+            
+    def clear(self):
+        self.reset()
+        plt.close(self.fig)
+        self.figs_set = False
 
 
 
@@ -1092,12 +1095,11 @@ class HeatmapThread(QThread):
                 self.min_datapt = y_data[i]
         self.update_data(self.res_out-self.count-1)
         self.count += 1
-        print(f"called heatmap from thread: {QThread.currentThreadId()}")
+        #print(f"called heatmap from thread: {QThread.currentThreadId()}")
         
         
     def update_data(self, x_out):
         for i,x in enumerate(self.in_keys):
-            print(f"{i} {x} {x_out}")
             self.heatmap_data[x_out][i]=self.heatmap_dict[self.out_keys[self.count]][x]
         
         
