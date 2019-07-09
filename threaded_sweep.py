@@ -1213,6 +1213,7 @@ class SweepQueue(object):
         self.current_sweep = self.queue.popleft()
         # Set the database info
         self.set_database()
+        self.current_sweep._create_measurement()
         print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
               {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
         self.current_sweep.start()
@@ -1229,6 +1230,7 @@ class SweepQueue(object):
         if len(self.queue) > 0:
             self.current_sweep = self.queue.popleft()
             self.set_database()
+            self.current_sweep._create_measurement()
             print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
                   {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
             self.current_sweep.start()
