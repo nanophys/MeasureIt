@@ -17,6 +17,11 @@ unit_dict = [
         {'G', 10**9}
         ]
 
+def set_experiment_sample_names(sweep, exp, samp):
+    if sweep.save_data is True:
+        qc.new_experiment(exp, samp)
+    sweep._create_measurement()
+    
 def _value_parser(value):
     """
     Parses user input for a float and a unit prefix character. Returns a float
