@@ -4,6 +4,8 @@
 import re
 import time
 import qcodes as qc
+from qcodes.dataset.database import initialise_or_create_database_at
+from qcodes.dataset.data_export import get_data_by_id
 from qcodes.instrument_drivers.stanford_research.SR860 import SR860
 
 unit_dict = [
@@ -22,6 +24,23 @@ def set_experiment_sample_names(sweep, exp, samp):
         qc.new_experiment(exp, samp)
     sweep._create_measurement()
     
+def export_db_to_txt(db_fn, exp_name = None, sample_name = None):
+    initialise_or_create_database_at('C:\\Users\\nanouser\\Documents\\MeasureIt\\Databases\\' + db_fn)
+    experiments = []
+    for exp in qc.dataset.experiment_container.experiments():
+        if exp_name is None or exp.name is exp_name:
+            experiments.append(exp)
+    
+    for exp in experiments:
+        
+        if sample_name is None or exp.sample_name is sample_name:
+            write_sample_to_txt(exp)
+            
+    
+def write_sample_to_txt(exp):
+    file_path = "Origin Files\\" + exp.name + "\\"
+    
+
 def _value_parser(value):
     """
     Parses user input for a float and a unit prefix character. Returns a float
