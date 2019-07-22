@@ -103,7 +103,7 @@ class BaseSweep(QObject):
         continue running.
         """
         if self.save_data and self.runner is not None:
-                self.runner.datasaver.flush_data_to_database()
+            self.runner.flush_flag = True
                 
         self.is_running = False
         
@@ -741,6 +741,7 @@ class RunnerThread(QThread):
         self.datasaver = None
         self.db_set = False
         self.kill_flag = False
+        self.flush_flag = False
         
         QThread.__init__(self)
         
@@ -804,6 +805,10 @@ class RunnerThread(QThread):
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
             if sleep_time > 0:
                 time.sleep(sleep_time)
+            
+            if self.flush_flag == True:
+                self.datasaver.flush_data_to_database()
+                self.flush_flag = False
     
     
     
