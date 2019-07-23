@@ -855,24 +855,35 @@ class PlotterThread(QThread):
         """
         self.figs_set = True
         
-        self.fig = plt.figure(figsize=(4*(2 + len(self.sweep._params)),4))
-        self.grid = plt.GridSpec(4, 1 + len(self.sweep._params), hspace=0)
+        if self.sweep.set_param is None:
+            self.subplot_box_size = math.ceil(math.sqrt(len(self.sweep._params)))
+        else:
+            self.subplot_box_size = math.ceil(math.sqrt(len(self.sweep._params)+1))
+        
+        self.fig = plt.figure(figsize=(4*(1+self.subplot_box_size),4*self.subplot_box_size))
+        self.grid = plt.GridSpec(4*self.subplot_box_size, self.subplot_box_size, hspace=0.15)
         self.axes = []
         self.axesline=[]
         
         # Create the set_param plots 
         if self.sweep.set_param is not None:
-            self.setax = self.fig.add_subplot(self.grid[:,0])
+            self.setax = self.fig.add_subplot(self.grid[0:3,0])
             self.setax.set_xlabel('Time (s)')
             self.setax.set_ylabel(f'{self.sweep.set_param.label} ({self.sweep.set_param.unit})')
             self.setaxline = self.setax.plot([], [])[0]
+            plt.grid(b=True, which='major', color='0.5', linestyle='-')
             
+        col = 0
         # Create the following params plots
         for i, p in enumerate(self.sweep._params):
             pos = i
             if self.sweep.set_param is not None:
                 pos += 1
-            self.axes.append(self.fig.add_subplot(self.grid[:, pos]))
+                
+            if pos % self.subplot_box_size == 0:
+                col += 1
+                
+            self.axes.append(self.fig.add_subplot(self.grid[4*col:4*(col+1)-1, pos%self.subplot_box_size]))
             # Create a plot of the sweeping parameters value against time
             if self.sweep.x_axis:
                 self.axes[i].set_xlabel('Time (s)')
@@ -886,6 +897,7 @@ class PlotterThread(QThread):
             self.axes[i].add_line(forward_line)
             self.axes[i].add_line(backward_line)
             self.axesline.append((forward_line, backward_line))
+            plt.grid(b=True, which='major', color='0.5', linestyle='-')
             
             
     def add_data_to_queue(self, data, direction):
