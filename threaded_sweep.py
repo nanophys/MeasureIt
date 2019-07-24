@@ -838,6 +838,7 @@ class PlotterThread(QThread):
         self.finished = False
         self.last_pass = False
         self.figs_set = False
+        self.kill_flag = False
         
         QThread.__init__(self)
         
@@ -969,6 +970,9 @@ class PlotterThread(QThread):
             if self.sweep.is_running is False:
                 # If we're done, update our plots one last time to ensure all data is flushed
                 self.update_plots()
+                
+        if self.kill_flag == True:
+            self.clear()
 
 
     def reset(self):
@@ -1191,7 +1195,7 @@ class SweepQueue(object):
     SweepQueue is a modifieded double-ended queue (deque) object meant for continuously
     running different sweeps. 
     """
-    def __init__(self):
+    def __init__(self, inter_delay = 1):
         """
         Initializes the variables needed
         """
@@ -1200,22 +1204,29 @@ class SweepQueue(object):
         self.current_sweep = None
         # Database information. Can be updated for each run.
         self.database = None
+        self.inter_delay = inter_delay
         self.exp_name = ""
         self.sample_name = ""
     
     
-    def append(self, sweep : BaseSweep):
+    def append(self, *s):
         """
         Adds a sweep to the queue.
         
         Arguments:
             sweep - BaseSweep object to be added to queue
         """
-        # Set the finished signal to call the begin_next() function here
-        sweep.set_complete_func(self.begin_next)
-        # Add it to the queue
-        self.queue.append(sweep)
-        
+        for sweep in s:
+            if isinstance(sweep, list):
+                for l in sweep:
+                    # Set the finished signal to call the begin_next() function here
+                    l.set_complete_func(self.begin_next)
+                    # Add it to the queue
+                    self.queue.append(l)
+            elif isinstance(sweep, BaseSweep):
+                sweep.set_complete_func(self.begin_next)
+                self.queue.append(sweep)
+
         
     def start(self):
         """
@@ -1244,12 +1255,16 @@ class SweepQueue(object):
         print(f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
               {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
         
+        self.current_sweep.kill()
+        
         if len(self.queue) > 0:
+            self.current_sweep.plotter.clear()
             self.current_sweep = self.queue.popleft()
             self.set_database()
             self.current_sweep._create_measurement()
             print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
                   {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
+            time.sleep(self.inter_delay)
             self.current_sweep.start()
         else:
             print("Finished all sweeps!")
@@ -1320,7 +1335,7 @@ class SweepQueue(object):
         
         # Initialize the database
         try:
-            initialise_or_create_database_at('C:\\Users\\Nanouser\\Documents\\MeasureIt\\Databases\\' + db + '.db')
+            initialise_or_create_database_at('C:\\Users\\erunb\\MeasureIt\\Databases\\' + db + '.db')
             qc.new_experiment(name=exp, sample_name=sample)
         except:
             print("Database info loaded incorrectly!")
