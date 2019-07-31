@@ -36,6 +36,7 @@ class BaseSweep(QObject):
         self.save_data = save_data
         self.plot_data = plot_data
         self.x_axis = x_axis
+        self.meas = None
         
         self.is_running = False
         self.t0 = time.monotonic()
@@ -126,6 +127,10 @@ class BaseSweep(QObject):
         program and unpause after calling 'stop()'
         """
         
+        # Check if we have a measurement object
+        if self.meas is None:
+            self._create_measurement()
+        
         # If we don't have a plotter yet want to plot, create it and the figures
         if self.plotter is None and self.plot_data is True:
             self.plotter = PlotterThread(self)
@@ -205,8 +210,20 @@ class BaseSweep(QObject):
     
     
     def __del__(self):
+        """
+        Destructor. Should delete all child threads and close all figures when the sweep object is deleted
+        """
+        self.is_running = False
+        # Close the database
         if self.datasaver is not None:
             self.datasaver.__exit__()
+        # Kill the runner thread
+        if self.runner is not None:
+            self.runner.kill_flag = True
+        # Close all figures
+        if self.plotter is not None:
+            self.plotter.clear()
+        # Close the heatmap
         
 
 
@@ -1187,6 +1204,11 @@ class HeatmapThread(QThread):
         self.heatmap.set_clim(self.min_datapt, self.max_datapt)
         self.heat_fig.canvas.draw()
         self.heat_fig.canvas.flush_events()
+    
+    
+    def clear(self):
+        plt.close(self.heat_fig)
+        self.figs_set = False
     
     
     
