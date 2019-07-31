@@ -130,6 +130,12 @@ class BaseSweep(QObject):
         # Check if we have a measurement object
         if self.meas is None:
             self._create_measurement()
+        # Check if our list of parameters is out of date- meaning we started, stopped, updated params, and restarted
+        elif [str(p) for p in self._params] != [key for key,val in self.meas.parameters.items() if key != 'time' and key != str(self.set_param)]:
+            self._create_measurement()
+            if self.plotter is not None and self.plotter.figs_set is True:
+                self.plotter.figs_set = False
+                self.plotter.create_figs()
         
         # If we don't have a plotter yet want to plot, create it and the figures
         if self.plotter is None and self.plot_data is True:
@@ -292,6 +298,8 @@ class Sweep1D(BaseSweep):
         self.is_ramping = False
         self.ramp_sweep = None
         
+        self.magnet_sweep_set = False
+        
         # Set the function to call when we are finished
         if complete_func == None:
             complete_func = self.no_change
@@ -328,6 +336,11 @@ class Sweep1D(BaseSweep):
         """
         Iterates the parameter.
         """
+        # The AMI Magnet sweeps very slowly, so we implement sweeps of it  differently
+        # If we are sweeping the magnet, let's deal with it here
+        if str(self.set_param) == 'Magnet_field':
+            return self.step_magnet()
+        
         # If we aren't at the end, keep going
         if abs(self.setpoint - self.end) >= abs(self.step/2):
             self.setpoint = self.setpoint + self.step
@@ -348,7 +361,32 @@ class Sweep1D(BaseSweep):
             if self.parent is None:
                 self.runner.kill_flag = True
             return (self.set_param, -1)
-             
+            
+            
+    def step_magnet(self):
+        """
+        Function to deal with sweeps of magnet. Instead of setting intermediate points, we set the endpoint at the
+        beginning, then ask it for the current field while it is ramping.
+        """
+        # Check if we have set the magnetic field yet
+        if self.magnet_sweep_set == False:
+            self.set_param.set(self.end)
+            self.magnet_sweep_set = True
+        
+        # Grab our data
+        data_pair = (self.set_param, self.set_param.get())
+        # Check our stop conditions- being at the end point
+        if self.step > 0 and data_pair[1] >= self.end - self.step:
+            self.is_running = False
+            self.magnet_sweep_set = False
+        elif self.step < 0 and data_pair[1] <= self.end + self.step:
+            self.is_running = False
+            self.magnet_sweep_set = False
+        
+        # Return our data pair, just like any other sweep
+        return data_pair
+            
+        
         
     def flip_direction(self):
         """
