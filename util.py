@@ -3,6 +3,7 @@
 
 import re
 import time
+import os
 import qcodes as qc
 from qcodes.dataset.database import initialise_or_create_database_at
 from qcodes.dataset.data_export import get_data_by_id
@@ -23,22 +24,50 @@ def set_experiment_sample_names(sweep, exp, samp):
     if sweep.save_data is True:
         qc.new_experiment(exp, samp)
     sweep._create_measurement()
+
+def init_database(db, exp, samp, sweep = None):
+    initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db)
+    qc.new_experiment(exp, samp)
+    if sweep is not None:
+        sweep._create_measurement()
     
 def export_db_to_txt(db_fn, exp_name = None, sample_name = None):
-    initialise_or_create_database_at('C:\\Users\\nanouser\\Documents\\MeasureIt\\Databases\\' + db_fn)
+    initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db_fn)
     experiments = []
     for exp in qc.dataset.experiment_container.experiments():
         if exp_name is None or exp.name is exp_name:
             experiments.append(exp)
-    
+            newpath = os.environ['MeasureItHome'] + '\\Origin Files\\' + exp.name
+            if not os.path.exists(newpath):
+                os.makedirs(newpath)
+                
+    count = 0
     for exp in experiments:
-        
         if sample_name is None or exp.sample_name is sample_name:
-            write_sample_to_txt(exp)
+            write_sample_to_txt(exp, count)
+            count += 1
             
     
-def write_sample_to_txt(exp):
-    file_path = "Origin Files\\" + exp.name + "\\"
+def write_sample_to_txt(exp, count = 0):    
+    for a in exp.data_sets():
+        data = get_data_by_id(a.run_id)
+    
+        for dataset in data:
+            file_name = "{:02d}".format(count) + "_" + exp.sample_name + '.txt'
+            file_path = os.environ['MeasureItHome'] + '\\Origin Files\\' + exp.name + "\\" + file_name
+            file = open(file_path, "w")
+            count += 1
+            num_params = len(dataset)
+    
+            for param in dataset:
+                file.write(param['label'] + " (" + param['unit'] + ")\t")
+        
+            file.write("\n")
+    
+            for i in range(len(dataset[0]['data'])):
+                for param in dataset:
+                    file.write(str(param['data'][i]) + "\t")
+                file.write("\n")
     
 
 def _value_parser(value):
