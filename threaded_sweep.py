@@ -11,6 +11,7 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal
 from collections import deque
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from util import _autorange_srs
+from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 
 
 class BaseSweep(QObject):
@@ -264,7 +265,8 @@ class Sweep1D(BaseSweep):
     completed = pyqtSignal()
     
     def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, datasaver = None,
-                 inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None, x_axis_time = 1, parent = None):
+                 inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None, x_axis_time = 1, 
+                 instrument = None, parent = None):
         """
         Initializes the sweep. There are only 5 new arguments to read in.
         
@@ -297,8 +299,9 @@ class Sweep1D(BaseSweep):
         self.direction = 0    
         self.is_ramping = False
         self.ramp_sweep = None
+        self.instrument = instrument
         
-        self.magnet_sweep_set = False
+        self.magnet_initialized = False
         
         # Set the function to call when we are finished
         if complete_func == None:
@@ -338,8 +341,10 @@ class Sweep1D(BaseSweep):
         """
         # The AMI Magnet sweeps very slowly, so we implement sweeps of it  differently
         # If we are sweeping the magnet, let's deal with it here
-        if str(self.set_param) == 'Magnet_field':
-            return self.step_magnet()
+        if isinstance(self.instrument, AMI430):
+            return self.step_AMI430()
+        elif isinstance(self.instrument, OxfordInstruments_IPS120):
+            return self.step_IPS120()
         
         # If we aren't at the end, keep going
         if abs(self.setpoint - self.end) >= abs(self.step/2):
@@ -363,29 +368,57 @@ class Sweep1D(BaseSweep):
             return (self.set_param, -1)
             
             
-    def step_magnet(self):
+    def step_AMI430(self):
         """
-        Function to deal with sweeps of magnet. Instead of setting intermediate points, we set the endpoint at the
+        Function to deal with sweeps of AMI430. Instead of setting intermediate points, we set the endpoint at the
         beginning, then ask it for the current field while it is ramping.
         """
         # Check if we have set the magnetic field yet
-        if self.magnet_sweep_set == False:
+        if self.magnet_initialized == False:
             self.set_param.set(self.end)
-            self.magnet_sweep_set = True
+            self.magnet_initialized = True
         
         # Grab our data
         data_pair = (self.set_param, self.set_param.get())
         # Check our stop conditions- being at the end point
-        if self.step > 0 and data_pair[1] >= self.end - self.step:
+        if self.instrument.ramping_state() == 'holding':
             self.is_running = False
-            self.magnet_sweep_set = False
-        elif self.step < 0 and data_pair[1] <= self.end + self.step:
-            self.is_running = False
-            self.magnet_sweep_set = False
+            self.magnet_initialized = False
         
         # Return our data pair, just like any other sweep
         return data_pair
             
+        
+    def step_IPS120(self):
+        """
+        Function to deal with sweeps of IPS120. Instead of setting intermediate points, we set the endpoint at the
+        beginning, then ask it for the current field while it is ramping.
+        """
+        # Check if we have set the magnetic field yet
+        if self.magnet_initialized == False:
+            print("Attaching the heater switch. Waiting 40 s . . .")
+            # Attach the heater switch
+            self.instrument.switch_heater.set(1)
+            # Set the field setpoint
+            self.instrument.field_setpoint.set(self.end)
+            # Set us to go to setpoint
+            self.instrument.activity(1)
+            self.magnet_initialized = True
+        
+        # Grab our data
+        data_pair = (self.set_param, self.set_param.get())
+        # Check our stop conditions- being at the end point
+        if self.instrument.mode2() == 'At rest':
+            self.is_running = False
+            print("Detaching the heater switch. Waiting 40 s . . . ")
+            # Detach the heater switch
+            self.instrument.switch_heater.set(2)
+            # Set status to 'hold'
+            self.instrument.activity(0)
+            self.magnet_initialized = False
+        
+        # Return our data pair, just like any other sweep
+        return data_pair
         
         
     def flip_direction(self):
