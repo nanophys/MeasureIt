@@ -12,6 +12,7 @@ from collections import deque
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from util import _autorange_srs
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
+from qcodes.instrument_drivers.oxford.IPS120 import OxfordInstruments_IPS120
 
 
 class BaseSweep(QObject):
@@ -239,7 +240,7 @@ class Sweep0D(BaseSweep):
     Class for the following/live plotting, i.e. "0-D sweep" class. As of now, is just an extension of
     BaseSweep, but has been separated for future convenience.
     """
-    def __init__(self, parent = None, runner = None, plotter = None, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True):
+    def __init__(self, parent = None, runner = None, plotter = None, inter_delay = 0.01, save_data = True, plot_data = True):
         """
         Initialization class. Simply calls the BaseSweep initialization, and saves a few extra variables.
         
@@ -248,7 +249,7 @@ class Sweep0D(BaseSweep):
             plotter - PlotterThread object, passed if a GUI has plots it wants the thread to use instead
                       of creating it's own automatically.
         """
-        super().__init__(set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data, parent=parent)
+        super().__init__(None, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data, parent=parent)
         
         self.runner = runner
         self.plotter = plotter
@@ -944,13 +945,14 @@ class PlotterThread(QThread):
         """
         self.figs_set = True
         
-        if self.sweep.set_param is None:
-            self.subplot_box_size = math.ceil(math.sqrt(len(self.sweep._params)))
-        else:
-            self.subplot_box_size = math.ceil(math.sqrt(len(self.sweep._params)+1))
+        num_plots = len(self.sweep._params)
+        if self.sweep.set_param is not None:
+            num_plots += 1
+        columns = math.ceil(math.sqrt(num_plots))
+        rows = math.ceil(num_plots/columns)
         
-        self.fig = plt.figure(figsize=(4*(1+self.subplot_box_size),4*self.subplot_box_size))
-        self.grid = plt.GridSpec(4*self.subplot_box_size, self.subplot_box_size, hspace=0.15)
+        self.fig = plt.figure(figsize=(4*columns+1,4*rows))
+        self.grid = plt.GridSpec(4*rows, columns, hspace=0.15)
         self.axes = []
         self.axesline=[]
         
@@ -962,17 +964,16 @@ class PlotterThread(QThread):
             self.setaxline = self.setax.plot([], [])[0]
             plt.grid(b=True, which='major', color='0.5', linestyle='-')
             
-        col = 0
         # Create the following params plots
         for i, p in enumerate(self.sweep._params):
             pos = i
             if self.sweep.set_param is not None:
                 pos += 1
+            
+            row = int(pos/columns)
+            col = pos%columns
                 
-            if pos % self.subplot_box_size == 0:
-                col += 1
-                
-            self.axes.append(self.fig.add_subplot(self.grid[4*col:4*(col+1)-1, pos%self.subplot_box_size]))
+            self.axes.append(self.fig.add_subplot(self.grid[4*row:4*(row+1)-1, col]))
             # Create a plot of the sweeping parameters value against time
             if self.sweep.x_axis:
                 self.axes[i].set_xlabel('Time (s)')
@@ -987,6 +988,8 @@ class PlotterThread(QThread):
             self.axes[i].add_line(backward_line)
             self.axesline.append((forward_line, backward_line))
             plt.grid(b=True, which='major', color='0.5', linestyle='-')
+            
+        plt.subplots_adjust(left=0.2, right=0.9, bottom=0.1, top=0.9, wspace=0.4, hspace=0.4)
             
             
     def add_data_to_queue(self, data, direction):
