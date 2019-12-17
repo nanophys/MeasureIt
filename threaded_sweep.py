@@ -237,6 +237,7 @@ class BaseSweep(QObject):
         # Close all figures
         if self.plotter is not None:
             self.plotter.clear()
+            self.plotter.kill_flag = True
         # Close the heatmap
         
 
@@ -508,6 +509,8 @@ class Sweep1D(BaseSweep):
         self.setpoint = value - self.step
         if self.ramp_sweep is not None and self.ramp_sweep.plotter is not None:
             self.ramp_sweep.plotter.clear()
+        
+        self.ramp_sweep.kill()
         
         if start_on_finish == True:
             self.start(ramp_to_start=False, persist_data=pd)
@@ -1071,7 +1074,7 @@ class PlotterThread(QThread):
             self.create_figs()
             
         # Run while the sweep is running
-        while 1:
+        while self.kill_flag is False:
             t = time.monotonic()
             
             # Update our plots!
