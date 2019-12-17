@@ -217,6 +217,12 @@ class BaseSweep(QObject):
         self.plotter.reset()
         
     
+    def set_plot_bin(self, pb):
+        self.plot_bin = pb
+        if self.plotter is not None:
+            self.plotter.plot_bin = pb
+            
+            
     def no_change(self, *args):
         """
         This function is passed when we don't need to connect a function when the 
