@@ -116,6 +116,7 @@ class BaseSweep(QObject):
     def kill(self):
         self.is_running = False
         self.runner.kill_flag = True
+        self.plotter.kill_flag = True
         
         
     def check_running(self):
