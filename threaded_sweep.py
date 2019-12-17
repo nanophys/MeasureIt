@@ -343,8 +343,12 @@ class Sweep1D(BaseSweep):
             self.ramp_sweep.stop()
             while self.ramp_sweep.is_running == True:
                 time.sleep(0.2)
-            self.is_ramping=False
-            self.setpoint=self.ramp_sweep.setpoint
+            self.done_ramping(self.ramp_sweep.setpoint)
+            #self.setpoint=self.ramp_sweep.setpoint
+            #self.ramp_sweep.plotter.clear()
+            #self.ramp_sweep = None
+            #self.is_ramping=False
+            #print(f"Stopped the ramp, the current setpoint  is {self.setpoint} {self.set_param.unit}")
             
         if isinstance(self.instrument, AMI430):
             self.set_param.set(self.set_param.get())
@@ -515,7 +519,7 @@ class Sweep1D(BaseSweep):
         if self.ramp_sweep is not None and self.ramp_sweep.plotter is not None:
             self.ramp_sweep.plotter.clear()
         
-        self.ramp_sweep.kill()
+        #self.ramp_sweep.kill()
         
         if start_on_finish == True:
             self.start(ramp_to_start=False, persist_data=pd)
@@ -978,7 +982,12 @@ class PlotterThread(QThread):
         columns = math.ceil(math.sqrt(num_plots))
         rows = math.ceil(num_plots/columns)
         
-        self.fig = plt.figure(figsize=(4*columns+1,4*rows))
+        existing_fignums = plt.get_fignums()
+        if len(existing_fignums) == 0:
+            best_fignum = 1
+        else:
+            best_fignum = max(existing_fignums)+1
+        self.fig = plt.figure(num=best_fignum, figsize=(4*columns+1,4*rows))
         self.fig.canvas.mpl_connect('close_event', self.handle_close)
         self.grid = plt.GridSpec(4*rows, columns, hspace=0.15)
         self.axes = []
