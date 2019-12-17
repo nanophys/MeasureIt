@@ -34,6 +34,8 @@ class BaseSweep(QObject):
         self._params = []
         self._srs = []
         self.set_param = set_param
+        if inter_delay is None or inter_delay < 0:
+            inter_delay = 0
         self.inter_delay = inter_delay
         self.save_data = save_data
         self.plot_data = plot_data
@@ -149,7 +151,8 @@ class BaseSweep(QObject):
         if self.runner is None:
             self.runner = RunnerThread(self)
             self.datasaver = self.runner.datasaver
-            self.runner.add_plotter(self.plotter)
+            if self.save_data is True and self.plot_data is True:
+                self.runner.add_plotter(self.plotter)
         
         # Flag that we are now running.
         self.is_running = True
@@ -158,7 +161,8 @@ class BaseSweep(QObject):
         self.persist_data = persist_data
         
         # Tells the threads to begin
-        self.plotter.start()
+        if self.plot_data is True:
+            self.plotter.start()
         if not self.runner.isRunning():
             self.runner.kill_flag = False
             self.runner.start()
@@ -280,8 +284,8 @@ class Sweep1D(BaseSweep):
             x_axis_time - 1 for plotting parameters against time, 0 for set_param
         """
         # Initialize the BaseSweep
-        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data, x_axis=x_axis_time, 
-                         datasaver=datasaver, parent=parent)
+        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data, 
+                         x_axis=x_axis_time, datasaver=datasaver, parent=parent)
         
         self.begin = start
         self.end = stop
@@ -333,6 +337,10 @@ class Sweep1D(BaseSweep):
         if self.is_ramping and self.ramp_sweep is not None:
             print(f"Stopping the ramp.")
             self.ramp_sweep.stop()
+            while self.ramp_sweep.is_running == True:
+                time.sleep(0.2)
+            self.is_ramping=False
+            self.setpoint=self.ramp_sweep.setpoint
         super().stop()
         
         
@@ -882,22 +890,24 @@ class RunnerThread(QThread):
             if self.sweep.is_running is True:
                 # Get the new data
                 data = self.sweep.update_values()
-            
+                
                 # Send it to the plotter if we are going
                 # Note: we check again if running, because we won't know if we are
                 # done until we try to step the parameter once more
-                if self.sweep.is_running is True and self.plotter is not None:
+                if self.sweep.is_running is True and self.plotter is not None and self.sweep.plot_data is True:
                     self.plotter.add_data_to_queue(data, self.sweep.direction)
                 
             # Smart sleep, by checking if the whole process has taken longer than
             # our sleep time
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
+            
             if sleep_time > 0:
                 time.sleep(sleep_time)
             
             if self.flush_flag == True:
                 self.datasaver.flush_data_to_database()
                 self.flush_flag = False
+            
     
     
     
