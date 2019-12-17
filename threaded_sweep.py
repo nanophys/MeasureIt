@@ -350,6 +350,10 @@ class Sweep1D(BaseSweep):
             self.set_param.set(self.set_param.get())
         super().stop()
         
+    
+    def resume(self):
+        self.start(ramp_to_start=False)
+        
         
     def step_param(self):
         """
