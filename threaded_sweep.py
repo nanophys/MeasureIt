@@ -189,7 +189,7 @@ class BaseSweep(QObject):
         data.append(('time', t))
 
         if self.set_param is not None:
-            data.append(self.step_param())
+            data += self.step_param()
         
         persist_param = None
         if self.persist_data is not None:
@@ -381,7 +381,7 @@ class Sweep1D(BaseSweep):
         if abs(self.setpoint - self.end) >= abs(self.step/2):
             self.setpoint = self.setpoint + self.step
             self.set_param.set(self.setpoint)
-            return (self.set_param, self.setpoint)
+            return [(self.set_param, self.setpoint)]
         # If we want to go both ways, we flip the start and stop, and run again
         elif self.bidirectional and self.direction == 0:
             self.flip_direction()
@@ -396,7 +396,7 @@ class Sweep1D(BaseSweep):
             self.completed.emit()
             if self.parent is None:
                 self.runner.kill_flag = True
-            return (self.set_param, -1)
+            return [(self.set_param, -1)]
             
             
     def step_AMI430(self):
