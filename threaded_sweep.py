@@ -8,6 +8,9 @@ import qcodes as qc
 from qcodes.dataset.measurements import Measurement
 from qcodes.dataset.database import initialise_or_create_database_at
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
+import PyQt5.QtCore
+from PyQt5.QtWidgets import QShortcut
+from PyQt5.QtGui import QKeySequence
 from collections import deque
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from util import _autorange_srs
@@ -363,7 +366,8 @@ class Sweep1D(BaseSweep):
         
     
     def resume(self):
-        self.start(ramp_to_start=False)
+        if self.is_running is False:
+            self.start(ramp_to_start=False)
         
         
     def step_param(self):
@@ -547,8 +551,8 @@ class Sweep1D(BaseSweep):
             func - function to call
         """
         self.completed.connect(func)
-    
-    
+            
+        
     def reset(self, new_params=None):
         """
         Resets the Sweep1D to reuse the same object with the same plots.
@@ -975,7 +979,18 @@ class PlotterThread(QThread):
     
     def handle_close(self, evt):
         self.clear()
-        
+    
+    def key_pressed(self, event):
+        key = event.key
+
+        if key == " ":
+            self.sweep.flip_direction()
+        elif key == "escape":
+            self.sweep.stop()
+        elif key == "enter":
+            self.sweep.resume()
+            
+            
     def create_figs(self):
         """
         Creates default figures for each of the parameters. Plots them in a new, separate window.
@@ -1035,6 +1050,9 @@ class PlotterThread(QThread):
             plt.grid(b=True, which='major', color='0.5', linestyle='-')
             
         plt.subplots_adjust(left=0.2, right=0.9, bottom=0.1, top=0.9, wspace=0.4, hspace=0.4)
+        
+        self.cid = self.fig.canvas.mpl_connect('key_press_event', self.key_pressed)
+        
         plt.show()
         self.figs_set = True
         
