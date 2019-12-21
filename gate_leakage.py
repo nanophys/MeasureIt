@@ -7,13 +7,14 @@ class GateLeakage(Sweep1D):
         self.max_I = max_I
         self.flips = 0
         self.track_param = track_param
+        self.input_trigger=0
         
         super().__init__(set_param, start, limit, step, **kwargs)
         self.follow_param(self.track_param)
     
     def step_param(self):
         # Our ending condition is if we end up back at 0 after going forwards and backwards
-        if self.flips == 2 and abs(self.setpoint) <= abs(self.step/2):
+        if self.flips >= 2 and abs(self.setpoint) <= abs(self.step/(3/2)):
             self.flips = 0
             if self.save_data:
                 self.runner.datasaver.flush_data_to_database()
@@ -24,7 +25,7 @@ class GateLeakage(Sweep1D):
                 self.runner.kill_flag = True
             return [(self.set_param, -1)]
         
-        if abs(self.end) != np.inf and abs(self.setpoint - self.end) <= abs(self.step/2):
+        if abs(self.end) != np.inf and abs(self.setpoint - self.end) <= abs(self.step):
             self.flip_direction()
             print("tripped output limit")
             return self.step_param()
@@ -35,9 +36,12 @@ class GateLeakage(Sweep1D):
             v = self.track_param.get()
             
             if (self.step > 0 and v >= abs(1.0001*self.max_I)) or (self.step < 0 and v <= (-1)*abs(1.0001*self.max_I)):
-                self.flip_direction()
-                self.setpoint += self.step
-                print("tripped input limit")
+                self.input_trigger += 1
+                if self.input_trigger == 2:
+                    self.flip_direction()
+                    self.setpoint += self.step
+                    self.input_trigger = 0
+                    print("tripped input limit")
                 #return self.step_param()
             
             return [(self.set_param, self.setpoint), (self.track_param, v)]
@@ -82,9 +86,16 @@ class GateLeakage(Sweep1D):
     
     def flip_direction(self):
         self.flips += 1
-        self.end = (-1)*self.end
-        self.step = -1 * self.step
-        self.setpoint -= self.step
+        if self.flips >= 2 and self.setpoint > 0:
+            self.step = (-1)*abs(self.step)
+            self.end = (-1)*self.end
+        elif self.flips >= 2 and self.setpoint < 0:
+            self.step = abs(self.step)
+            self.end = (-1)*self.end
+        elif self.flips < 2:
+            self.end = (-1)*self.end
+            self.step = -1 * self.step
+            self.setpoint -= self.step
         
         # If backwards, go forwards, and vice versa
         if self.direction:
