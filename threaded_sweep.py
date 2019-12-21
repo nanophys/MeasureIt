@@ -65,9 +65,11 @@ class BaseSweep(QObject):
         for param in p:
             if isinstance(param, list):
                 for l in param:
-                    self._params.append(l)
+                    if l not in self._params:
+                        self._params.append(l)
             else:
-                self._params.append(param)
+                if param not in self._params:
+                    self._params.append(param)
         
       
     def follow_srs(self, l, name, gain=1.0):
@@ -97,7 +99,7 @@ class BaseSweep(QObject):
         
         # Check if we are 'setting' a parameter, and register it
         if self.set_param is not None:
-            self.meas.register_parameter(self.set_param)
+            self.meas.register_parameter(self.set_param)           
         # Register all parameters we are following
         for p in self._params:
             self.meas.register_parameter(p)
@@ -192,7 +194,7 @@ class BaseSweep(QObject):
         data.append(('time', t))
 
         if self.set_param is not None:
-            data += self.step_param()
+            data += self.step_param() 
         
         persist_param = None
         if self.persist_data is not None:
@@ -909,7 +911,7 @@ class RunnerThread(QThread):
         # Check database status
         if self.db_set == False and self.sweep.save_data == True:
             self.datasaver = self.sweep.meas.run().__enter__()
-            
+        
         #print(f"called runner from thread: {QThread.currentThreadId()}")
         # Check if we are still running
         while self.kill_flag is False:
@@ -1002,6 +1004,7 @@ class PlotterThread(QThread):
         num_plots = len(self.sweep._params)
         if self.sweep.set_param is not None:
             num_plots += 1
+
         columns = math.ceil(math.sqrt(num_plots))
         rows = math.ceil(num_plots/columns)
         
