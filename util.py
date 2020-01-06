@@ -20,6 +20,20 @@ unit_dict = [
         {'G', 10**9}
         ]
 
+def set_magnet_ramp_ranges(magnet, ranges):
+    if not isinstance(ranges, list):
+        print("Must pass a list of current ranges, formatted as follows:\
+             [(1, <rate>, <max applicable current>), (2, <rate>, <max applicable current>), ..., (n, <rate>, <max applicable current>]")
+        return
+    
+    magnet.write('CONF:RAMP:RATE:SEG {}'.format(len(ranges)))
+    for r in ranges:
+        if len(ranges) != 3:
+            print("Must pass a list of current ranges, formatted as follows:\
+             [(1, <rate>, <max applicable current>), (2, <rate>, <max applicable current>), ..., (n, <rate>, <max applicable current>]")
+            return
+        magnet.write(f'CONF:RAMP:RATE:CURR {r[0], r[1], r[2]}')
+        
 def set_experiment_sample_names(sweep, exp, samp):
     if sweep.save_data is True:
         qc.new_experiment(exp, samp)
@@ -32,7 +46,10 @@ def init_database(db, exp, samp, sweep = None):
         sweep._create_measurement()
     
 def export_db_to_txt(db_fn, exp_name = None, sample_name = None):
-    initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db_fn)
+    if '.db' in db_fn:
+        initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db_fn)
+    else:
+        initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db_fn + '.db')
     experiments = []
     for exp in qc.dataset.experiment_container.experiments():
         if exp_name is None or exp.name is exp_name:
@@ -43,18 +60,24 @@ def export_db_to_txt(db_fn, exp_name = None, sample_name = None):
                 
     count = 0
     for exp in experiments:
+        print("exp name: " + exp.name) 
         if sample_name is None or exp.sample_name is sample_name:
+            print("sample name: " + exp.sample_name)
             write_sample_to_txt(exp, count)
             count += 1
             
     
-def write_sample_to_txt(exp, count = 0):    
+def write_sample_to_txt(exp, count = 0): 
+    #print(exp.data_sets())
     for a in exp.data_sets():
+        print(a.run_id)
         data = get_data_by_id(a.run_id)
-    
+        print(data)
         for dataset in data:
             file_name = "{:02d}".format(count) + "_" + exp.sample_name + '.txt'
+            print(file_name)
             file_path = os.environ['MeasureItHome'] + '\\Origin Files\\' + exp.name + "\\" + file_name
+            print(file_path)
             file = open(file_path, "w")
             count += 1
             num_params = len(dataset)
@@ -68,6 +91,7 @@ def write_sample_to_txt(exp, count = 0):
                 for param in dataset:
                     file.write(str(param['data'][i]) + "\t")
                 file.write("\n")
+            file.close()
     
 
 def _value_parser(value):
@@ -106,3 +130,6 @@ def _autorange_srs(srs, max_changes=1):
     while autorange_once() and sets < max_changes:
         sets += 1
         time.sleep(10*srs.time_constant.get())
+                 
+                 
+                 
