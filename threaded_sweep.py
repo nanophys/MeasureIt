@@ -39,6 +39,7 @@ class BaseSweep(QObject):
         self.plot_data = plot_data
         self.x_axis = x_axis
         self.meas = None
+        self.continuous = False
         
         self.is_running = False
         self.t0 = time.monotonic()
@@ -123,7 +124,7 @@ class BaseSweep(QObject):
         return self.is_running
     
     
-    def start(self, persist_data=None):
+    def start(self, persist_data=None, ramp_to_start=False):
         """
         Starts the sweep by creating and running the worker threads. Used to both start the 
         program and unpause after calling 'stop()'
@@ -199,6 +200,7 @@ class BaseSweep(QObject):
         if self.save_data and self.is_running:
             self.runner.datasaver.add_result(*data)
         
+        #print(data)
         return data
     
     
@@ -267,7 +269,7 @@ class Sweep1D(BaseSweep):
     
     def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, datasaver = None,
                  inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None, x_axis_time = 1, 
-                 instrument = None, parent = None):
+                 instrument = None, parent = None, continual = False):
         """
         Initializes the sweep. There are only 5 new arguments to read in.
         
@@ -301,6 +303,7 @@ class Sweep1D(BaseSweep):
         self.is_ramping = False
         self.ramp_sweep = None
         self.instrument = instrument
+        self.continuous = continual
         
         self.magnet_initialized = False
         
@@ -333,6 +336,8 @@ class Sweep1D(BaseSweep):
         if self.is_ramping and self.ramp_sweep is not None:
             print(f"Stopping the ramp.")
             self.ramp_sweep.stop()
+            self.ramp_sweep.kill()
+            self.is_ramping = False
         super().stop()
         
         
@@ -353,6 +358,9 @@ class Sweep1D(BaseSweep):
             self.set_param.set(self.setpoint)
             return (self.set_param, self.setpoint)
         # If we want to go both ways, we flip the start and stop, and run again
+        elif self.continuous:
+            self.flip_direction()
+            return self.step_param()
         elif self.bidirectional and self.direction == 0:
             self.flip_direction()
             return self.step_param()
@@ -376,15 +384,36 @@ class Sweep1D(BaseSweep):
         """
         # Check if we have set the magnetic field yet
         if self.magnet_initialized == False:
-            self.set_param.set(self.end)
+            self.instrument.set_field(self.end, block=False)
             self.magnet_initialized = True
+            time.sleep(self.inter_delay)
+            while self.instrument.ramping_state.get() != 'ramping':
+                time.sleep(self.inter_delay)
         
         # Grab our data
-        data_pair = (self.set_param, self.set_param.get())
+        try:
+            dt = self.set_param.get()
+        except e:
+            print(e)
+            time.sleep(self.inter_delay)
+            dt = self.set_param.get()
+        try:
+            data_pair = (self.set_param, dt)
+        except:
+            print("got bad data, trying again")
+            return self.step_AMI430()
+        
         # Check our stop conditions- being at the end point
         if self.instrument.ramping_state() == 'holding':
-            self.is_running = False
             self.magnet_initialized = False
+            if self.save_data:
+                self.runner.datasaver.flush_data_to_database()
+            self.is_running = False
+            print(f"Done with the sweep, {self.set_param.label}={self.set_param.get()}")
+            self.flip_direction()
+            self.completed.emit()
+            if self.parent is None:
+                self.runner.kill_flag = True
         
         # Return our data pair, just like any other sweep
         return data_pair
@@ -603,7 +632,7 @@ class Sweep2D(BaseSweep):
                                 x_axis_time=0, plot_data = plot_data)
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
-        self.in_sweep.follow_param(self.set_param)
+        self.in_sweep.meas.register_parameter(self.set_param)
         # Our update_values() function iterates the outer sweep, so when the inner sweep
         # is done, call that function automatically
         self.in_sweep.set_complete_func(self.update_values)
@@ -687,6 +716,7 @@ class Sweep2D(BaseSweep):
         
         self.is_running = True
         self.in_sweep.start()
+#        self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
         self.heatmap_plotter.create_figs()
         
         self.plotter = self.in_sweep.plotter
@@ -724,7 +754,7 @@ class Sweep2D(BaseSweep):
             return
         
         # Update our heatmap!
-        lines = self.plotter.axes[1].get_lines()
+        lines = self.in_sweep.plotter.axes[1].get_lines()
         self.heatmap_plotter.add_lines(lines)
         self.heatmap_plotter.start()
         
@@ -744,7 +774,8 @@ class Sweep2D(BaseSweep):
             time.sleep(self.outer_delay)
             # Reset our plots
             self.in_sweep.plotter.reset()
-            self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
+            self.in_sweep.start()
+            #self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
         # If neither of the above are triggered, it means we are at the end of the sweep
         else:
             self.is_running = False
@@ -895,7 +926,7 @@ class RunnerThread(QThread):
             if sleep_time > 0:
                 time.sleep(sleep_time)
             
-            if self.flush_flag == True:
+            if self.flush_flag == True and self.sweep.save_data is True:
                 self.datasaver.flush_data_to_database()
                 self.flush_flag = False
     
@@ -990,7 +1021,8 @@ class PlotterThread(QThread):
             plt.grid(b=True, which='major', color='0.5', linestyle='-')
             
         plt.subplots_adjust(left=0.2, right=0.9, bottom=0.1, top=0.9, wspace=0.4, hspace=0.4)
-            
+        plt.show()
+        
             
     def add_data_to_queue(self, data, direction):
         """
@@ -1034,8 +1066,9 @@ class PlotterThread(QThread):
                 self.axes[i].relim()
                 self.axes[i].autoscale()
         
-        self.fig.tight_layout()
+        #self.fig.tight_layout()
         self.fig.canvas.draw()
+        #plt.show()
             
             
     def run(self):
