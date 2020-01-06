@@ -1,4 +1,4 @@
-#threaded_sweeps.py
+#threaded_sweep.py
 
 import time, math
 import numpy as np
