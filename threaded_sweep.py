@@ -503,6 +503,9 @@ class Sweep1D(BaseSweep):
             self.direction = 0
         else:
             self.direction = 1
+            
+        if self.plot_data is True and self.plotter is not None:
+            self.plotter.add_break(self.direction)
     
     
     def ramp_to(self, value, start_on_finish=False, persist=None, multiplier=1):
@@ -1024,6 +1027,12 @@ class PlotterThread(QThread):
         elif key == "enter":
             self.sweep.resume()
             
+    def add_break(self, direction):
+        self.setaxline.set_xdata(np.append(self.setaxline.get_xdata(), np.nan))
+        self.setaxline.set_ydata(np.append(self.setaxline.get_ydata(), np.nan))
+        for i,p in enumerate(self.sweep._params):                
+            self.axesline[i][direction].set_xdata(np.append(self.axesline[i][direction].get_xdata(), np.nan))
+            self.axesline[i][direction].set_ydata(np.append(self.axesline[i][direction].get_ydata(), np.nan))
             
     def create_figs(self):
         """
@@ -1032,7 +1041,7 @@ class PlotterThread(QThread):
         if self.figs_set == True:
             print("figs already set. returning.")
             return
-        
+        print("creating figures")
         num_plots = len(self.sweep._params)
         if self.sweep.set_param is not None:
             num_plots += 1
@@ -1088,8 +1097,9 @@ class PlotterThread(QThread):
         
         self.cid = self.fig.canvas.mpl_connect('key_press_event', self.key_pressed)
         
-        plt.show()
         self.figs_set = True
+        plt.show(block=False)
+        
         
             
     def add_data_to_queue(self, data, direction):
@@ -1146,7 +1156,8 @@ class PlotterThread(QThread):
         """
         if self.figs_set is False:
             self.create_figs()
-            
+        
+        
         # Run while the sweep is running
         while self.kill_flag is False:
             t = time.monotonic()
