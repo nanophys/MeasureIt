@@ -8,9 +8,6 @@ import qcodes as qc
 from qcodes.dataset.measurements import Measurement
 from qcodes.dataset.database import initialise_or_create_database_at
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
-import PyQt5.QtCore
-from PyQt5.QtWidgets import QShortcut
-from PyQt5.QtGui import QKeySequence
 from collections import deque
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from util import _autorange_srs
@@ -430,7 +427,7 @@ class Sweep1D(BaseSweep):
         # Grab our data
         try:
             dt = self.set_param.get()
-        except e:
+        except Exception as e:
             print(e)
             time.sleep(self.inter_delay)
             dt = self.set_param.get()

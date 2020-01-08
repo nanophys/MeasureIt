@@ -1,6 +1,7 @@
-from threaded_sweep import Sweep1D, RunnerThread, PlotterThread
+from src.sweep1d import Sweep1D
 import time
 import numpy as np
+from src.util import _autorange_srs
 
 class GateLeakage(Sweep1D):
     def __init__(self, set_param, track_param, max_I, step, limit=np.inf, start=0, *args, **kwargs):

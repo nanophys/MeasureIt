@@ -7,7 +7,6 @@ import os
 import qcodes as qc
 from qcodes.dataset.database import initialise_or_create_database_at
 from qcodes.dataset.data_export import get_data_by_id
-from qcodes.instrument_drivers.stanford_research.SR860 import SR860
 
 unit_dict = [
         {'f', 10**-15},
