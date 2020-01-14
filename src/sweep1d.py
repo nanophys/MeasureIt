@@ -110,7 +110,7 @@ class Sweep1D(BaseSweep):
         """
         # The AMI Magnet sweeps very slowly, so we implement sweeps of it  differently
         # If we are sweeping the magnet, let's deal with it here
-        if isinstance(self.instrument, AMI430):
+        if isinstance(self.instrument, AMI430) and str(self.set_param) == 'Magnet_field':
             return self.step_AMI430()
         elif isinstance(self.instrument, OxfordInstruments_IPS120):
             return self.step_IPS120()
@@ -150,9 +150,13 @@ class Sweep1D(BaseSweep):
             self.instrument.set_field(self.end, block=False)
             self.magnet_initialized = True
             time.sleep(self.inter_delay)
-            while self.instrument.ramping_state.get() != 'ramping':
+            try:
+                while self.instrument.ramping_state.get() != 'ramping':
+                    time.sleep(self.inter_delay)
+            except Exception as e:
+                print(e)
                 time.sleep(self.inter_delay)
-        
+                
         # Grab our data
         try:
             dt = self.set_param.get()
@@ -179,7 +183,7 @@ class Sweep1D(BaseSweep):
                 self.runner.kill_flag = True
         
         # Return our data pair, just like any other sweep
-        return data_pair
+        return [data_pair]
             
         
     def step_IPS120(self):
