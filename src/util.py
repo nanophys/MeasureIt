@@ -26,12 +26,14 @@ def set_magnet_ramp_ranges(magnet, ranges):
         return
     
     magnet.write('CONF:RAMP:RATE:SEG {}'.format(len(ranges)))
+    time.sleep(0.5)
     for r in ranges:
-        if len(ranges) != 3:
+        if len(r) != 3:
             print("Must pass a list of current ranges, formatted as follows:\
              [(1, <rate>, <max applicable current>), (2, <rate>, <max applicable current>), ..., (n, <rate>, <max applicable current>]")
             return
-        magnet.write(f'CONF:RAMP:RATE:CURR {r[0], r[1], r[2]}')
+        magnet.write(f'CONF:RAMP:RATE:CURR {r[0]},{r[1]},{r[2]}')
+        time.sleep(0.5)
         
 def set_experiment_sample_names(sweep, exp, samp):
     if sweep.save_data is True:
