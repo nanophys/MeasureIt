@@ -203,6 +203,14 @@ class BaseSweep(QObject):
             self.runner.start()
         
         
+    def resume(self):
+        """
+        Restart the sweep.
+        """
+        if self.is_running is False:
+            self.start(ramp_to_start=False)
+            
+            
     def update_values(self):
         """
         Iterates our data points, changing our setpoint if we are sweeping, and refreshing
