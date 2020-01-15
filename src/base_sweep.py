@@ -94,7 +94,11 @@ class BaseSweep(QObject):
             name - name of instrument
             gain - current gain value
         """
-        self._srs.append((l, name, gain))
+        if self.is_running:
+            print("Cannot update the srs list while the sweep is running.")
+            
+        if (l, name, gain) not in self._srs:
+            self._srs.append((l, name, gain))
         
         
     def _create_measurement(self):

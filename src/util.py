@@ -124,8 +124,11 @@ def _autorange_srs(srs, max_changes=1):
         sens = srs.sensitivity.get()
         if r > 0.9 * sens:
             increment_sensitivity()
+            return True
         elif r < 0.1 * sens:
             decrement_sensitivity()
+            return True
+        return False
     
     def increment_sensitivity():
         if srs.signal_input() == 'voltage':
@@ -145,8 +148,7 @@ def _autorange_srs(srs, max_changes=1):
         
         
     sets = 0
-    while sets < max_changes:
-        autorange_once()
+    while sets < max_changes and autorange_once():
         sets += 1
         time.sleep(10*srs.time_constant.get())
                  
