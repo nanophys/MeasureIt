@@ -117,18 +117,36 @@ def _value_parser(value):
     
 def _autorange_srs(srs, max_changes=1):
     """
-    Joe's code, unedited
+    hey fuck you joe -paul
     """
     def autorange_once():
         r = srs.R.get()
         sens = srs.sensitivity.get()
         if r > 0.9 * sens:
-            return srs.increment_sensitivity()
+            increment_sensitivity()
         elif r < 0.1 * sens:
-            return srs.decrement_sensitivity()
-        return False
+            decrement_sensitivity()
+    
+    def increment_sensitivity():
+        if srs.signal_input() == 'voltage':
+            sense = srs._VOLT_TO_N[srs.sensitivity.get()]
+            srs.sensitivity.set(srs._N_TO_VOLT[int(sense-1)])
+        else:
+            sense = srs._CURR_TO_N[srs.sensitivity.get()]
+            srs.sensitivity.set(srs._N_TO_CURR[int(sense-1)])
+        
+    def decrement_sensitivity():
+        if srs.signal_input() == 'voltage':
+            sense = srs._VOLT_TO_N[srs.sensitivity.get()]
+            srs.sensitivity.set(srs._N_TO_VOLT[int(sense+1)])
+        else:
+            sense = srs._CURR_TO_N[srs.sensitivity.get()]
+            srs.sensitivity.set(srs._N_TO_CURR[int(sense+1)])
+        
+        
     sets = 0
-    while autorange_once() and sets < max_changes:
+    while sets < max_changes:
+        autorange_once()
         sets += 1
         time.sleep(10*srs.time_constant.get())
                  
