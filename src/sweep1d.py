@@ -98,11 +98,6 @@ class Sweep1D(BaseSweep):
 
         super().stop()
         
-    
-    def resume(self):
-        if self.is_running is False:
-            self.start(ramp_to_start=False)
-        
         
     def step_param(self):
         """

@@ -22,3 +22,11 @@ class Sweep0D(BaseSweep):
         self.plotter = plotter
         # Direction variable, not used here, but kept to maintain consistency with Sweep1D.
         self.direction = 0
+        
+        
+    def flip_direction(self):
+        """
+        Define the function so that when called, it will not throw an error.
+        """
+        print("Can't flip the direction, as we are not sweeping a parameter.")
+        return
