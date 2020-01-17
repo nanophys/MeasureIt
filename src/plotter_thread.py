@@ -73,6 +73,7 @@ class PlotterThread(QThread):
         if self.figs_set == True:
             print("figs already set. returning.")
             return
+        
         #print("creating figures")
         self.figs_set = True
         num_plots = len(self.sweep._params)
@@ -87,15 +88,23 @@ class PlotterThread(QThread):
             best_fignum = 1
         else:
             best_fignum = max(existing_fignums)+1
-        self.fig = plt.figure(num=best_fignum, figsize=(4*columns+1,4*rows))
+        self.fig = plt.figure(num=best_fignum, figsize=(4*columns+1,4*rows+1))        
         self.fig.canvas.mpl_connect('close_event', self.handle_close)
-        self.grid = plt.GridSpec(4*rows, columns, hspace=0.15)
+        self.grid = plt.GridSpec(4*rows+1, columns, hspace=0.15)
         self.axes = []
         self.axesline=[]
         
+        # Creating the on-screen text for keyboard shortcuts
+        text_ax = self.fig.add_subplot(self.grid[0,:])
+        text_ax.axis('off')
+        #text_ax.axes.get_xaxis().set_visible(False)
+        #text_ax.axes.get_yaxis().set_visible(False)
+        plt.text(0.5, 1, 'Keyboard Shortcuts', fontsize=20, ha='center')
+        plt.text(0.5, 0.5, "esc: stop\tenter: resume\tspacebar: flip direction".replace("\t", "      "), fontsize=14, ha='center')
+        
         # Create the set_param plots 
         if self.sweep.set_param is not None:
-            self.setax = self.fig.add_subplot(self.grid[0:3,0])
+            self.setax = self.fig.add_subplot(self.grid[1:4,0])
             self.setax.set_xlabel('Time (s)')
             self.setax.set_ylabel(f'{self.sweep.set_param.label} ({self.sweep.set_param.unit})')
             self.setaxline = self.setax.plot([], [])[0]
@@ -110,7 +119,7 @@ class PlotterThread(QThread):
             row = int(pos/columns)
             col = pos%columns
                 
-            self.axes.append(self.fig.add_subplot(self.grid[4*row:4*(row+1)-1, col]))
+            self.axes.append(self.fig.add_subplot(self.grid[4*row+1:4*(row+1), col]))
             # Create a plot of the sweeping parameters value against time
             if self.sweep.x_axis:
                 self.axes[i].set_xlabel('Time (s)')
