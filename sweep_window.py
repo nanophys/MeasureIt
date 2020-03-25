@@ -10,7 +10,8 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 from sweep import Sweep1D, SweepThread
-from daq_driver import _value_parser, Daq
+from daq_driver import Daq
+from util import _value_parser
 import qcodes as qc
 import nidaqmx
 from qcodes.dataset.measurements import Measurement
