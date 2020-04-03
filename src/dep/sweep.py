@@ -1,5 +1,5 @@
 import io
-import time
+import time, math
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -519,8 +519,8 @@ class Sweep2D(object):
             
         # Create the heatmap
         # First, determine the resolution on each axis
-        self.res_in = abs(int((self.in_stop-self.in_start)/self.in_step))+1
-        self.res_out = abs(int((self.out_stop-self.out_start)/self.out_step))+1
+        self.res_in = math.ceil(abs((self.in_stop-self.in_start)/self.in_step))+1
+        self.res_out = math.ceil(abs((self.out_stop-self.out_start)/self.out_step))+1
         
         self.heatmap_data = np.zeros((self.res_out, self.res_in))
         self.heat_fig = plt.figure(2)

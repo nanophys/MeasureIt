@@ -1,1 +1,4 @@
 *.db
+*.txt
+*.db-journal
+*.sql
