@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>addDeviceDialog</class>
- <widget class="QDialog" name="addDeviceDialog">
+ <class>addDevice</class>
+ <widget class="QDialog" name="addDevice">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -67,43 +67,7 @@
     <item>
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
-       <widget class="QComboBox" name="deviceBox">
-        <item>
-         <property name="text">
-          <string>(none)</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>SRS 860</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>AMI 430</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Lakeshore 372</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>NI DAQ</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Keithley 2450</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Dummy Instrument</string>
-         </property>
-        </item>
-       </widget>
+       <widget class="QComboBox" name="deviceBox"/>
       </item>
       <item>
        <widget class="QLineEdit" name="nameEdit"/>
@@ -121,7 +85,7 @@
   <connection>
    <sender>dialogBox</sender>
    <signal>accepted()</signal>
-   <receiver>addDeviceDialog</receiver>
+   <receiver>addDevice</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -137,7 +101,7 @@
   <connection>
    <sender>dialogBox</sender>
    <signal>rejected()</signal>
-   <receiver>addDeviceDialog</receiver>
+   <receiver>addDevice</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
