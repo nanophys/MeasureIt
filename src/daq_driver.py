@@ -9,7 +9,7 @@ class Daq(Instrument):
     """
     QCoDeS instrument driver for the National Instruments DAQ. Defines Parameters for each of the I/O channels.
     """
-    def __init__(self, address="", name="Daq"):
+    def __init__(self, name="Daq", address=""):
         """
         Initialization for the DAQ driver. Takes in the machine given device address (typically "Dev1"), a user-defined
         name, and the number of ao and ai ports. Creates QCoDeS Parameters for each of the io channels.
