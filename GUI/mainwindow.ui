@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>MainWindow</class>
- <widget class="QMainWindow" name="MainWindow">
+ <class>MeasureIt</class>
+ <widget class="QMainWindow" name="MeasureIt">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -190,17 +190,17 @@
     <property name="title">
      <string>Input</string>
     </property>
-    <widget class="QToolButton" name="addParameterButton">
+    <widget class="QToolButton" name="editParameterButton">
      <property name="geometry">
       <rect>
-       <x>60</x>
+       <x>120</x>
        <y>220</y>
        <width>91</width>
        <height>21</height>
       </rect>
      </property>
      <property name="text">
-      <string>Add Parameter</string>
+      <string>Edit Parameters</string>
      </property>
     </widget>
     <widget class="QTableWidget" name="parameterTable">
@@ -247,19 +247,6 @@
        <string>Update?</string>
       </property>
      </column>
-    </widget>
-    <widget class="QToolButton" name="deleteParameterButton">
-     <property name="geometry">
-      <rect>
-       <x>170</x>
-       <y>220</y>
-       <width>91</width>
-       <height>21</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Delete Parameter</string>
-     </property>
     </widget>
    </widget>
    <widget class="QGroupBox" name="outputGroupBox">
@@ -520,9 +507,9 @@
     <property name="title">
      <string>Devices</string>
     </property>
-    <addaction name="separator"/>
     <addaction name="addDeviceAction"/>
     <addaction name="removeDeviceAction"/>
+    <addaction name="separator"/>
    </widget>
    <widget class="QMenu" name="menuExperiment">
     <property name="title">
