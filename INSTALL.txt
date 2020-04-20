@@ -15,5 +15,6 @@
 
 TO UPDATE QCODES:
 - From Anaconda Prompt, move into QCoDeS repository, and run:
+    - git pull
     - conda activate qcodes
     - pip install -e .
