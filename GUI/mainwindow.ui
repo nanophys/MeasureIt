@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>712</width>
-    <height>500</height>
+    <height>494</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -234,17 +234,12 @@
      </column>
      <column>
       <property name="text">
-       <string>Name</string>
+       <string>Label</string>
       </property>
      </column>
      <column>
       <property name="text">
        <string>Value</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Update?</string>
       </property>
      </column>
     </widget>
@@ -526,7 +521,15 @@
      <string>2D Sweep</string>
     </property>
    </widget>
+   <widget class="QMenu" name="menuStation">
+    <property name="title">
+     <string>Station</string>
+    </property>
+    <addaction name="actionSaveStation"/>
+    <addaction name="actionLoadStation"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuStation"/>
    <addaction name="menuDevices"/>
    <addaction name="menuExperiment"/>
    <addaction name="menuData"/>
@@ -549,6 +552,16 @@
   <action name="removeDeviceAction">
    <property name="text">
     <string>Remove device...</string>
+   </property>
+  </action>
+  <action name="actionSaveStation">
+   <property name="text">
+    <string>Save Station</string>
+   </property>
+  </action>
+  <action name="actionLoadStation">
+   <property name="text">
+    <string>Load Station</string>
    </property>
   </action>
  </widget>
