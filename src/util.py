@@ -4,25 +4,28 @@
 import re
 import time
 import os
+import string
 import qcodes as qc
-from qcodes.dataset.database import initialise_or_create_database_at
+#from qcodes.dataset.database import initialise_or_create_database_at
 from qcodes.dataset.data_export import get_data_by_id
 
-unit_dict = [
-        {'f', 10**-15},
-        {'p', 10**-12},
-        {'n', 10**-9},
-        {'u', 10**-6},
-        {'m', 10**-3},
-        {'k', 10**3},
-        {'M', 10**6},
-        {'G', 10**9}
-        ]
+unit_dict = {
+        'f': 10**-15,
+        'p': 10**-12,
+        'n': 10**-9,
+        'u': 10**-6,
+        'm': 10**-3,
+        'k': 10**3,
+        'M': 10**6,
+        'G': 10**9,
+        '': 10**0
+        }
 
 def set_magnet_ramp_ranges(magnet, ranges):
     if not isinstance(ranges, list):
         print("Must pass a list of current ranges, formatted as follows:\
-             [(1, <rate>, <max applicable current>), (2, <rate>, <max applicable current>), ..., (n, <rate>, <max applicable current>]")
+             [(1, <rate>, <max applicable current>), (2, <rate>, <max applicable current>), ..., \
+             (n, <rate>, <max applicable current>]")
         return
     
     magnet.write('CONF:RAMP:RATE:SEG {}'.format(len(ranges)))
@@ -30,7 +33,8 @@ def set_magnet_ramp_ranges(magnet, ranges):
     for r in ranges:
         if len(r) != 3:
             print("Must pass a list of current ranges, formatted as follows:\
-             [(1, <rate>, <max applicable current>), (2, <rate>, <max applicable current>), ..., (n, <rate>, <max applicable current>]")
+             [(1, <rate>, <max applicable current>), (2, <rate>, <max applicable current>), ..., \
+             (n, <rate>, <max applicable current>]")
             return
         magnet.write(f'CONF:RAMP:RATE:CURR {r[0]},{r[1]},{r[2]}')
         time.sleep(0.5)
@@ -100,6 +104,10 @@ def _value_parser(value):
     Parses user input for a float and a unit prefix character. Returns a float
     and a single char
     """
+    if len(str(value)) == 0:
+        raise ValueError
+        return
+    
     value = str(value).strip()
     
     if value[0] == '.':
@@ -111,9 +119,30 @@ def _value_parser(value):
     
     parsedVal = regex.search(value)
     if not parsedVal:
-        return -1
+        raise ValueError
+        return
     
-    return (float(parsedVal.groups(' ')[0]), parsedVal.groups(' ')[1])
+    parsedNum = float(parsedVal.groups(' ')[0])
+    parsedUnit = parsedVal.groups(' ')[1]
+    parsedValue = parsedNum*unit_dict[parsedUnit]
+    
+    return parsedValue
+
+def _name_parser(_name):
+    """
+    Parses an instrument name. Must not lead with a numeric character.
+    """
+    name = str(_name).strip()
+    if any(c in name for c in string.whitespace):
+        raise ValueError(f'Invalid name: {name}. No spaces allowed within instrument name.')
+        return ''
+    elif not name[0].isalpha():
+        raise ValueError(f'Invalid name: {name}. First character must be a letter.')
+        return ''
+        
+    return name
+    
+    
     
 def _autorange_srs(srs, max_changes=1):
     """
