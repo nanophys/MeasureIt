@@ -4,7 +4,7 @@ import time
 from src.base_sweep import BaseSweep
 from PyQt5.QtCore import pyqtSignal
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
-from qcodes.instrument_drivers.oxford.IPS120 import OxfordInstruments_IPS120
+#from qcodes.instrument_drivers.oxford.IPS120 import OxfordInstruments_IPS120
 
 class Sweep1D(BaseSweep):
     """
@@ -107,8 +107,8 @@ class Sweep1D(BaseSweep):
         # If we are sweeping the magnet, let's deal with it here
         if isinstance(self.instrument, AMI430) and str(self.set_param) == 'Magnet_field':
             return self.step_AMI430()
-        elif isinstance(self.instrument, OxfordInstruments_IPS120):
-            return self.step_IPS120()
+#        elif isinstance(self.instrument, OxfordInstruments_IPS120):
+#            return self.step_IPS120()
         
         # If we aren't at the end, keep going
         if abs(self.setpoint - self.end) >= abs(self.step/2):
