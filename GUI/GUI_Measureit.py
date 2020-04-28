@@ -1,16 +1,20 @@
 from PyQt5 import QtWidgets,QtCore,QtGui
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QTableWidgetItem, QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QTableWidgetItem, QMessageBox, QFileDialog,\
+    QPushButton, QCheckBox, QHeaderView, QLineEdit
 import sys,os
 import yaml
+import matplotlib
 from mainwindow_ui import Ui_MeasureIt
 from GUI_Dialogs import *
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+matplotlib.use('Qt5Agg')
 
 sys.path.append("..")
 import src
-import nidaqmx
 from src.daq_driver import Daq, DaqAOChannel, DaqAIChannel
+from src.util import _value_parser, _name_parser
+from src.sweep1d import Sweep1D
 import qcodes as qc
 from qcodes import Station
 from qcodes.instrument_drivers.Lakeshore.Model_372 import Model_372
@@ -37,19 +41,45 @@ class UImain(QtWidgets.QMainWindow):
         self.ui.setupUi(self)
         self.setWindowTitle("MeasureIt")
         
+        self.init_tables()
         self.connect_buttons()
 
         self.station = None
         self.devices = {}
         self.actions = {}
         self.track_params = {}
-        self.shown_params = []
+        self.set_params = {}
+        self.shown_follow_params = []
+        self.shown_set_params = []
         
         self.load_station_and_connect_instruments(config_file)
         
         self.show()
     
     
+    def init_tables(self):
+        follow_header = self.ui.followParamTable.horizontalHeader()
+        follow_header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        follow_header.resizeSection(0, 60)
+        follow_header.setSectionResizeMode(1, QHeaderView.Fixed)
+        follow_header.resizeSection(1, 60)
+        follow_header.setSectionResizeMode(2, QHeaderView.Stretch)
+        follow_header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        follow_header.setSectionResizeMode(4, QHeaderView.Fixed)
+        follow_header.resizeSection(4, 40)
+        
+        output_header = self.ui.outputParamTable.horizontalHeader()
+        output_header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        output_header.resizeSection(0, 60)
+        output_header.setSectionResizeMode(1, QHeaderView.Fixed)
+        output_header.resizeSection(1, 60)
+        output_header.setSectionResizeMode(2, QHeaderView.Stretch)
+        output_header.setSectionResizeMode(3, QHeaderView.Fixed)
+        output_header.resizeSection(3, 40)
+        output_header.setSectionResizeMode(4, QHeaderView.Fixed)
+        output_header.resizeSection(4, 40)
+        
+        
     def connect_buttons(self):
         self.ui.editParameterButton.clicked.connect(self.edit_parameters)
         self.ui.startButton.clicked.connect(self.start_sweep)
@@ -90,7 +120,8 @@ class UImain(QtWidgets.QMainWindow):
                 self.devices[str(name)] = dev
                 self.add_dev_to_menu(dev)
             except:
-                self.show_error('Instrument Error', f"Error connectiong to {name}, either the name is already in use or the device is unavailable.")
+                self.show_error('Instrument Error', f"Error connectiong to {name}, \
+                                either the name is already in use or the device is unavailable.")
         
         
     def save_station(self):
@@ -127,35 +158,118 @@ class UImain(QtWidgets.QMainWindow):
             yaml.dump(snap, file)
             if set_as_default:
                 qc.config['station']['default_file'] = filename
+                qc.config.save_config(os.environ['MeasureItHome']+'\\cfg\\qcodesrc.json')
     
         
     def edit_parameters(self):
-        param_ui = EditParameterGUI(self.devices, self.track_params, self)
+        param_ui = EditParameterGUI(self.devices, self.track_params, self.set_params, self)
         if param_ui.exec_():
-            self.track_params = param_ui.get_new_track_params()
+            self.track_params = param_ui.new_track_params
+            self.set_params = param_ui.new_set_params
             print('Here are the parameters currently being tracked:')
             for name, p in self.track_params.items():
                 print(name)
+            print('Here are the parameters available for sweeping:')
+            for name, p in self.set_params.items():
+                print(name)
+            self.update_parameters()
     
-            self.update_parameters_table()
     
-    
-    def update_parameters_table(self):
+    def update_parameters(self):
+        self.ui.followParamTable.clearContents()
         for name, p in self.track_params.items():
-            if name not in self.shown_params:
-                n = self.ui.parameterTable.rowCount()
-                self.ui.parameterTable.insertRow(n)
+            if name not in self.shown_follow_params:
+                n = self.ui.followParamTable.rowCount()
+                self.ui.followParamTable.insertRow(n)
                 paramitem = QTableWidgetItem(name)
                 paramitem.setFlags(Qt.ItemIsSelectable)
-                self.ui.parameterTable.setItem(n, 0, paramitem)
-                labelitem = QTableWidgetItem(p.label)
-                labelitem.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                self.ui.parameterTable.setItem(n, 1, labelitem)
-                valueitem = QTableWidgetItem(p.get())
-                self.ui.parameterTable.setItem(n, 2, valueitem)
+                self.ui.followParamTable.setItem(n, 0, paramitem)
+                labelitem = QLineEdit(p.label)
+                labelitem.editingFinished.connect(lambda: self.update_labels(p, labelitem.text()))
+                self.ui.followParamTable.setCellWidget(n, 1, labelitem)
+                valueitem = QTableWidgetItem(str(p.get()))
+                self.ui.followParamTable.setItem(n, 2, valueitem)
+                includeBox = QCheckBox()
+                includeBox.setChecked(True)
+                self.ui.followParamTable.setCellWidget(n, 3, includeBox)
+                updateButton = QPushButton("Get")
+                updateButton.clicked.connect(lambda: self.ui.followParamTable.item(n, 2).setText(str(p.get())))
+                self.ui.followParamTable.setCellWidget(n, 4, updateButton)
+                
+                self.shown_follow_params.append(name)
+        
+        self.ui.outputParamTable.clearContents()
+        self.ui.scanParameterBox.clear()
+        self.ui.scanParameterBox.addItem('time')
+        for name, p in self.set_params.items():
+            if name not in self.shown_set_params:
+                n = self.ui.outputParamTable.rowCount()
+                self.ui.outputParamTable.insertRow(n)
+                paramitem = QTableWidgetItem(name)
+                paramitem.setFlags(Qt.ItemIsSelectable)
+                self.ui.outputParamTable.setItem(n, 0, paramitem)
+                labelitem = QLineEdit(p.label)
+                labelitem.editingFinished.connect(lambda: self.update_labels(p, labelitem.text()))
+                self.ui.outputParamTable.setCellWidget(n, 1, labelitem)
+                valueitem = QLineEdit(str(p.get()))
+                self.ui.outputParamTable.setCellWidget(n, 2, valueitem)
+                setButton = QPushButton("Set")
+                setButton.clicked.connect(lambda: p.set(_value_parser(self.ui.outputParamTable.cellWidget(n,2).text())))
+                self.ui.outputParamTable.setCellWidget(n, 3, setButton)
+                getButton = QPushButton("Get")
+                getButton.clicked.connect(lambda: self.ui.outputParamTable.cellWidget(n, 2).setText(str(p.get())))
+                self.ui.outputParamTable.setCellWidget(n, 4, getButton)
+                
+                self.ui.scanParameterBox.addItem(p.label, p)
+                self.shown_set_params.append(name)
 
+    
+    def update_labels(self, p, newlabel):
+        p.label = newlabel
+        
+        for n, (name, param) in enumerate(list(self.track_params.items())):
+            self.ui.followParamTable.cellWidget(n,1).setText(param.label)
+        for n, (name, param) in enumerate(list(self.set_params.items())):
+            self.ui.outputParamTable.cellWidget(n,1).setText(param.label)
+        for n in range(self.ui.scanParameterBox.count()-1):
+            param = self.ui.scanParameterBox.itemData(n+1)
+            self.ui.scanParameterBox.setItemText(n+1, param.label)
+        
         
     def start_sweep(self):
+        try:
+            start = _value_parser(self.ui.startEdit.text())
+            stop = _value_parser(self.ui.endEdit.text())
+            step = _value_parser(self.ui.stepEdit.text())
+            stepsec = _value_parser(self.ui.stepsecEdit.text())
+            plotbin = self.ui.plotbinEdit.text()
+            plotbin = int(plotbin)
+            if plotbin < 1:
+                self.ui.plotbinEdit.setText('1')
+                raise ValueError
+        except ValueError as e:
+            self.show_error("Error", "One or more of the sweep input values are invalid.\
+                            Valid inputs consist of a number optionally followed by \
+                            suffix f/p/n/u/m/k/M/G.")
+            return
+        
+        set_param = self.ui.scanParameterBox.currentData()
+        twoway = self.ui.bidirectionalBox.isChecked()
+        continuous = self.ui.continualBox.isChecked()
+        save = self.ui.saveBox.isChecked()
+        plot = self.ui.livePlotBox.isChecked()
+        
+        self.sweep = Sweep1D(set_param, start, stop, step, inter_delay = 1/stepsec, 
+                             bidirectional = twoway, continual = continuous, save_data = save, 
+                             plot_data = plot, x_axis_time = 0, plot_bin=plotbin)
+        self.sweep.follow_param(list(self.track_params.values()))
+        if save:
+            self.setup_save()
+        
+        self.sweep.start()
+    
+
+    def setup_save(self):
         pass
     
     
@@ -166,6 +280,11 @@ class UImain(QtWidgets.QMainWindow):
         device_ui = AddDeviceGUI(self)
         if device_ui.exec_():
             d = device_ui.get_selected()
+            try:
+                d['name'] = _name_parser(d['name'])
+            except ValueError:
+                self.show_error("Error", "Instrument name must start with a letter.")
+                return
             
             if device_ui.ui.nameEdit.text() in self.devices.keys():
                 self.show_error("Error", "Already have an instrument with that name in the station.")
@@ -249,6 +368,8 @@ class UImain(QtWidgets.QMainWindow):
     
     
 def main():
+    if os.path.isfile(os.environ['MeasureItHome']+'\\cfg\\qcodesrc.json'):
+        qc.config.update_config(os.environ['MeasureItHome']+'\\cfg\\')
     app = QtWidgets.QApplication(sys.argv)
     app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
     app.setStyle('WindowsVista')
