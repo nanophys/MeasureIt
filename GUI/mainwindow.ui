@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>712</width>
-    <height>494</height>
+    <width>708</width>
+    <height>530</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,10 +17,10 @@
    <widget class="QGroupBox" name="scanGroupBox">
     <property name="geometry">
      <rect>
-      <x>10</x>
+      <x>380</x>
       <y>10</y>
-      <width>341</width>
-      <height>171</height>
+      <width>321</width>
+      <height>211</height>
      </rect>
     </property>
     <property name="title">
@@ -37,17 +37,7 @@
      </property>
      <item>
       <property name="text">
-       <string>(none)</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>Time</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>Vbg</string>
+       <string>time</string>
       </property>
      </item>
     </widget>
@@ -115,9 +105,9 @@
      <property name="geometry">
       <rect>
        <x>200</x>
-       <y>50</y>
-       <width>110</width>
-       <height>115</height>
+       <y>20</y>
+       <width>111</width>
+       <height>143</height>
       </rect>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -146,7 +136,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QCheckBox" name="checkBox_2">
+       <widget class="QCheckBox" name="livePlotBox">
         <property name="text">
          <string>Live plot</string>
         </property>
@@ -154,6 +144,24 @@
          <bool>true</bool>
         </property>
        </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QLabel" name="plotbinLabel">
+          <property name="text">
+           <string>Plot bin</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="plotbinEdit">
+          <property name="text">
+           <string>1</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
       <item>
        <widget class="QProgressBar" name="progressBar">
@@ -177,24 +185,132 @@
       <string>Parameter:</string>
      </property>
     </widget>
+    <widget class="QPushButton" name="startButton">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>170</y>
+       <width>81</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Start</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pauseButton">
+     <property name="geometry">
+      <rect>
+       <x>130</x>
+       <y>170</y>
+       <width>71</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Pause</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="endButton">
+     <property name="geometry">
+      <rect>
+       <x>230</x>
+       <y>170</y>
+       <width>71</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>End</string>
+     </property>
+    </widget>
    </widget>
-   <widget class="QGroupBox" name="inputGroupBox">
+   <widget class="QGroupBox" name="parameterGroupBox">
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>190</y>
-      <width>341</width>
-      <height>251</height>
+      <y>10</y>
+      <width>361</width>
+      <height>471</height>
      </rect>
     </property>
     <property name="title">
-     <string>Input</string>
+     <string>Parameters</string>
     </property>
+    <widget class="QGroupBox" name="inputGroupBox">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>20</y>
+       <width>341</width>
+       <height>201</height>
+      </rect>
+     </property>
+     <property name="title">
+      <string>Inputs (followed parameters)</string>
+     </property>
+     <widget class="QTableWidget" name="followParamTable">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>20</y>
+        <width>321</width>
+        <height>171</height>
+       </rect>
+      </property>
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <attribute name="horizontalHeaderCascadingSectionResizes">
+       <bool>true</bool>
+      </attribute>
+      <attribute name="horizontalHeaderMinimumSectionSize">
+       <number>10</number>
+      </attribute>
+      <attribute name="horizontalHeaderDefaultSectionSize">
+       <number>79</number>
+      </attribute>
+      <attribute name="horizontalHeaderShowSortIndicator" stdset="0">
+       <bool>true</bool>
+      </attribute>
+      <attribute name="horizontalHeaderStretchLastSection">
+       <bool>true</bool>
+      </attribute>
+      <column>
+       <property name="text">
+        <string>Parameter</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Label</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Value</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Use</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Update</string>
+       </property>
+      </column>
+     </widget>
+    </widget>
     <widget class="QToolButton" name="editParameterButton">
      <property name="geometry">
       <rect>
-       <x>120</x>
-       <y>220</y>
+       <x>130</x>
+       <y>440</y>
        <width>91</width>
        <height>21</height>
       </rect>
@@ -203,284 +319,240 @@
       <string>Edit Parameters</string>
      </property>
     </widget>
-    <widget class="QTableWidget" name="parameterTable">
+    <widget class="QGroupBox" name="outputGroupBox">
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>20</y>
-       <width>321</width>
-       <height>192</height>
+       <y>230</y>
+       <width>341</width>
+       <height>201</height>
       </rect>
      </property>
-     <attribute name="horizontalHeaderCascadingSectionResizes">
-      <bool>true</bool>
-     </attribute>
-     <attribute name="horizontalHeaderDefaultSectionSize">
-      <number>79</number>
-     </attribute>
-     <attribute name="horizontalHeaderMinimumSectionSize">
-      <number>10</number>
-     </attribute>
-     <attribute name="horizontalHeaderShowSortIndicator" stdset="0">
-      <bool>true</bool>
-     </attribute>
-     <attribute name="horizontalHeaderStretchLastSection">
-      <bool>true</bool>
-     </attribute>
-     <column>
-      <property name="text">
-       <string>Parameter</string>
+     <property name="title">
+      <string>Outputs (set/sweeping parameters)</string>
+     </property>
+     <widget class="QTableWidget" name="outputParamTable">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>20</y>
+        <width>321</width>
+        <height>171</height>
+       </rect>
       </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Label</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Value</string>
-      </property>
-     </column>
+      <column>
+       <property name="text">
+        <string>Parameter</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Label</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Value</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Set</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Get</string>
+       </property>
+      </column>
+     </widget>
     </widget>
    </widget>
-   <widget class="QGroupBox" name="outputGroupBox">
+   <widget class="QPushButton" name="pushButton">
+    <property name="geometry">
+     <rect>
+      <x>650</x>
+      <y>250</y>
+      <width>51</width>
+      <height>22</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Update</string>
+    </property>
+   </widget>
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>370</x>
-      <y>290</y>
-      <width>331</width>
-      <height>171</height>
+      <y>270</y>
+      <width>358</width>
+      <height>116</height>
      </rect>
     </property>
-    <property name="title">
-     <string>Output</string>
-    </property>
-    <widget class="QPushButton" name="pushButton">
-     <property name="geometry">
-      <rect>
-       <x>270</x>
-       <y>20</y>
-       <width>51</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Update</string>
-     </property>
-    </widget>
-    <widget class="QWidget" name="layoutWidget">
-     <property name="geometry">
-      <rect>
-       <x>0</x>
-       <y>40</y>
-       <width>358</width>
-       <height>116</height>
-      </rect>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_4">
-      <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_4">
-        <property name="sizeConstraint">
-         <enum>QLayout::SetNoConstraint</enum>
-        </property>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_5">
-          <property name="text">
-           <string>Time</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_6"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_7"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_8"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_9"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_10"/>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_5">
-        <item>
-         <widget class="QLineEdit" name="lineEdit_11">
-          <property name="text">
-           <string>O0</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_12"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_13"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_14"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_15"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_16"/>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_7">
-        <item>
-         <widget class="QLineEdit" name="lineEdit_23">
-          <property name="text">
-           <string>O1</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_24"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_25"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_26"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_27"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_28"/>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_8">
-        <item>
-         <widget class="QLineEdit" name="lineEdit_29">
-          <property name="text">
-           <string>O2</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_30"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_31"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_32"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_33"/>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="lineEdit_34"/>
-        </item>
-       </layout>
-      </item>
-     </layout>
-    </widget>
-    <widget class="QWidget" name="layoutWidget">
-     <property name="geometry">
-      <rect>
-       <x>1</x>
-       <y>21</y>
-       <width>271</width>
-       <height>21</height>
-      </rect>
-     </property>
-     <layout class="QHBoxLayout" name="horizontalLayout_3">
-      <item>
-       <widget class="QLabel" name="label_7">
-        <property name="text">
-         <string>Variable</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_6">
-        <property name="text">
-         <string>Value</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_9">
-        <property name="text">
-         <string>Start</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_8">
-        <property name="text">
-         <string>End</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_10">
-        <property name="text">
-         <string>Step/s</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="label_11">
-        <property name="text">
-         <string>Step</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
+    <layout class="QVBoxLayout" name="verticalLayout_4">
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_4">
+       <property name="sizeConstraint">
+        <enum>QLayout::SetNoConstraint</enum>
+       </property>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_5">
+         <property name="text">
+          <string>Time</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_6"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_7"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_8"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_9"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_10"/>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_5">
+       <item>
+        <widget class="QLineEdit" name="lineEdit_11">
+         <property name="text">
+          <string>O0</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_12"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_13"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_14"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_15"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_16"/>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_7">
+       <item>
+        <widget class="QLineEdit" name="lineEdit_23">
+         <property name="text">
+          <string>O1</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_24"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_25"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_26"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_27"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_28"/>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_8">
+       <item>
+        <widget class="QLineEdit" name="lineEdit_29">
+         <property name="text">
+          <string>O2</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_30"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_31"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_32"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_33"/>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="lineEdit_34"/>
+       </item>
+      </layout>
+     </item>
+    </layout>
    </widget>
-   <widget class="QPushButton" name="startButton">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
-      <x>400</x>
-      <y>120</y>
-      <width>108</width>
-      <height>23</height>
+      <x>371</x>
+      <y>251</y>
+      <width>271</width>
+      <height>21</height>
      </rect>
     </property>
-    <property name="text">
-     <string>Start</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pauseButton">
-    <property name="geometry">
-     <rect>
-      <x>400</x>
-      <y>160</y>
-      <width>108</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Pause</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="endButton">
-    <property name="geometry">
-     <rect>
-      <x>400</x>
-      <y>200</y>
-      <width>108</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>End</string>
-    </property>
+    <layout class="QHBoxLayout" name="horizontalLayout_3">
+     <item>
+      <widget class="QLabel" name="label_7">
+       <property name="text">
+        <string>Variable</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_6">
+       <property name="text">
+        <string>Value</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_9">
+       <property name="text">
+        <string>Start</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_8">
+       <property name="text">
+        <string>End</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_10">
+       <property name="text">
+        <string>Step/s</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_11">
+       <property name="text">
+        <string>Step</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
@@ -488,7 +560,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>712</width>
+     <width>708</width>
      <height>21</height>
     </rect>
    </property>
