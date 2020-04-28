@@ -45,7 +45,7 @@ class SaveStationGUI(QtWidgets.QDialog):
         return self.url
 
 class EditParameterGUI(QtWidgets.QDialog):
-    def __init__(self, devices, track_params, parent = None):
+    def __init__(self, devices, track_params, set_params, parent = None):
         super(EditParameterGUI,self).__init__(parent)
         self.parent = parent
         self.devices = devices
@@ -54,15 +54,21 @@ class EditParameterGUI(QtWidgets.QDialog):
                 
         self.make_connections()
         self.new_track_params = {}
+        self.new_set_params = {}
         
         for name, dev in self.devices.items():
             self.ui.deviceBox.addItem(name, dev)
             
-        for p in self.parent.track_params:
+        for name,p in track_params.items():
             listitem = QListWidgetItem(p.full_name) 
             listitem.setData(32, p)
-            self.ui.activeParamsWidget.addItem(listitem)
+            self.ui.followParamsWidget.addItem(listitem)
             self.new_track_params[p.full_name] = p
+        for name,p in set_params.items():
+            listitem = QListWidgetItem(p.full_name) 
+            listitem.setData(32, p)
+            self.ui.setParamsWidget.addItem(listitem)
+            self.new_set_params[p.full_name] = p
             
         self.update_avail_device_params(0)
         
@@ -78,33 +84,35 @@ class EditParameterGUI(QtWidgets.QDialog):
                 self.ui.allParamsWidget.addItem(listitem)
             
     def make_connections(self):
-        self.ui.addParamButton.clicked.connect(self.add_param)
-        self.ui.delParamButton.clicked.connect(self.del_param)
-        
+        self.ui.addFollowButton.clicked.connect(lambda: self.add_param(self.new_track_params,
+                                                                       self.ui.followParamsWidget))
+        self.ui.delFollowButton.clicked.connect(lambda: self.del_param(self.new_track_params, 
+                                                                       self.ui.followParamsWidget))
+        self.ui.addSetButton.clicked.connect(lambda: self.add_param(self.new_set_params,
+                                                                    self.ui.setParamsWidget))
+        self.ui.delSetButton.clicked.connect(lambda: self.del_param(self.new_set_params, 
+                                                                    self.ui.setParamsWidget))
         self.ui.deviceBox.activated.connect(self.update_avail_device_params)
         
         
-    def add_param(self):
+    def add_param(self, param_dict, widget):
         params = self.ui.allParamsWidget.selectedItems()
         
         for p in params:
             name = p.data(32).full_name
-            if name not in self.new_track_params.keys():
+            if name not in param_dict.keys():
                 listitem = QListWidgetItem(name)
                 listitem.setData(32, p.data(32))
-                self.ui.activeParamsWidget.addItem(listitem)
-                self.new_track_params[name] = p.data(32)
+                widget.addItem(listitem)
+                param_dict[name] = p.data(32)
     
     
-    def del_param(self):
-        params = self.ui.activeParamsWidget.selectedItems()
+    def del_param(self, param_dict, widget):
+        params = widget.selectedItems()
         for p in params:
-            self.ui.activeParamsWidget.takeItem(self.ui.activeParamsWidget.row(p))
-            self.new_track_params.pop(p.name)
+            widget.takeItem(widget.row(p))
+            param_dict.pop(p.data(32).full_name)
             
-            
-    def get_new_track_params(self):
-        return self.new_track_params
         
         
 class AddDeviceGUI(QtWidgets.QDialog):

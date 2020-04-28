@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>430</width>
-    <height>248</height>
+    <width>495</width>
+    <height>274</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,8 +16,8 @@
   <widget class="QDialogButtonBox" name="buttonBox">
    <property name="geometry">
     <rect>
-     <x>140</x>
-     <y>200</y>
+     <x>170</x>
+     <y>230</y>
      <width>151</width>
      <height>32</height>
     </rect>
@@ -32,10 +32,10 @@
   <widget class="QWidget" name="verticalLayoutWidget">
    <property name="geometry">
     <rect>
-     <x>40</x>
+     <x>20</x>
      <y>20</y>
-     <width>351</width>
-     <height>171</height>
+     <width>458</width>
+     <height>205</height>
     </rect>
    </property>
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -51,7 +51,7 @@
         </property>
         <property name="sizeHint" stdset="0">
          <size>
-          <width>80</width>
+          <width>120</width>
           <height>20</height>
          </size>
         </property>
@@ -80,7 +80,7 @@
         </property>
         <property name="sizeHint" stdset="0">
          <size>
-          <width>80</width>
+          <width>120</width>
           <height>20</height>
          </size>
         </property>
@@ -91,11 +91,11 @@
     <item>
      <layout class="QHBoxLayout" name="paramsLayout">
       <item>
-       <layout class="QVBoxLayout" name="activeParamsLayout">
+       <layout class="QVBoxLayout" name="followParamsLayout">
         <item>
-         <widget class="QLabel" name="activeParamsLabel">
+         <widget class="QLabel" name="followParamsLabel">
           <property name="text">
-           <string>Active Parameters</string>
+           <string>Follow Parameters</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -103,12 +103,15 @@
          </widget>
         </item>
         <item>
-         <widget class="QListWidget" name="activeParamsWidget"/>
+         <widget class="QListWidget" name="followParamsWidget"/>
         </item>
        </layout>
       </item>
       <item>
-       <layout class="QVBoxLayout" name="paramButtonLayout">
+       <layout class="QVBoxLayout" name="followButtonLayout">
+        <property name="sizeConstraint">
+         <enum>QLayout::SetDefaultConstraint</enum>
+        </property>
         <item>
          <spacer name="topVerticalSpacer">
           <property name="orientation">
@@ -123,7 +126,7 @@
          </spacer>
         </item>
         <item>
-         <widget class="QPushButton" name="addParamButton">
+         <widget class="QPushButton" name="addFollowButton">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -136,7 +139,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="delParamButton">
+         <widget class="QPushButton" name="delFollowButton">
           <property name="text">
            <string>&gt;&gt;</string>
           </property>
@@ -162,7 +165,7 @@
         <item>
          <widget class="QLabel" name="allParamsLabel">
           <property name="text">
-           <string>All Parameters</string>
+           <string>   All Parameters    </string>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -171,6 +174,64 @@
         </item>
         <item>
          <widget class="QListWidget" name="allParamsWidget"/>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="setButtonLayout">
+        <item>
+         <spacer name="verticalSpacer_3">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="addSetButton">
+          <property name="text">
+           <string>&gt;&gt;</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="delSetButton">
+          <property name="text">
+           <string>&lt;&lt;</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="verticalSpacer">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="setParamLayout">
+        <item>
+         <widget class="QLabel" name="setParamsLabel">
+          <property name="text">
+           <string>   Set Parameters   </string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QListWidget" name="setParamsWidget"/>
         </item>
        </layout>
       </item>
