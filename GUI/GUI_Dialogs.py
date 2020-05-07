@@ -6,11 +6,39 @@ from edit_parameter_ui import Ui_editParameter
 from add_device_ui import Ui_addDevice
 from save_station_ui import Ui_saveStation
 from remove_device_ui import Ui_removeDevice
+from save_data_ui import Ui_saveData
 
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 
 # TODO: Create a dictionary with class typings as the key, and common parameters as the values
-# TODO: From main window, grab the selected parameters when 'accept' registers
+
+class SaveDataGUI(QtWidgets.QDialog):
+    def __init__(self, parent=None):
+        super(SaveDataGUI, self).__init__(parent)
+        self.parent = parent
+        self.ui = Ui_saveData()
+        self.ui.setupUi(self)
+        self.setWindowTitle("Select Database")
+        self.url = self.parent.db
+        self.ui.expEdit.setText(self.parent.exp_name)
+        self.ui.sampleEdit.setText(self.parent.sample_name)
+        
+        self.ui.browseButton.clicked.connect(self.select_db)
+        
+    def select_db(self):
+        fileName = QFileDialog.getSaveFileName(self, "Select Database",
+                                       os.environ['MeasureItHome']+"\\Databases\\",
+                                       "Database (*.db)")
+        if len(fileName[0]) > 0:
+            self.url = fileName[0]
+            if '.db' not in self.url:
+                self.url += '.db'
+            
+            self.ui.locationEdit.setText(self.url)
+            
+    def get_save_info(self):
+        return (self.url, self.expEdit.text(), self.sampleEdit.text())
+
 
 class SaveStationGUI(QtWidgets.QDialog):
     def __init__(self, parent=None):
@@ -25,11 +53,6 @@ class SaveStationGUI(QtWidgets.QDialog):
         
         
     def select_file(self):
-        #fd = QFileDialog(self, directory=os.environ['MeasureItHome']+'\\cfg\\')
-        #fd.setFileMode(QFileDialog.AnyFile)
-        #fd.setNameFilter(tr("Station Files (*.station.yaml)"))
-        #if fd.exec_():
-        #    fileNames = fd.selectedFiles()
         fileName = QFileDialog.getSaveFileName(self, "Save Station",
                                        os.environ['MeasureItHome']+"\\cfg\\new_station.station.yaml",
                                        "Stations (*.station.yaml)")
@@ -43,6 +66,7 @@ class SaveStationGUI(QtWidgets.QDialog):
             
     def get_file(self):
         return self.url
+
 
 class EditParameterGUI(QtWidgets.QDialog):
     def __init__(self, devices, track_params, set_params, parent = None):
