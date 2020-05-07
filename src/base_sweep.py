@@ -1,8 +1,9 @@
 # base_sweep.py
 
 import time
-from PyQt5.QtCore import QObject
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from qcodes.dataset.measurements import Measurement
+from qcodes.dataset.data_set import DataSet
 from src.runner_thread import RunnerThread
 from src.plotter_thread import PlotterThread
 from src.util import _autorange_srs
@@ -12,6 +13,9 @@ class BaseSweep(QObject):
     This is the base class for the 0D (tracking) sweep class and the 1D sweep class. Each of these functions
     is used by both classes.
     """
+    update_signal = pyqtSignal(dict)
+    dataset_signal = pyqtSignal(DataSet)
+    
     def __init__(self, set_param = None, inter_delay = 0.01, save_data = True, plot_data = True, x_axis=1, datasaver = None, parent = None, plot_bin=1):
         """
         Initializer for both classes, called by super().__init__() in Sweep0D and Sweep1D classes.
@@ -33,6 +37,8 @@ class BaseSweep(QObject):
         self.plot_data = plot_data
         self.x_axis = x_axis
         self.meas = None
+        self.dataset = None
+        
         self.continuous = False
         self.plot_bin=plot_bin
         
@@ -136,12 +142,21 @@ class BaseSweep(QObject):
         if self.is_running == False:
             print("Sweep not currently running. Nothing to stop.")
         self.is_running = False
+        self.send_updates()
         
     
     def kill(self):
         self.is_running = False
         self.runner.kill_flag = True
         self.plotter.kill_flag = True
+        if not self.runner.wait(1000):
+            self.runner.terminate()
+            print('forced runner to terminate')
+        if not self.plotter.wait(1000):
+            self.runner.terminate()
+            print('forced runner to terminate')
+        self.plotter.clear()
+        self.send_updates()
         
         
     def check_running(self):
@@ -209,8 +224,21 @@ class BaseSweep(QObject):
         """
         if self.is_running is False:
             self.start(ramp_to_start=False)
-            
-            
+        self.send_updates()
+     
+    def get_dataset(self):
+        """
+        Helper function for retrieving datset.
+        
+        Returns
+        -------
+        self.dataset - Dataset object containing all collected data
+
+        """
+        
+        return self.dataset
+    
+    
     def update_values(self):
         """
         Iterates our data points, changing our setpoint if we are sweeping, and refreshing
@@ -246,15 +274,32 @@ class BaseSweep(QObject):
         if self.save_data and self.is_running:
             self.runner.datasaver.add_result(*data)
         
+        self.send_updates()
+        
         #print(data)
         return data
     
     
+    def send_updates(self):
+        update_dict = {}
+        if self.set_param is None:
+            update_dict['set_param'] = 'time'
+            update_dict['setpoint'] = time.monotonic() - self.t0
+            update_dict['direction'] = 0
+        else:
+            update_dict['set_param'] = self.set_param
+            update_dict['setpoint'] = self.setpoint
+            update_dict['direction'] = self.direction
+        update_dict['status'] = self.is_running
+        
+        self.update_signal.emit(update_dict)
+            
     def clear_plot(self):
         """
         Clears the currently showing plots.
         """
-        self.plotter.reset()
+        if self.plotter is not None:
+            self.plotter.reset()
         
     
     def set_plot_bin(self, pb):
