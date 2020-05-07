@@ -216,8 +216,8 @@ class PlotterThread(QThread):
                 # If we're done, update our plots one last time to ensure all data is flushed
                 self.update_plots(force=True)
                 
-        if self.kill_flag == True:
-            self.clear()
+        #if self.kill_flag == True:
+        #    self.clear()
 
 
     def reset(self):
