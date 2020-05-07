@@ -226,57 +226,59 @@ class UImain(QtWidgets.QMainWindow):
         self.ui.followParamTable.clearContents()
         self.ui.followParamTable.setRowCount(0)
         
-        self.ui.followUpdateButtons = []
         for m, (name, p) in enumerate(self.track_params.items()):
             self.ui.followParamTable.insertRow(m)
             paramitem = QTableWidgetItem(name)
             paramitem.setData(32, p)
             paramitem.setFlags(Qt.ItemIsSelectable)
             self.ui.followParamTable.setItem(m, 0, paramitem)
+            
             labelitem = QLineEdit(p.label)
+            labelitem.editingFinished.connect(lambda p=p, labelitem=labelitem: 
+                                              self.update_labels(p, labelitem.text()))
             self.ui.followParamTable.setCellWidget(m, 1, labelitem)
-            labelitem.editingFinished.connect(lambda x=m: self.update_labels(
-                self.ui.followParamTable.item(x,0).data(32), self.ui.followParamTable.cellWidget(x,1).text()))
+            
             valueitem = QTableWidgetItem(str(p.get()))
             self.ui.followParamTable.setItem(m, 2, valueitem)
+            
             includeBox = QCheckBox()
             includeBox.setChecked(True)
             self.ui.followParamTable.setCellWidget(m, 3, includeBox)
-            self.ui.followUpdateButtons.append(QPushButton("Get"))
-            self.ui.followUpdateButtons[m].clicked.connect(
-                lambda a, y=m: self.ui.followParamTable.item(y, 2).setText(str(
-                    self.ui.followParamTable.item(y,0).data(32).get())))
-            self.ui.followParamTable.setCellWidget(m, 4, self.ui.followUpdateButtons[m])
+            
+            updateButton = QPushButton("Get")
+            updateButton.clicked.connect(lambda checked, m=m, p=p, valueitem=valueitem: 
+                                         valueitem.setText(str(p.get())))
+            self.ui.followParamTable.setCellWidget(m, 4, updateButton)
         
         self.ui.outputParamTable.clearContents()
         self.ui.outputParamTable.setRowCount(0)
         self.ui.scanParameterBox.clear()
         self.ui.scanParameterBox.addItem('time')
         
-        self.ui.outputSetButtons = []
-        self.ui.outputGetButtons = []
         for n, (name, p) in enumerate(self.set_params.items()):
             self.ui.outputParamTable.insertRow(n)
             paramitem = QTableWidgetItem(name)
             paramitem.setData(32, p)
             paramitem.setFlags(Qt.ItemIsSelectable)
             self.ui.outputParamTable.setItem(n, 0, paramitem)
+            
             labelitem = QLineEdit(p.label)
+            labelitem.editingFinished.connect(lambda p=p, labelitem=labelitem:
+                                              self.update_labels(p,labelitem.text()))
             self.ui.outputParamTable.setCellWidget(n, 1, labelitem)
-            labelitem.editingFinished.connect(lambda i=n: self.update_labels(
-                self.ui.outputParamTable.item(i,0).data(32), self.ui.outputParamTable.cellWidget(i,1).text()))
+            
             valueitem = QLineEdit(str(p.get()))
             self.ui.outputParamTable.setCellWidget(n, 2, valueitem)
-            self.ui.outputSetButtons.append(QPushButton("Set"))
-            self.ui.outputSetButtons[n].clicked.connect(
-                lambda a, j=n: self.ui.outputParamTable.item(j,0).data(32).set(
-                    _value_parser(self.ui.outputParamTable.cellWidget(j,2).text())))
-            self.ui.outputParamTable.setCellWidget(n, 3, self.ui.outputSetButtons[n])
-            self.ui.outputGetButtons.append(QPushButton("Get"))
-            self.ui.outputGetButtons[n].clicked.connect(
-                lambda a, k=n: self.ui.outputParamTable.cellWidget(k, 2).setText(str(
-                    self.ui.outputParamTable.item(k,0).data(32).get())))
-            self.ui.outputParamTable.setCellWidget(n, 4, self.ui.outputGetButtons[n])
+            
+            setButton = QPushButton("Set")
+            setButton.clicked.connect(lambda checked, p=p, valueitem=valueitem: 
+                                      p.set(_value_parser(valueitem.text())))
+            self.ui.outputParamTable.setCellWidget(n, 3, setButton)
+            
+            getButton = QPushButton("Get")
+            getButton.clicked.connect(lambda checked, p=p, valueitem=valueitem: 
+                                      valueitem.setText(str(p.get())))
+            self.ui.outputParamTable.setCellWidget(n, 4, getButton)
             
             self.ui.scanParameterBox.addItem(p.label, p)
 
