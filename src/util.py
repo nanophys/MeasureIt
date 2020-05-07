@@ -6,7 +6,7 @@ import time
 import os
 import string
 import qcodes as qc
-#from qcodes.dataset.database import initialise_or_create_database_at
+from qcodes import initialise_or_create_database_at
 from qcodes.dataset.data_export import get_data_by_id
 
 unit_dict = {
