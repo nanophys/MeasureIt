@@ -161,6 +161,7 @@ class Sweep1D(BaseSweep):
             dt = self.set_param.get()
         try:
             data_pair = (self.set_param, dt)
+            self.setpoint = dt
         except:
             print("got bad data, trying again")
             return self.step_AMI430()
@@ -217,20 +218,24 @@ class Sweep1D(BaseSweep):
         """
         Flips the direction of the sweep, to do bidirectional sweeping.
         """
-        temp = self.begin
-        self.begin = self.end
-        self.end = temp
-        self.step = -1 * self.step
-        self.setpoint -= self.step
-        
         # If backwards, go forwards, and vice versa
         if self.direction:
             self.direction = 0
         else:
             self.direction = 1
             
+        self.send_updates()
+            
+        temp = self.begin
+        self.begin = self.end
+        self.end = temp
+        self.step = -1 * self.step
+        self.setpoint -= self.step
+        
         if self.plot_data is True and self.plotter is not None:
             self.plotter.add_break(self.direction)
+            
+        
     
     
     def ramp_to(self, value, start_on_finish=False, persist=None, multiplier=1):
