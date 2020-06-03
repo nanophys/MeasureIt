@@ -31,7 +31,7 @@ from qcodes.instrument_drivers.Lakeshore.Model_372 import Model_372
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes.instrument_drivers.stanford_research.SR860 import SR860
 from qcodes.instrument_drivers.tektronix.Keithley_2450 import Keithley2450
-from qcodes.tests.instrument_mocks import DummyInstrument
+from qcodes.tests.instrument_mocks import DummyInstrument, MockParabola
 
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 matplotlib.use('Qt5Agg')
@@ -41,6 +41,7 @@ class UImain(QtWidgets.QMainWindow):
     # To add an instrument, import the driver then add it to our instrument
     # dictionary with the name as the key, and the class as the value
     SUPPORTED_INSTRUMENTS = {'Dummy': DummyInstrument,
+                             'Test' : MockParabola,
                              'NI DAQ': Daq,
                              'Model_372': Model_372,
                              'AMI430': AMI430,
@@ -197,7 +198,6 @@ class UImain(QtWidgets.QMainWindow):
         except Exception as e:
             self.show_error("Error", "Couldn't open the station configuration file. Started new station.", e)
             return
-
         if self.station.config is None:
             return
 
@@ -685,9 +685,8 @@ class UImain(QtWidgets.QMainWindow):
                 self.devices[d['name']] = new_dev
                 self.station.add_component(new_dev)
                 self.update_dev_menu()
-
     def connect_device(self, device, classtype, name, address, args=[], kwargs={}):
-        if device == 'Dummy':
+        if device == 'Dummy' or device == 'Test':
             new_dev = classtype(name)
         else:
             new_dev = classtype(name, address, *args, **kwargs)
