@@ -2,9 +2,12 @@
 
 import time
 from src.base_sweep import BaseSweep
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import pyqtSignal, pyqtSlot
+from qcodes.dataset.data_set import DataSet
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
-#from qcodes.instrument_drivers.oxford.IPS120 import OxfordInstruments_IPS120
+# from qcodes.instrument_drivers.oxford.IPS120 import OxfordInstruments_IPS120
+from functools import partial
+
 
 class Sweep1D(BaseSweep):
     """
@@ -12,10 +15,10 @@ class Sweep1D(BaseSweep):
     """
     # Signal for when the sweep is completed
     completed = pyqtSignal()
-    
-    def __init__(self, set_param, start, stop, step, bidirectional = False, runner = None, plotter = None, datasaver = None,
-                 inter_delay = 0.01, save_data = True, plot_data = True, complete_func = None, x_axis_time = 1, 
-                 instrument = None, parent = None, continual = False, plot_bin=1):
+
+    def __init__(self, set_param, start, stop, step, bidirectional=False, runner=None, plotter=None, datasaver=None,
+                 inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=1,
+                 instrument=None, parent=None, continual=False, plot_bin=1):
         """
         Initializes the sweep. There are only 5 new arguments to read in.
         
@@ -28,37 +31,42 @@ class Sweep1D(BaseSweep):
             x_axis_time - 1 for plotting parameters against time, 0 for set_param
         """
         # Initialize the BaseSweep
-        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data, 
+        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data,
                          x_axis=x_axis_time, datasaver=datasaver, parent=parent, plot_bin=plot_bin)
-        
+
         self.begin = start
         self.end = stop
         self.step = step
-        
+
         # Make sure the step is in the right direction
         if (self.end - self.begin) > 0:
             self.step = abs(self.step)
         else:
             self.step = (-1) * abs(self.step)
-        
+
         self.setpoint = self.begin - self.step
         self.bidirectional = bidirectional
         self.runner = runner
         self.plotter = plotter
-        self.direction = 0    
+        self.direction = 0
         self.is_ramping = False
         self.ramp_sweep = None
         self.instrument = instrument
         self.continuous = continual
-        
-        self.magnet_initialized = False
-        
+
         # Set the function to call when we are finished
         if complete_func == None:
             complete_func = self.no_change
         self.completed.connect(complete_func)
-    
-    
+
+        self.magnet_initialized = False
+
+    def __str__(self):
+        return f"1D Sweep of {self.set_param} from {self.begin} to {self.end}, with step size {self.step}."
+
+    def __repr__(self):
+        return f"Sweep1D({self.set_param}, {self.begin}, {self.end}, {self.step})"
+
     def start(self, persist_data=None, ramp_to_start=True, ramp_multiplier=1):
         """
         Starts the sweep. Runs from the BaseSweep start() function.
@@ -69,36 +77,40 @@ class Sweep1D(BaseSweep):
         if self.is_running == True:
             print(f"Sweep is already running.")
             return
-        
+
         if ramp_to_start is True:
             print(f"Ramping to our starting setpoint value of {self.begin} {self.set_param.unit}")
             self.ramp_to(self.begin, start_on_finish=True, persist=persist_data, multiplier=ramp_multiplier)
         else:
             print(f"Sweeping {self.set_param.label} to {self.end} {self.set_param.unit}")
             super().start(persist_data)
-        
-    
+
     def stop(self):
         if self.is_ramping and self.ramp_sweep is not None:
             print(f"Stopping the ramp.")
             self.ramp_sweep.stop()
             self.ramp_sweep.kill()
 
-            while self.ramp_sweep.is_running == True:
+            while self.ramp_sweep.is_running:
                 time.sleep(0.2)
             self.done_ramping(self.ramp_sweep.setpoint)
-            #self.setpoint=self.ramp_sweep.setpoint
-            #self.ramp_sweep.plotter.clear()
-            #self.ramp_sweep = None
-            #self.is_ramping=False
-            #print(f"Stopped the ramp, the current setpoint  is {self.setpoint} {self.set_param.unit}")
-            
+            # self.setpoint=self.ramp_sweep.setpoint
+            # self.ramp_sweep.plotter.clear()
+            # self.ramp_sweep = None
+            # self.is_ramping=False
+            # print(f"Stopped the ramp, the current setpoint  is {self.setpoint} {self.set_param.unit}")
+
         if isinstance(self.instrument, AMI430):
             self.set_param.set(self.set_param.get())
 
         super().stop()
-        
-        
+
+    def kill(self):
+        if self.is_ramping and self.ramp_sweep is not None:
+            self.ramp_sweep.stop()
+            self.ramp_sweep.kill()
+        super().kill()
+
     def step_param(self):
         """
         Iterates the parameter.
@@ -107,11 +119,11 @@ class Sweep1D(BaseSweep):
         # If we are sweeping the magnet, let's deal with it here
         if isinstance(self.instrument, AMI430) and str(self.set_param) == 'Magnet_field':
             return self.step_AMI430()
-#        elif isinstance(self.instrument, OxfordInstruments_IPS120):
-#            return self.step_IPS120()
-        
+        #        elif isinstance(self.instrument, OxfordInstruments_IPS120):
+        #            return self.step_IPS120()
+
         # If we aren't at the end, keep going
-        if abs(self.setpoint - self.end) >= abs(self.step/2):
+        if abs(self.setpoint - self.end) >= abs(self.step / 2):
             self.setpoint = self.setpoint + self.step
             self.set_param.set(self.setpoint)
             return [(self.set_param, self.setpoint)]
@@ -125,16 +137,14 @@ class Sweep1D(BaseSweep):
         # If neither of the above are triggered, it means we are at the end of the sweep
         else:
             if self.save_data:
-                self.runner.datasaver.flush_data_to_database()
+                self.runner.flush_flag = True
             self.is_running = False
-            print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
             self.flip_direction()
             self.completed.emit()
             if self.parent is None:
                 self.runner.kill_flag = True
-            return [(self.set_param, -1)]
-            
-            
+            return None
+
     def step_AMI430(self):
         """
         Function to deal with sweeps of AMI430. Instead of setting intermediate points, we set the endpoint at the
@@ -151,7 +161,7 @@ class Sweep1D(BaseSweep):
             except Exception as e:
                 print(e)
                 time.sleep(self.inter_delay)
-                
+
         # Grab our data
         try:
             dt = self.set_param.get()
@@ -165,23 +175,22 @@ class Sweep1D(BaseSweep):
         except:
             print("got bad data, trying again")
             return self.step_AMI430()
-        
+
         # Check our stop conditions- being at the end point
         if self.instrument.ramping_state() == 'holding':
             self.magnet_initialized = False
             if self.save_data:
-                self.runner.datasaver.flush_data_to_database()
+                self.runner.flush_flag = True
             self.is_running = False
             print(f"Done with the sweep, {self.set_param.label}={self.set_param.get()}")
             self.flip_direction()
-            self.completed.emit()
+            print(self.completed.emit())
             if self.parent is None:
                 self.runner.kill_flag = True
-        
+
         # Return our data pair, just like any other sweep
         return [data_pair]
-            
-        
+
     def step_IPS120(self):
         """
         Function to deal with sweeps of IPS120. Instead of setting intermediate points, we set the endpoint at the
@@ -197,7 +206,7 @@ class Sweep1D(BaseSweep):
             # Set us to go to setpoint
             self.instrument.activity(1)
             self.magnet_initialized = True
-        
+
         # Grab our data
         data_pair = (self.set_param, self.set_param.get())
         # Check our stop conditions- being at the end point
@@ -209,11 +218,10 @@ class Sweep1D(BaseSweep):
             # Set status to 'hold'
             self.instrument.activity(0)
             self.magnet_initialized = False
-        
+
         # Return our data pair, just like any other sweep
         return data_pair
-        
-        
+
     def flip_direction(self):
         """
         Flips the direction of the sweep, to do bidirectional sweeping.
@@ -223,21 +231,18 @@ class Sweep1D(BaseSweep):
             self.direction = 0
         else:
             self.direction = 1
-            
-        self.send_updates()
-            
+
+        self.send_updates(no_sp=True)
+
         temp = self.begin
         self.begin = self.end
         self.end = temp
         self.step = -1 * self.step
         self.setpoint -= self.step
-        
+
         if self.plot_data is True and self.plotter is not None:
             self.plotter.add_break(self.direction)
-            
-        
-    
-    
+
     def ramp_to(self, value, start_on_finish=False, persist=None, multiplier=1):
         """
         Ramps the set_param to a given value, at the same rate as already specified.
@@ -254,24 +259,27 @@ class Sweep1D(BaseSweep):
         if self.is_running:
             print(f"Already running. Stop the sweep before ramping.")
             return
-        
+
         # Check if we are already at the value
         curr_value = self.set_param.get()
-        if abs(value - curr_value) <= self.step/2:
-#            print(f"Already within {self.step} of the desired ramp value. Current value: {curr_value}, ramp setpoint: {value}.\nSetting our setpoint directly to the ramp value.")
+        if abs(value - curr_value) <= self.step / 2:
+            # print(f"Already within {self.step} of the desired ramp value. Current value: {curr_value},
+            # ramp setpoint: {value}.\nSetting our setpoint directly to the ramp value.")
             self.done_ramping(value, start_on_finish)
             return
-        
+
         # Create a new sweep to ramp our outer parameter to zero
-        self.ramp_sweep = Sweep1D(self.set_param, curr_value, value, multiplier*self.step, inter_delay = self.inter_delay, 
-                             complete_func = lambda: self.done_ramping(value, start_on_finish, persist), save_data = False, plot_data = True)
+        self.ramp_sweep = Sweep1D(self.set_param, curr_value, value, multiplier * self.step,
+                                  inter_delay=self.inter_delay,
+                                  complete_func=partial(self.done_ramping, value, start_on_finish, persist),
+                                  save_data=False, plot_data=True)
+
         self.is_running = False
         self.is_ramping = True
         self.ramp_sweep.start(ramp_to_start=False)
-        
+
         print(f'Ramping {self.set_param.label} to {value} . . . ')
-        
-        
+
     def ramp_to_zero(self):
         """
         Deprecated. Ramps the set_param to 0, at the same rate as already specified.
@@ -281,43 +289,35 @@ class Sweep1D(BaseSweep):
             self.step = (-1) * abs(self.step)
         else:
             self.step = abs(self.step)
-        
+
         print(f'Ramping {self.set_param.label} to 0 . . . ')
         self.start()
-    
-    
+
+    @pyqtSlot()
     def done_ramping(self, value, start_on_finish=False, pd=None):
         self.is_ramping = False
         self.is_running = False
+        # Grab the beginning 
+        # value = self.ramp_sweep.begin
         print(f'Done ramping {self.set_param.label} to {value}')
         self.set_param.set(value)
         self.setpoint = value - self.step
-        if self.ramp_sweep is not None and self.ramp_sweep.plotter is not None:
-            self.ramp_sweep.plotter.clear()
-        
-        #self.ramp_sweep.kill()
-        
+        # if self.ramp_sweep is not None and self.ramp_sweep.plotter is not None:
+        #    self.ramp_sweep.plotter.clear()
+
+        if self.ramp_sweep is not None:
+            self.ramp_sweep.kill()
+            self.ramp_sweep = None
+
         if start_on_finish == True:
             self.start(ramp_to_start=False, persist_data=pd)
-        
-        
+
     def get_param_setpoint(self):
         """
         Utility function to get the current value of the setpoint
         """
         return f'{self.set_param.label} = {self.set_param.get()} {self.set_param.unit}'
-    
-    
-    def set_complete_func(self, func):
-        """
-        Defines the function to call when finished.
-        
-        Arguments:
-            func - function to call
-        """
-        self.completed.connect(func)
-            
-        
+
     def reset(self, new_params=None):
         """
         Resets the Sweep1D to reuse the same object with the same plots.
@@ -326,17 +326,23 @@ class Sweep1D(BaseSweep):
             new_params - list of 4 values to determine how we sweep. In order, 
                          must be [ start value, stop value, step, frequency ]
         """
-        
+
         # Set our new values if desired
         if new_params is not None:
             self.begin = new_params[0]
             self.end = new_params[1]
             self.step = new_params[2]
-            self.inter_delay = 1/new_params[3]
+            self.inter_delay = 1 / new_params[3]
 
         # Reset our setpoint
         self.setpoint = self.begin - self.step
-        
+
         # Reset our plots
         self.plotter = None
         self.runner = None
+
+    def __del__(self):
+        """
+        Destructor. Should delete all child threads and close all figures when the sweep object is deleted
+        """
+        self.kill()
