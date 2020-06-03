@@ -108,5 +108,5 @@ class RunnerThread(QThread):
                 self.flush_flag = False
             # print('at end of kill flag loop')
 
-        if self.runner is not None:
-            self.runner.__exit__()
+        #if self.runner is not None:
+        #    self.runner.__exit__()
