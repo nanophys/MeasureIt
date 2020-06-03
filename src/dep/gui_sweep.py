@@ -4,7 +4,8 @@ import numpy as np
 import qcodes as qc
 from qcodes.dataset.measurements import Measurement
 from qcodes.dataset.database import initialise_or_create_database_at
-from daq_driver import Daq, _value_parser
+from daq_driver import Daq
+from util import _value_parser
 import PyQt5 as qt
 from PyQt5.QtWidgets import qApp, QSizePolicy, QWidget, QAction, QApplication, QLabel, QMainWindow, QPushButton, QComboBox, QMessageBox, QLineEdit, QMenu, QMenuBar, QStatusBar, QGridLayout
 from PyQt5.QtCore import Qt
