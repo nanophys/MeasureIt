@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>241</width>
-    <height>178</height>
+    <height>201</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,7 +17,7 @@
    <property name="geometry">
     <rect>
      <x>40</x>
-     <y>130</y>
+     <y>160</y>
      <width>161</width>
      <height>32</height>
     </rect>
@@ -35,7 +35,7 @@
      <x>30</x>
      <y>20</y>
      <width>182</width>
-     <height>91</height>
+     <height>128</height>
     </rect>
    </property>
    <layout class="QHBoxLayout" name="horizontalLayout">
@@ -62,6 +62,20 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QLabel" name="argsLabel">
+        <property name="text">
+         <string>args</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="kwargsLabel">
+        <property name="text">
+         <string>kwargs</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </item>
     <item>
@@ -74,6 +88,12 @@
       </item>
       <item>
        <widget class="QLineEdit" name="addressEdit"/>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="argsEdit"/>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="kwargsEdit"/>
       </item>
      </layout>
     </item>
