@@ -32,10 +32,11 @@ from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes.instrument_drivers.stanford_research.SR860 import SR860
 from qcodes.instrument_drivers.tektronix.Keithley_2450 import Keithley2450
 from qcodes.tests.instrument_mocks import DummyInstrument, MockParabola
+from src.DAQ import DAQAnalogOutputs,DAQAnalogInputs
 
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 matplotlib.use('Qt5Agg')
-
+os.environ['MeasureItHome'] = "/Users/caijiaqi/Documents/GitHub/MeasureIt"
 
 class UImain(QtWidgets.QMainWindow):
     # To add an instrument, import the driver then add it to our instrument
@@ -43,6 +44,8 @@ class UImain(QtWidgets.QMainWindow):
     SUPPORTED_INSTRUMENTS = {'Dummy': DummyInstrument,
                              'Test' : MockParabola,
                              'NI DAQ': Daq,
+                             'NI DAQAI': DAQAnalogInputs,
+                             'NI DAQAO': DAQAnalogOutputs,
                              'Model_372': Model_372,
                              'AMI430': AMI430,
                              'SR860': SR860,
