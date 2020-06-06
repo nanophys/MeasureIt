@@ -42,7 +42,7 @@ class UImain(QtWidgets.QMainWindow):
     # To add an instrument, import the driver then add it to our instrument
     # dictionary with the name as the key, and the class as the value
     SUPPORTED_INSTRUMENTS = {'Dummy': DummyInstrument,
-                             'Test' : MockParabola,
+                             'Test': MockParabola,
                              'NI DAQ': Daq,
                              'NI DAQAI': DAQAnalogInputs,
                              'NI DAQAO': DAQAnalogOutputs,
@@ -59,7 +59,11 @@ class UImain(QtWidgets.QMainWindow):
         self.ui.scanValue.setText('False')
         self.ui.scanValue.setStyleSheet('color: red')
         self.ui.scanParameterBox.addItem('time', 'time')
+        self.sweep_settings = {'time': {'start': '', 'end': '', 'step': '', 'step_sec': '', 'continual': False,
+                                        'bidirectional': False, 'plot_bin': 1, 'save_data': True, 'plot_data': True,
+                                        'ramp_to_start': True}}
 
+        self.set_param_index = 0
         self.init_tables()
         self.make_connections()
 
@@ -148,6 +152,16 @@ class UImain(QtWidgets.QMainWindow):
         self.update_param_combobox(0)
 
     def update_param_combobox(self, index):
+        old_set_param = self.ui.scanParameterBox.itemData(self.set_param_index)
+        self.sweep_settings[old_set_param] = {'start': self.ui.startEdit.text(), 'end': self.ui.endEdit.text(),
+                                              'step': self.ui.stepEdit.text(),
+                                              'step_sec': self.ui.stepsecEdit.text(),
+                                              'save_data': self.ui.saveBox.isChecked(),
+                                              'plot_data': self.ui.livePlotBox.isChecked(),
+                                              'plot_bin': self.ui.plotbinEdit.text(),
+                                              'bidirectional': self.ui.bidirectionalBox.isChecked(),
+                                              'continual': self.ui.continualBox.isChecked()}
+
         if index == 0:
             self.ui.startEdit.setReadOnly(True)
             p = self.ui.startEdit.palette()
@@ -166,6 +180,9 @@ class UImain(QtWidgets.QMainWindow):
             q = self.ui.stepEdit.palette()
             q.setColor(self.ui.stepEdit.backgroundRole(), Qt.white)
             self.ui.stepEdit.setPalette(q)
+
+        self.update_sweep_box(self.sweep_settings[self.ui.scanParameterBox.currentData()])
+        self.set_param_index = index
 
     def start_logs(self):
         self.stdout_filename = os.environ['MeasureItHome'] + '\\logs\\stdout\\' + datetime.now().strftime(
@@ -323,6 +340,10 @@ class UImain(QtWidgets.QMainWindow):
             self.ui.outputParamTable.setCellWidget(n, 4, getButton)
 
             self.ui.scanParameterBox.addItem(p.label, p)
+            if p not in list(self.sweep_settings.keys()):
+                self.sweep_settings[p] = {'start': '', 'end': '', 'step': '', 'step_sec': '', 'continual': False,
+                                          'bidirectional': False, 'plot_bin': 1, 'save_data': True, 'plot_data': True,
+                                          'ramp_to_start': True}
 
     def set_param(self, p, valueitem):
         try:
@@ -398,6 +419,11 @@ class UImain(QtWidgets.QMainWindow):
         sweep.update_signal.connect(self.receive_updates)
         sweep.dataset_signal.connect(self.receive_dataset)
 
+        if isinstance(sweep, Sweep0D) and len(sweep._params) == 0 and sweep.plot_data:
+            self.show_error("Error", "Can't plot time against nothing. Either select some parameters to follow or "
+                                     "unselect \'plot data\'.")
+            sweep = None
+
         return sweep
 
     def start_sweep(self):
@@ -432,7 +458,9 @@ class UImain(QtWidgets.QMainWindow):
 
         try:
             self.sweep = self.create_sweep()
-        except ValueError as e:
+            if self.sweep is None:
+                return
+        except ValueError:
             self.show_error("Error", "One or more of the sweep input values are invalid. "
                                      "Valid inputs consist of a number optionally followed by "
                                      "suffix f/p/n/u/m/k/M/G.")
@@ -475,6 +503,8 @@ class UImain(QtWidgets.QMainWindow):
     def add_sweep_to_queue(self):
         try:
             sweep = self.create_sweep()
+            if sweep is None:
+                return
         except ValueError as e:
             self.show_error("Error", "One or more of the sweep input values are invalid. "
                                      "Valid inputs consist of a number optionally followed by "
@@ -621,18 +651,30 @@ class UImain(QtWidgets.QMainWindow):
             try:
                 new_sweep = BaseSweep.init_from_json(filename, self.station)
                 self.sweep = new_sweep
-                self.ui.startEdit.setText(str(self.sweep.begin))
-                self.ui.endEdit.setText(str(self.sweep.end))
-                self.ui.stepEdit.setText(str(self.sweep.step))
-                self.ui.stepsecEdit.setText(str(1./self.sweep.inter_delay))
-                self.ui.saveBox.setChecked(self.sweep.save_data)
-                self.ui.livePlotBox.setChecked(self.sweep.plot_data)
-                self.ui.plotbinEdit.setText(str(self.sweep.plot_bin))
-                self.ui.bidirectionalBox.setChecked(self.sweep.bidirectional)
-                self.ui.continualBox.setChecked(self.sweep.continuous)
+
+                settings = {'start': self.sweep.begin, 'end': self.sweep.end, 'step': self.sweep.step,
+                            'step_sec': 1/self.sweep.inter_delay, 'save_data': self.sweep.save_data,
+                            'plot_data': self.sweep.plot_data, 'plot_bin': self.sweep.plot_bin,
+                            'bidirectional': self.sweep.bidirectional, 'continual': self.sweep.continuous}
+
+                self.update_sweep_box(settings)
+
                 # Load parameters
+                # TODO: set the set_param box
+
             except Exception as e:
                 self.show_error('Error', "Could not load the sweep.", e)
+
+    def update_sweep_box(self, settings):
+        self.ui.startEdit.setText(str(settings['start']))
+        self.ui.endEdit.setText(str(settings['end']))
+        self.ui.stepEdit.setText(str(settings['step']))
+        self.ui.stepsecEdit.setText(str(settings['step_sec']))
+        self.ui.saveBox.setChecked(settings['save_data'])
+        self.ui.livePlotBox.setChecked(settings['plot_data'])
+        self.ui.plotbinEdit.setText(str(settings['plot_bin']))
+        self.ui.bidirectionalBox.setChecked(settings['bidirectional'])
+        self.ui.continualBox.setChecked(settings['continual'])
 
     def save_sequence(self):
         (filename, x) = QFileDialog.getSaveFileName(self, "Save Sequence as JSON",
@@ -688,6 +730,7 @@ class UImain(QtWidgets.QMainWindow):
                 self.devices[d['name']] = new_dev
                 self.station.add_component(new_dev)
                 self.update_dev_menu()
+
     def connect_device(self, device, classtype, name, address, args=[], kwargs={}):
         if device == 'Dummy' or device == 'Test':
             new_dev = classtype(name)
