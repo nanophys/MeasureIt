@@ -300,7 +300,20 @@ class AddDeviceGUI(QtWidgets.QDialog):
         selected['class'] = self.ui.deviceBox.currentData()
         selected['name'] = self.ui.nameEdit.text()
         selected['address'] = self.ui.addressEdit.text()
-        selected['args'] = self.ui.argsEdit.text().replace(" ", "").split(',')
+        selected['args'] = []
+
+        for arg in self.ui.argsEdit.text().replace(" ", "").split(','):
+            if len(arg) > 0:
+                if arg.isnumeric():
+                    if '.' in arg:
+                        arg = float(arg)
+                    else:
+                        arg = int(arg)
+                elif arg == 'True' or arg == 'true':
+                    arg = True
+                elif arg == 'False' or arg == 'false':
+                    arg = False
+                selected['args'].append(arg)
 
         kwargs = {}
         for kwpair in self.ui.kwargsEdit.text().replace(" ", ""):
