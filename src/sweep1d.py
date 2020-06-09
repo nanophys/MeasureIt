@@ -13,9 +13,9 @@ class Sweep1D(BaseSweep):
     """
     Class extending BaseSweep to sweep one parameter.
     """
+
     # Signal for when the sweep is completed
     completed = pyqtSignal()
-
     def __init__(self, set_param, start, stop, step, bidirectional=False, runner=None, plotter=None, datasaver=None,
                  inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=1,
                  instrument=None, parent=None, continual=False, plot_bin=1):
@@ -32,7 +32,7 @@ class Sweep1D(BaseSweep):
         """
         # Initialize the BaseSweep
         super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data,
-                         x_axis=x_axis_time, datasaver=datasaver, parent=parent, plot_bin=plot_bin)
+                         x_axis_time=x_axis_time, datasaver=datasaver, parent=parent, plot_bin=plot_bin)
 
         self.begin = start
         self.end = stop
@@ -46,16 +46,16 @@ class Sweep1D(BaseSweep):
 
         self.setpoint = self.begin - self.step
         self.bidirectional = bidirectional
-        self.runner = runner
-        self.plotter = plotter
+        self.continuous = continual
         self.direction = 0
         self.is_ramping = False
         self.ramp_sweep = None
+        self.runner = runner
+        self.plotter = plotter
         self.instrument = instrument
-        self.continuous = continual
 
         # Set the function to call when we are finished
-        if complete_func == None:
+        if complete_func is None:
             complete_func = self.no_change
         self.completed.connect(complete_func)
 

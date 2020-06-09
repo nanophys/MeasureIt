@@ -11,6 +11,7 @@ class Sweep0D(BaseSweep):
     Class for the following/live plotting, i.e. "0-D sweep" class. As of now, is just an extension of
     BaseSweep, but has been separated for future convenience.
     """
+
     # Signal for when the sweep is completed
     completed = pyqtSignal()
 
