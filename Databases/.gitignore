@@ -3,3 +3,7 @@
 *.txt
 *.db-journal
 *.sql
+*.dat
+*.csv
+/
+
