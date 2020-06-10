@@ -1,6 +1,8 @@
 # sweep2d.py
 
 import time
+from functools import partial
+
 from src.base_sweep import BaseSweep
 from src.sweep1d import Sweep1D
 from src.heatmap_thread import HeatmapThread
@@ -15,7 +17,7 @@ class Sweep2D(BaseSweep):
     """
     completed = pyqtSignal()
 
-    def __init__(self, in_params, out_params, runner=None, plotter=None, inter_delay=0.01,
+    def __init__(self, in_params, out_params, runner=None, plotter=None, inter_delay=0.1,
                  outer_delay=1, save_data=True, plot_data=True, complete_func=None, update_func=None, plot_bin=1):
         """
         Initializes the sweep. It reads in the settings for each of the sweeps, as well
@@ -69,7 +71,7 @@ class Sweep2D(BaseSweep):
                                 x_axis_time=0, plot_data=plot_data)
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
-        self.in_sweep.meas.register_parameter(self.set_param)
+        self.in_sweep.follow_param(self.set_param)
         # Our update_values() function iterates the outer sweep, so when the inner sweep
         # is done, call that function automatically
         self.in_sweep.set_complete_func(self.update_values)
@@ -79,20 +81,21 @@ class Sweep2D(BaseSweep):
         self.direction = 0
         self.outer_delay = outer_delay
 
-        # Flags for ramping to zero
-        self.inner_ramp_to_zero = False
-        self.outer_ramp_to_zero = False
+        # Flags for ramping
+        self.inner_ramp = False
+        self.outer_ramp = False
+        self.ramp_sweep = None
 
         # Set the function to call when the 2D sweep is finished
         if complete_func is None:
             complete_func = self.no_change
         self.completed.connect(complete_func)
-        # Set the fucntion to call when the inner sweep finishes
+        # Set the function to call when the inner sweep finishes
         if update_func is None:
             self.update_rule = self.no_change
 
         # Initialize our heatmap plotting thread
-        self.heatmap_plotter = HeatmapThread(self)
+        self.heatmap_plotter = None
 
     def follow_param(self, *p):
         """
@@ -112,6 +115,7 @@ class Sweep2D(BaseSweep):
                     self.in_sweep._params.append(l)
             else:
                 self.in_sweep._params.append(param)
+        self._params = self.in_sweep._params
 
     def follow_srs(self, l, name, gain=1.0):
         """
@@ -136,27 +140,44 @@ class Sweep2D(BaseSweep):
 
         return self.meas
 
-    def start(self):
+    def start(self, ramp_to_start=True):
         """
-        Extends the start() function of BaseSweep(). We set our first outer sweep setpoint, then
+        Extends the start() function of BaseSweep. We set our first outer sweep setpoint, then
         start the inner sweep, and let it control the run from there.
         """
-        print(
-            f'Starting the 2D Sweep. Ramping {self.set_param.label} to {self.out_stop} {self.set_param.unit}, while '
-            f'sweeping {self.in_param.label} between {self.in_start} {self.in_param.unit} and {self.in_stop} '
-            f'{self.in_param.unit}')
+        if self.is_running:
+            print("Can't start the sweep, we're already running!")
+            return
+        elif self.outer_ramp:
+            print("Can't start the sweep, we're currently ramping the outer sweep parameter!")
+            return
 
-        self.set_param.set(self.out_setpoint)
+        if self.meas is None:
+            self._create_measurement()
 
-        time.sleep(self.outer_delay)
+        if ramp_to_start:
+            self.ramp_to(self.out_setpoint, start_on_finish=True)
+        else:
+            print(
+                f'Starting the 2D Sweep. Ramping {self.set_param.label} to {self.out_stop} {self.set_param.unit}, while '
+                f'sweeping {self.in_param.label} between {self.in_start} {self.in_param.unit} and {self.in_stop} '
+                f'{self.in_param.unit}')
 
-        self.is_running = True
-        self.in_sweep.start()
-        #        self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
-        self.heatmap_plotter.create_figs()
+            self.set_param.set(self.out_setpoint)
 
-        self.plotter = self.in_sweep.plotter
-        self.runner = self.in_sweep.runner
+            time.sleep(self.outer_delay)
+
+            self.is_running = True
+
+            if self.heatmap_plotter is None:
+                # Initialize our heatmap
+                self.heatmap_plotter = HeatmapThread(self)
+                self.heatmap_plotter.create_figs()
+
+            self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
+
+            self.plotter = self.in_sweep.plotter
+            self.runner = self.in_sweep.runner
 
     def stop(self):
         """
@@ -164,6 +185,10 @@ class Sweep2D(BaseSweep):
         """
         self.is_running = False
         self.in_sweep.stop()
+
+    def resume(self):
+        self.is_running = True
+        self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint), ramp_to_start=False)
 
     def update_values(self):
         """
@@ -174,24 +199,25 @@ class Sweep2D(BaseSweep):
         """
         # If this function was called from a ramp down to 0, a special case of sweeping, deal with that
         # independently
-        if self.in_sweep.is_ramping == True:
+        if self.in_sweep.is_ramping:
             # We are no longer ramping to zero
 
-            self.inner_ramp_to_zero = False
+            self.inner_ramp = False
             # Check if our outer ramp to zero is still going, and if not, then officially end
             # our ramping to zero
-            if self.outer_ramp_to_zero == False:
+            if not self.outer_ramp:
                 self.is_running = False
                 self.inner_sweep.is_running = False
                 print("Done ramping both parameters to zero")
             # Stop the function from running any further, as we don't want to check anything else
             return
 
+        #print("trying to update heatmap")
         # Update our heatmap!
         lines = self.in_sweep.plotter.axes[1].get_lines()
         self.heatmap_plotter.add_lines(lines)
         self.heatmap_plotter.start()
-
+        #print("past lines")
         # Check our update condition
         self.update_rule(self.in_sweep, lines)
         #        self.in_sweep.ramp_to(self.in_sweep.begin, start_on_finish=False)
@@ -235,12 +261,66 @@ class Sweep2D(BaseSweep):
         """
         self.update_rule = func
 
+    def send_updates(self, no_sp=False):
+        pass
+
+    def kill(self):
+        self.in_sweep.kill()
+        super().kill()
+
+        # Gently shut down the heatmap
+        if self.heatmap_plotter is not None:
+            if not self.heatmap_plotter.wait(1000):
+                self.heatmap_plotter.terminate()
+                print('forced heatmap to terminate')
+            self.heatmap_plotter.clear()
+            self.heatmap_plotter = None
+
+    def ramp_to(self, value, start_on_finish=False, multiplier=1):
+        """
+        Ramps the set_param to a given value, at the same rate as already specified.
+
+        Arguments:
+            value - setpoint to ramp towards
+            start_on_finish - flag if we want to begin the sweep as soon as we are done ramping
+            multiplier - multiplier for the step size, to ramp quicker than the sweep speed
+        """
+        # Ensure we aren't currently running
+        if self.outer_ramp:
+            print(f"Currently ramping. Finish current ramp before starting another.")
+            return
+        if self.is_running:
+            print(f"Already running. Stop the sweep before ramping.")
+            return
+
+        # Check if we are already at the value
+        curr_value = self.set_param.get()
+        if abs(value - curr_value) <= self.out_step / 2:
+            # print(f"Already within {self.step} of the desired ramp value. Current value: {curr_value},
+            # ramp setpoint: {value}.\nSetting our setpoint directly to the ramp value.")
+            self.set_param.set(value)
+            self.done_ramping(start_on_finish=True)
+            return
+
+        # Create a new sweep to ramp our outer parameter to zero
+        self.ramp_sweep = Sweep1D(self.set_param, curr_value, value, multiplier * self.out_step,
+                                  inter_delay=self.inter_delay,
+                                  complete_func=partial(self.done_ramping, start_on_finish),
+                                  save_data=False, plot_data=True)
+
+        self.is_running = False
+        self.outer_ramp = True
+        self.ramp_sweep.start(ramp_to_start=False)
+
+        print(f'Ramping {self.set_param.label} to {value} . . . ')
+
     def ramp_to_zero(self):
         """
         Ramp our set parameters down to zero.
         """
+        print("Ramping both parameters to 0.")
         # Ramp our inner sweep parameter to zero
-        self.inner_ramp_to_zero = True
+        self.inner_ramp = True
         self.in_sweep.ramp_to(0)
 
         # Check our step sign
@@ -250,23 +330,29 @@ class Sweep2D(BaseSweep):
             self.out_step = abs(self.out_step)
 
         # Create a new sweep to ramp our outer parameter to zero
-        zero_sweep = Sweep1D(self.set_param, self.setpoint, 0, self.step, inter_delay=self.inter_delay,
-                             complete_func=self.done_ramping_to_zero)
+        zero_sweep = Sweep1D(self.set_param, self.set_param.get(), 0, self.step, inter_delay=self.inter_delay,
+                             complete_func=self.done_ramping)
         self.is_running = True
-        self.outer_ramp_to_zero = True
+        self.outer_ramp = True
         zero_sweep.start()
 
-    def done_ramping_to_zero(self):
+    def done_ramping(self, start_on_finish=False):
         """
         Function called when our outer sweep parameter has finished ramping to zero. Checks if both parameters
         are done, then tells the system we have finished.
         """
         # Our outer parameter has finished ramping
-        self.outer_ramp_to_zero = False
+        self.outer_ramp = False
+        if self.ramp_sweep is not None:
+            self.ramp_sweep.kill()
+            self.ramp_sweep = None
         # Check if our inner parameter has finished
-        while self.in_sweep.is_ramping == True:
+        while self.in_sweep.is_ramping:
             time.sleep(0.5)
 
         # If so, tell the system we are done
         self.is_running = False
-        print("Done ramping both parameters to zero")
+        print("Done ramping!")
+
+        if start_on_finish:
+            self.start(ramp_to_start=False)
