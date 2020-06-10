@@ -71,10 +71,10 @@ class Sweep1D(BaseSweep):
         """
         Starts the sweep. Runs from the BaseSweep start() function.
         """
-        if self.is_ramping == True:
+        if self.is_ramping:
             print(f"Still ramping. Wait until ramp is done to start the sweep.")
             return
-        if self.is_running == True:
+        if self.is_running:
             print(f"Sweep is already running.")
             return
 
