@@ -170,7 +170,7 @@ class BaseSweep(QObject):
             if not self.runner.wait(1000):
                 self.runner.terminate()
                 print('forced runner to terminate')
-                self.runner = None
+            self.runner = None
             self.send_updates()
         # Gently shut down the plotter
         if self.plotter is not None:
@@ -346,7 +346,7 @@ class BaseSweep(QObject):
         self.completed.connect(func)
 
     @pyqtSlot()
-    def no_change(self):
+    def no_change(self, *args, **kwargs):
         """
         This function is passed when we don't need to connect a function when the 
         sweep is completed.
