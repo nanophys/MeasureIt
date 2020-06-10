@@ -810,7 +810,6 @@ class UImain(QtWidgets.QMainWindow):
 
     @pyqtSlot(dict)
     def receive_dataset(self, dataset):
-        print("receiving dataset")
         self.datasets.append(dataset)
         self.update_datasets()
 
