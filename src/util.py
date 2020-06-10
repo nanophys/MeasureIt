@@ -7,7 +7,7 @@ import os
 import string
 import qcodes as qc
 import pandas as pd
-from qcodes import initialise_or_create_database_at
+from qcodes import initialise_or_create_database_at, Station
 from qcodes.dataset.data_export import get_data_by_id
 
 unit_dict = {
@@ -21,6 +21,31 @@ unit_dict = {
     'G': 10 ** 9,
     '': 10 ** 0
 }
+
+
+def connect_to_station(config_file=None):
+    if os.path.isfile(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json'):
+        qc.config.update_config(os.environ['MeasureItHome'] + '\\cfg\\')
+    station = Station()
+    try:
+        station.load_config_file(config_file)
+    except Exception:
+        print("Couldn't open the station configuration file. Started new station.")
+
+    return station
+
+
+def connect_station_instruments(station):
+    devices = {}
+    for name, instr in station.config['instruments'].items():
+        try:
+            dev = station.load_instrument(name)
+            devices[str(name)] = dev
+        except Exception:
+            print(f'Error connecting to {name}, '
+                  'either the name is already in use or the device is unavailable.')
+
+    return devices
 
 
 def save_to_csv(ds, fn):
