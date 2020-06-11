@@ -16,9 +16,10 @@ class Sweep1D(BaseSweep):
 
     # Signal for when the sweep is completed
     completed = pyqtSignal()
+
     def __init__(self, set_param, start, stop, step, bidirectional=False, runner=None, plotter=None, datasaver=None,
                  inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=1,
-                 instrument=None, parent=None, continual=False, plot_bin=1):
+                 parent=None, continual=False, plot_bin=1):
         """
         Initializes the sweep. There are only 5 new arguments to read in.
         
@@ -52,7 +53,7 @@ class Sweep1D(BaseSweep):
         self.ramp_sweep = None
         self.runner = runner
         self.plotter = plotter
-        self.instrument = instrument
+        self.instrument = self.set_param.instrument
 
         # Set the function to call when we are finished
         if complete_func is None:
