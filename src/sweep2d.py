@@ -90,6 +90,7 @@ class Sweep2D(BaseSweep):
         if complete_func is None:
             complete_func = self.no_change
         self.completed.connect(complete_func)
+
         # Set the function to call when the inner sweep finishes
         if update_func is None:
             self.update_rule = self.no_change
@@ -140,7 +141,7 @@ class Sweep2D(BaseSweep):
 
         return self.meas
 
-    def start(self, ramp_to_start=True):
+    def start(self, ramp_to_start=True, persist_data=None):
         """
         Extends the start() function of BaseSweep. We set our first outer sweep setpoint, then
         start the inner sweep, and let it control the run from there.
@@ -159,8 +160,8 @@ class Sweep2D(BaseSweep):
             self.ramp_to(self.out_setpoint, start_on_finish=True)
         else:
             print(
-                f'Starting the 2D Sweep. Ramping {self.set_param.label} to {self.out_stop} {self.set_param.unit}, while '
-                f'sweeping {self.in_param.label} between {self.in_start} {self.in_param.unit} and {self.in_stop} '
+                f'Starting the 2D Sweep. Ramping {self.set_param.label} to {self.out_stop} {self.set_param.unit}, '
+                f'while sweeping {self.in_param.label} between {self.in_start} {self.in_param.unit} and {self.in_stop} '
                 f'{self.in_param.unit}')
 
             self.set_param.set(self.out_setpoint)

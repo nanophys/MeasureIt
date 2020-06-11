@@ -393,9 +393,37 @@ class BaseSweep(QObject):
             json_dict['set_param']['start'] = self.begin
             json_dict['set_param']['stop'] = self.end
             json_dict['set_param']['step'] = self.step
-            json_dict['bidirectional'] = self.bidirectional
-            json_dict['continual'] = self.continuous
+            json_dict['attributes']['bidirectional'] = self.bidirectional
+            json_dict['attributes']['continual'] = self.continuous
             json_dict['attributes']['x_axis_time'] = self.x_axis
+        elif 'Sweep2D' in json_dict['class']:
+            json_dict['attributes']['outer_delay'] = self.outer_delay
+            json_dict['inner_sweep'] = {}
+            json_dict['inner_sweep']['param'] = self.in_param.name
+            json_dict['inner_sweep']['instr_module'] = self.in_param.instrument.__class__.__module__
+            json_dict['inner_sweep']['instr_class'] = self.in_param.instrument.__class__.__name__
+            json_dict['inner_sweep']['instr_name'] = self.in_param.instrument.name
+            json_dict['inner_sweep']['start'] = self.in_start
+            json_dict['inner_sweep']['stop'] = self.in_stop
+            json_dict['inner_sweep']['step'] = self.in_step
+            json_dict['outer_sweep'] = {}
+            json_dict['outer_sweep']['param'] = self.set_param.name
+            json_dict['outer_sweep']['instr_module'] = self.set_param.instrument.__class__.__module__
+            json_dict['outer_sweep']['instr_class'] = self.set_param.instrument.__class__.__name__
+            json_dict['outer_sweep']['instr_name'] = self.set_param.instrument.name
+            json_dict['outer_sweep']['start'] = self.out_start
+            json_dict['outer_sweep']['stop'] = self.out_stop
+            json_dict['outer_sweep']['step'] = self.out_step
+        elif 'SimulSweep' in json_dict['class']:
+            json_dict['attributes']['bidirectional'] = self.bidirectional
+            json_dict['attributes']['continual'] = self.continuous
+
+            json_dict['set_params'] = {}
+            for p, items in self.set_params_dict.items():
+                json_dict['set_params'][p.name] = items
+                json_dict['set_params'][p.name]['instr_module'] = p.instrument.__class__.__module__
+                json_dict['set_params'][p.name]['instr_class'] = p.instrument.__class__.__name__
+                json_dict['set_params'][p.name]['instr_name'] = p.instrument.name
 
         json_dict['follow_params'] = {}
 
@@ -437,6 +465,40 @@ class BaseSweep(QObject):
             module = importlib.import_module(sweep_module)
             sc = getattr(module, sweep_class)
             sweep = sc(**json_dict['attributes'])
+        elif 'Sweep2D' in sweep_class:
+            module = importlib.import_module(sweep_module)
+            sc = getattr(module, sweep_class)
+
+            in_param = json_dict['inner_sweep']
+            in_instr_module = importlib.import_module(in_param['instr_module'])
+            in_instrument = getattr(in_instr_module, in_param['instr_class'])
+            inner_param = load_parameter(in_param['param'], in_param['instr_name'], in_instrument, station)
+
+            out_param = json_dict['outer_sweep']
+            out_instr_module = importlib.import_module(out_param['instr_module'])
+            out_instrument = getattr(out_instr_module, out_param['instr_class'])
+            outer_param = load_parameter(out_param['param'], out_param['instr_name'], out_instrument, station)
+
+            inner_list = [inner_param, in_param['start'], in_param['stop'], in_param['step']]
+            outer_list = [outer_param, out_param['start'], out_param['stop'], out_param['step']]
+
+            sweep = sc(inner_list, outer_list, **json_dict['attributes'])
+        elif 'SimulSweep' in sweep_class:
+            module = importlib.import_module(sweep_module)
+            sc = getattr(module, sweep_class)
+
+            set_params_dict = {}
+            for p, items in json_dict['set_params'].items():
+                instr_module = importlib.import_module(items['instr_module'])
+                instrument = getattr(instr_module, items['instr_class'])
+
+                param = load_parameter(p, items['instr_name'], instrument, station)
+                set_params_dict[param] = {}
+                set_params_dict[param]['start'] = items['start']
+                set_params_dict[param]['stop'] = items['stop']
+                set_params_dict[param]['step'] = items['step']
+
+            sweep = sc(set_params_dict, **json_dict['attributes'])
         else:
             return
 
