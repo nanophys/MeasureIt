@@ -18,10 +18,10 @@ class Daq(Instrument):
         """
 
         # Initialize the DAQ system
-        super().__init__(address)
+        super().__init__(name)
         system = nidaqmx.system.System.local()
-        self.my_name = address
-        self.device = system.devices[self.my_name]
+        self._address = address
+        self.device = system.devices[self._address]
         # Grab the number of AO, AI channels
         self.ao_num = len(self.device.ao_physical_chans.channel_names)
         self.ai_num = len(self.device.ai_physical_chans.channel_names)
@@ -37,7 +37,7 @@ class Daq(Instrument):
             ch_name = 'ao' + str(a)
             if ch_name not in self.cfg_output.keys():
                 self.cfg_output[ch_name] = '0'
-            channel = DaqAOChannel(self, self.device, self.my_name, ch_name)
+            channel = DaqAOChannel(self, self.device, self._address, ch_name)
             self.add_submodule(ch_name, channel)
             # We now automatically create a task to write on each channel (NECESSARY!)
             task = nidaqmx.Task("writing " + ch_name)
@@ -52,7 +52,7 @@ class Daq(Instrument):
             count = 0
             if int(b / 8) % 2 == 0:
                 ch_name = 'ai' + str(b)
-                channel = DaqAIChannel(self, self.device, self.my_name, ch_name)
+                channel = DaqAIChannel(self, self.device, self._address, ch_name)
                 self.add_submodule(ch_name, channel)
                 task = nidaqmx.Task("reading " + ch_name)
                 channel.add_self_to_task(task)
@@ -78,6 +78,34 @@ class Daq(Instrument):
         """
         for chan_name in self.submodules:
             self.submodules[chan_name].get("voltage")
+
+    def snapshot_base(self, update=False,
+                      params_to_skip_update=None):
+        """
+        State of the instrument as a JSON-compatible dict (everything that
+        the custom JSON encoder class :class:`qcodes.utils.helpers.NumpyJSONEncoder`
+        supports).
+
+        Args:
+            update: If True, update the state by querying the
+                instrument. If None only update if the state is known to be
+                invalid. If False, just use the latest values in memory and
+                never update.
+            params_to_skip_update: List of parameter names that will be skipped
+                in update even if update is True. This is useful if you have
+                parameters that are slow to update but can be updated in a
+                different way (as in the qdac). If you want to skip the
+                update of certain parameters in all snapshots, use the
+                ``snapshot_get``  attribute of those parameters instead.
+        Returns:
+            dict: base snapshot
+        """
+        snap = super().snapshot_base(update=update,
+                                     params_to_skip_update=params_to_skip_update)
+
+        snap['address'] = self._address
+
+        return snap
 
     def __del__(self):
         """
