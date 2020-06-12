@@ -107,6 +107,12 @@ class Daq(Instrument):
 
         return snap
 
+    def close(self):
+        for a, c in self.submodules.items():
+            c.clear_task()
+
+        super().close()
+
     def __del__(self):
         """
         Destructor method. Seemingly necessary for the nidaqmx library to not cause issues upon
