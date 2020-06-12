@@ -1,0 +1,275 @@
+# simul_sweep.py
+import math
+import time
+from functools import partial
+
+import numpy as np
+from PyQt5.QtCore import pyqtSlot, pyqtSignal
+
+from src.base_sweep import BaseSweep
+from src.sweep1d import Sweep1D
+from src.util import _autorange_srs
+
+
+class SimulSweep(BaseSweep):
+    # Signal for when the sweep is completed
+    completed = pyqtSignal()
+
+    def __init__(self, _p, bidirectional=False, continual=False, complete_func=None, *args, **kwargs):
+        if len(_p.keys()) < 1 or not all(isinstance(p, dict) for p in _p.values()):
+            raise ValueError('Must pass at least one Parameter and the associated values as dictionaries.')
+
+        self.simul_params = []
+        self.set_params_dict = _p
+        self.bidirectional = bidirectional
+        self.continuous = continual
+        self.direction = 0
+        self.is_ramping = False
+        self.ramp_sweep = None
+        self.runner = None
+        self.plotter = None
+
+        # Take the first parameter, and set it as the normal Sweep1D set param
+        sp = list(_p.keys())[0]
+        # Force time to be on the x axis
+        kwargs['x_axis_time'] = 1
+        super().__init__(sp, *args, **kwargs)
+
+        for p, v in self.set_params_dict.items():
+            self.simul_params.append(p)
+
+            # Make sure the step is in the right direction
+            if (v['stop'] - v['start']) > 0:
+                v['step'] = abs(v['step'])
+            else:
+                v['step'] = (-1) * abs(v['step'])
+
+            v['setpoint'] = p.get() - v['step']
+
+        n_steps = []
+        for key, p in _p.items():
+            n_steps.append(int(abs(p['stop'] - p['start']) / abs(p['step'])))
+
+        if not all(steps == n_steps[0] for steps in n_steps):
+            raise ValueError('Parameters have a different number of steps for the sweep. The Parameters must have the '
+                             'same number of steps to sweep them simultaneously.'
+                             f'\nStep numbers: {n_steps}')
+
+        self.follow_param([p for p in self.simul_params if p is not self.set_param])
+        self.persist_data = []
+
+        # Set the function to call when we are finished
+        if complete_func is None:
+            complete_func = self.no_change
+        self.completed.connect(complete_func)
+
+    def start(self, persist_data=None, ramp_to_start=True, ramp_multiplier=1):
+        """
+        Starts the sweep. Runs from the BaseSweep start() function.
+        """
+        if self.is_ramping is True:
+            print(f"Still ramping. Wait until ramp is done to start the sweep.")
+            return
+        if self.is_running is True:
+            print(f"Sweep is already running.")
+            return
+
+        if ramp_to_start is True:
+            print(f"Ramping to our starting setpoints.")
+            vals_dict = {}
+            for p in self.simul_params:
+                vals_dict[p] = self.set_params_dict[p]['start']
+            self.ramp_to(vals_dict, start_on_finish=True, persist=persist_data, multiplier=ramp_multiplier)
+        else:
+            print(f"Starting our sweep.")
+            super().start(persist_data=persist_data, ramp_to_start=False)
+
+    def stop(self):
+        if self.is_ramping and self.ramp_sweep is not None:
+            print(f"Stopping the ramp.")
+            self.ramp_sweep.stop()
+            self.ramp_sweep.kill()
+
+            while self.ramp_sweep.is_running:
+                time.sleep(0.2)
+            vals_dict = {}
+            for p, v in self.ramp_sweep.set_params_dict.items():
+                vals_dict[p] = v['setpoint']
+            self.done_ramping(vals_dict)
+
+        super().stop()
+
+    def kill(self):
+        if self.is_ramping and self.ramp_sweep is not None:
+            self.ramp_sweep.stop()
+            self.ramp_sweep.kill()
+        super().kill()
+
+    def send_updates(self):
+        pass
+
+    def step_param(self):
+        """
+        Iterates the parameter.
+        """
+        rets = []
+        ending = False
+        self.persist_data = []
+        start_dir = self.direction
+
+        for p, v in self.set_params_dict.items():
+            # If we aren't at the end, keep going
+            if abs(v['setpoint'] - v['stop']) >= abs(v['step'] / 2):
+                v['setpoint'] = v['setpoint'] + v['step']
+                p.set(v['setpoint'])
+                rets.append((p, v['setpoint']))
+
+            # If we want to go both ways, we flip the start and stop, and run again
+            elif self.bidirectional and self.direction == 0:
+                self.flip_direction()
+                return self.step_param()
+            elif self.continuous and self.direction == start_dir:
+                self.flip_direction()
+                return self.step_param()
+            # If neither of the above are triggered, it means we are at the end of the sweep
+            else:
+                ending = True
+
+        if ending is True:
+            if self.save_data:
+                self.runner.datasaver.flush_data_to_database()
+            self.is_running = False
+            print(f"Done with the sweep!")
+            for p, v in self.set_params_dict.items():
+                print(f"{p.label} = {v['setpoint']} {p.unit}")
+            self.flip_direction()
+            self.completed.emit()
+            if self.parent is None:
+                self.runner.kill_flag = True
+            return None
+
+        return rets
+
+    def update_values(self):
+        """
+        Iterates our data points, changing our setpoint if we are sweeping, and refreshing
+        the values of all our followed parameters. If we are saving data, it happens here,
+        and the data is returned.
+
+        Returns:
+            data - A list of tuples with the new data. Each tuple is of the format
+                   (<QCoDeS Parameter>, measurement value). The tuples are passed in order of
+                   time, then set_param (if applicable), then all the followed params.
+        """
+        t = time.monotonic() - self.t0
+
+        data = [('time', t)]
+
+        sp_data = self.step_param()
+        if sp_data is not None:
+            data += sp_data
+        else:
+            return None
+
+        for i, (l, _, gain) in enumerate(self._srs):
+            _autorange_srs(l, 3)
+
+        for i, p in enumerate(self._params):
+            if p not in self.simul_params:
+                v = p.get()
+                data.append((p, v))
+
+        if self.save_data and self.is_running:
+            self.runner.datasaver.add_result(*data)
+
+        # self.send_updates()
+
+        return data
+
+    def ramp_to_zero(self, params=None):
+        if params is None:
+            params = self.simul_params
+        vals_dict = {}
+        for p in params:
+            vals_dict[p] = 0
+        self.ramp_to(vals_dict)
+
+    def ramp_to(self, vals_dict, start_on_finish=False, persist=None, multiplier=1):
+        # Ensure we aren't currently running
+        if self.is_ramping:
+            print(f"Currently ramping. Finish current ramp before starting another.")
+            return
+        if self.is_running:
+            print(f"Already running. Stop the sweep before ramping.")
+            return
+
+        ramp_params_dict = {}
+        n_steps = 1
+        for p, v in vals_dict.items():
+            if p not in self.set_params_dict.keys():
+                print("Cannot ramp parameter not in our sweep.")
+                return
+            if abs(v - p.get()) <= self.set_params_dict[p]['step'] / 2:
+                continue
+
+            ramp_params_dict[p] = {}
+            ramp_params_dict[p]['start'] = p.get()
+            ramp_params_dict[p]['stop'] = v
+
+            p_steps = abs((ramp_params_dict[p]['stop'] - ramp_params_dict[p]['start']) /
+                          self.set_params_dict[p]['step'] * multiplier)
+            if p_steps > n_steps:
+                n_steps = math.ceil(p_steps)
+
+        if len(ramp_params_dict.keys()) == 0:
+            print("Already at the values, no ramp needed.")
+            self.done_ramping(vals_dict, start_on_finish=start_on_finish, pd=persist)
+            return
+
+        for p, v in ramp_params_dict.items():
+            v['step'] = (v['stop'] - v['start']) / n_steps
+
+        self.ramp_sweep = SimulSweep(ramp_params_dict, inter_delay=self.inter_delay, plot_data=True, save_data=False,
+                                     complete_func=partial(self.done_ramping, vals_dict,
+                                                           start_on_finish=start_on_finish, pd=persist))
+        self.is_ramping = True
+        self.is_running = False
+        self.ramp_sweep.start(ramp_to_start=False)
+
+    @pyqtSlot()
+    def done_ramping(self, vals_dict, start_on_finish=False, pd=None):
+        self.is_ramping = False
+        self.is_running = False
+        # Grab the beginning
+        # value = self.ramp_sweep.begin
+        print(f'Done ramping!')
+        for p, v in vals_dict.items():
+            p.set(v)
+            self.set_params_dict[p]['setpoint'] = v - self.set_params_dict[p]['step']
+
+        if self.ramp_sweep is not None:
+            self.ramp_sweep.kill()
+            self.ramp_sweep = None
+
+        if start_on_finish is True:
+            self.start(ramp_to_start=False, persist_data=pd)
+
+    def flip_direction(self):
+        """
+        Flips the direction of the sweep, to do bidirectional sweeping.
+        """
+        # If backwards, go forwards, and vice versa
+        if self.direction:
+            self.direction = 0
+        else:
+            self.direction = 1
+
+        if self.plot_data is True and self.plotter is not None:
+            self.plotter.add_break(self.direction)
+
+        for p, v in self.set_params_dict.items():
+            temp = v['start']
+            v['start'] = v['stop']
+            v['stop'] = temp
+            v['step'] = -1 * v['step']
+            v['setpoint'] -= v['step']

@@ -1,1 +1,9 @@
 *.db
+*.db*
+*.txt
+*.db-journal
+*.sql
+*.dat
+*.csv
+/
+
