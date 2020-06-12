@@ -32,11 +32,11 @@ from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes.instrument_drivers.stanford_research.SR860 import SR860
 from qcodes.instrument_drivers.tektronix.Keithley_2450 import Keithley2450
 from qcodes.tests.instrument_mocks import DummyInstrument, MockParabola
-from src.DAQ import DAQAnalogOutputs,DAQAnalogInputs
+from src.DAQ import DAQAnalogOutputs, DAQAnalogInputs
 
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 matplotlib.use('Qt5Agg')
-os.environ['MeasureItHome'] = "/Users/caijiaqi/Documents/GitHub/MeasureIt"
+
 
 class UImain(QtWidgets.QMainWindow):
     # To add an instrument, import the driver then add it to our instrument
@@ -207,7 +207,7 @@ class UImain(QtWidgets.QMainWindow):
         if len(fileName) == 0:
             return
 
-        for name in self.devices.keys():
+        for name in list(self.devices.keys()):
             self.do_remove_device(name)
         self.load_station_and_connect_instruments(fileName)
 
@@ -296,7 +296,11 @@ class UImain(QtWidgets.QMainWindow):
                                               self.update_labels(p, labelitem.text()))
             self.ui.followParamTable.setCellWidget(m, 1, labelitem)
 
-            valueitem = QTableWidgetItem(str(p.get()))
+            try:
+                valueitem = QTableWidgetItem(str(p.get()))
+            except Exception as e:
+                self.show_error('Error', f'Could not get the value for {p.label}.', e)
+                valueitem = QTableWidgetItem('')
             self.ui.followParamTable.setItem(m, 2, valueitem)
 
             includeBox = QCheckBox()
@@ -351,12 +355,14 @@ class UImain(QtWidgets.QMainWindow):
                 p.set(_value_parser(valueitem.text()))
             elif "String" in repr(p.vals):
                 p.set(str(valueitem.text()))
-            elif "Bool" in repr(p.vals):
+            elif "Bool" in repr(p.vals) or 'False' in repr(p.vals):
                 value = valueitem.text()
                 if value == "false" or value == "False":
                     p.set(False)
                 elif value == "true" or value == "True":
                     p.set(True)
+                else:
+                    p.set(value)
             else:
                 p.set(valueitem.text())
         except Exception as e:
@@ -653,7 +659,7 @@ class UImain(QtWidgets.QMainWindow):
                 self.sweep = new_sweep
 
                 settings = {'start': self.sweep.begin, 'end': self.sweep.end, 'step': self.sweep.step,
-                            'step_sec': 1/self.sweep.inter_delay, 'save_data': self.sweep.save_data,
+                            'step_sec': 1 / self.sweep.inter_delay, 'save_data': self.sweep.save_data,
                             'plot_data': self.sweep.plot_data, 'plot_bin': self.sweep.plot_bin,
                             'bidirectional': self.sweep.bidirectional, 'continual': self.sweep.continuous}
 
@@ -723,12 +729,12 @@ class UImain(QtWidgets.QMainWindow):
                 new_dev = self.connect_device(d['device'], d['class'], d['name'], d['address'], d['args'], d['kwargs'])
             except Exception as e:
                 self.show_error("Error", f'Couldn\'t connect to the instrument. Check address and try again.', e)
-                print(e, file=stderr)
+                print(e, file=sys.stderr)
                 new_dev = None
 
             if new_dev is not None:
                 self.devices[d['name']] = new_dev
-                self.station.add_component(new_dev)
+                self.station.add_component(new_dev, update_snapshot=False)
                 self.update_dev_menu()
 
     def connect_device(self, device, classtype, name, address, args=[], kwargs={}):
@@ -736,7 +742,7 @@ class UImain(QtWidgets.QMainWindow):
             new_dev = classtype(name)
         else:
             new_dev = classtype(name, address, *args, **kwargs)
-        print(args, kwargs)
+        #print(args, kwargs)
         return new_dev
 
     def update_dev_menu(self):
