@@ -77,6 +77,8 @@ class UImain(QtWidgets.QMainWindow):
         self.shown_follow_params = []
         self.shown_set_params = []
 
+        self.device_init = {}
+
         self.db = ''
         self.exp_name = ''
         self.sample_name = ''
@@ -257,6 +259,11 @@ class UImain(QtWidgets.QMainWindow):
             add_field(snap['instruments'][name], instr, 'type', '__class__')
             add_field(snap['instruments'][name], instr, 'address', 'address')
             snap['instruments'][name]['enable_forced_reconnect'] = True
+            if name in self.device_init:
+                snap['instruments'][name]['init'] = {}
+                for key, value in self.device_init[name].items():
+                    snap['instruments'][name]['init'][key] = value
+
             # Could also save parameter information here
 
         with open(filename, 'w') as file:
@@ -742,6 +749,8 @@ class UImain(QtWidgets.QMainWindow):
             new_dev = classtype(name)
         else:
             new_dev = classtype(name, address, *args, **kwargs)
+            if len(kwargs.keys()) > 0:
+                self.device_init[name] = kwargs
         #print(args, kwargs)
         return new_dev
 
@@ -777,6 +786,8 @@ class UImain(QtWidgets.QMainWindow):
         self.station.remove_component(name)
         dev = self.devices.pop(name)
         dev.close()
+        if name in self.device_init.keys():
+            self.device_init.pop(name)
         self.update_dev_menu()
 
     @pyqtSlot(str)
