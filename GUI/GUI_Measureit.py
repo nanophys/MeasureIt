@@ -14,7 +14,7 @@ from GUI_Dialogs import *
 from handlers import WriteStream, OutputThread
 from queue import Queue
 
-sys.path.append("..")
+sys.path.append(os.environ['MeasureItHome'])
 import src
 from src.daq_driver import Daq, DaqAOChannel, DaqAIChannel
 from src.util import _value_parser, _name_parser, save_to_csv
@@ -427,7 +427,9 @@ class UImain(QtWidgets.QMainWindow):
 
         for n in range(self.ui.followParamTable.rowCount()):
             if self.ui.followParamTable.cellWidget(n, 3).isChecked():
-                sweep.follow_param(self.ui.followParamTable.item(n, 0).data(32))
+                param = self.ui.followParamTable.item(n, 0).data(32)
+                if param is not sweep.set_param:
+                    sweep.follow_param(param)
 
         sweep.update_signal.connect(self.receive_updates)
         sweep.dataset_signal.connect(self.receive_dataset)
