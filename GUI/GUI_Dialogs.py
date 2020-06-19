@@ -246,10 +246,11 @@ class EditParameterGUI(QtWidgets.QDialog):
                 listitem.setData(32, p)
                 self.ui.allParamsWidget.addItem(listitem)
             for name, submodule in device.submodules.items():
-                for key, p in submodule.parameters.items():
-                    listitem = QListWidgetItem(p.full_name)
-                    listitem.setData(32, p)
-                    self.ui.allParamsWidget.addItem(listitem)
+                if hasattr(submodule, 'parameters'):
+                    for key, p in submodule.parameters.items():
+                        listitem = QListWidgetItem(p.full_name)
+                        listitem.setData(32, p)
+                        self.ui.allParamsWidget.addItem(listitem)
 
     def make_connections(self):
         self.ui.addFollowButton.clicked.connect(lambda: self.add_param(self.new_track_params,
@@ -316,20 +317,23 @@ class AddDeviceGUI(QtWidgets.QDialog):
                 selected['args'].append(arg)
 
         kwargs = {}
-        for kwpair in self.ui.kwargsEdit.text().replace(" ", ""):
-            [key, value] = kwpair.split('=', 1)
+        kw_text = self.ui.kwargsEdit.text().replace(" ", "")
+        if len(kw_text) > 0:
+            kw_pairs = kw_text.split(",")
+            for kwpair in kw_pairs:
+                [key, value] = kwpair.split('=', 1)
 
-            if value.isnumeric():
-                if '.' in value:
-                    value = float(value)
-                else:
-                    value = int(value)
-            elif value == 'True' or value == 'true':
-                value = True
-            elif value == 'False' or value == 'false':
-                value = False
+                if value.isnumeric():
+                    if '.' in value:
+                        value = float(value)
+                    else:
+                        value = int(value)
+                elif value == 'True' or value == 'true':
+                    value = True
+                elif value == 'False' or value == 'false':
+                    value = False
 
-            kwargs[key] = value
+                kwargs[key] = value
 
         selected['kwargs'] = kwargs
 
