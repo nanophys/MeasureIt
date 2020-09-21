@@ -118,7 +118,7 @@ class Sweep1D(BaseSweep):
         """
         # The AMI Magnet sweeps very slowly, so we implement sweeps of it  differently
         # If we are sweeping the magnet, let's deal with it here
-        if isinstance(self.instrument, AMI430) and str(self.set_param) == 'Magnet_field':
+        if isinstance(self.instrument, AMI430) and 'field' in self.set_param.full_name:
             return self.step_AMI430()
         #        elif isinstance(self.instrument, OxfordInstruments_IPS120):
         #            return self.step_IPS120()
