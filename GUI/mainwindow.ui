@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1017</width>
-    <height>573</height>
+    <width>1249</width>
+    <height>738</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,10 +17,10 @@
    <widget class="QGroupBox" name="scanGroupBox">
     <property name="geometry">
      <rect>
-      <x>380</x>
-      <y>10</y>
-      <width>361</width>
-      <height>351</height>
+      <x>500</x>
+      <y>20</y>
+      <width>401</width>
+      <height>441</height>
      </rect>
     </property>
     <property name="title">
@@ -30,9 +30,9 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>210</y>
-       <width>151</width>
-       <height>131</height>
+       <y>260</y>
+       <width>161</width>
+       <height>171</height>
       </rect>
      </property>
      <property name="title">
@@ -43,8 +43,8 @@
        <rect>
         <x>10</x>
         <y>20</y>
-        <width>131</width>
-        <height>103</height>
+        <width>141</width>
+        <height>141</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -116,22 +116,15 @@
          </item>
         </layout>
        </item>
-       <item>
-        <widget class="QProgressBar" name="progressBar">
-         <property name="value">
-          <number>100</number>
-         </property>
-        </widget>
-       </item>
       </layout>
      </widget>
     </widget>
     <widget class="QGroupBox" name="controlBox">
      <property name="geometry">
       <rect>
-       <x>170</x>
-       <y>210</y>
-       <width>181</width>
+       <x>180</x>
+       <y>280</y>
+       <width>201</width>
        <height>131</height>
       </rect>
      </property>
@@ -143,7 +136,7 @@
        <rect>
         <x>10</x>
         <y>30</y>
-        <width>71</width>
+        <width>81</width>
         <height>31</height>
        </rect>
       </property>
@@ -154,9 +147,9 @@
      <widget class="QPushButton" name="flipDirectionButton">
       <property name="geometry">
        <rect>
-        <x>100</x>
+        <x>110</x>
         <y>80</y>
-        <width>71</width>
+        <width>81</width>
         <height>31</height>
        </rect>
       </property>
@@ -180,9 +173,9 @@
      <widget class="QPushButton" name="endButton">
       <property name="geometry">
        <rect>
-        <x>100</x>
+        <x>110</x>
         <y>30</y>
-        <width>71</width>
+        <width>81</width>
         <height>31</height>
        </rect>
       </property>
@@ -196,8 +189,8 @@
       <rect>
        <x>10</x>
        <y>20</y>
-       <width>341</width>
-       <height>181</height>
+       <width>371</width>
+       <height>241</height>
       </rect>
      </property>
      <property name="title">
@@ -208,8 +201,8 @@
        <rect>
         <x>200</x>
         <y>20</y>
-        <width>122</width>
-        <height>151</height>
+        <width>161</width>
+        <height>211</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="sweepOptionsLayout">
@@ -304,9 +297,9 @@
       <property name="geometry">
        <rect>
         <x>20</x>
-        <y>50</y>
-        <width>151</width>
-        <height>121</height>
+        <y>60</y>
+        <width>171</width>
+        <height>171</height>
        </rect>
       </property>
       <layout class="QHBoxLayout" name="scanHorizontalLayout">
@@ -367,7 +360,7 @@
      <widget class="QComboBox" name="scanParameterBox">
       <property name="geometry">
        <rect>
-        <x>80</x>
+        <x>100</x>
         <y>20</y>
         <width>81</width>
         <height>22</height>
@@ -397,8 +390,8 @@
      <rect>
       <x>10</x>
       <y>10</y>
-      <width>361</width>
-      <height>471</height>
+      <width>471</width>
+      <height>661</height>
      </rect>
     </property>
     <property name="title">
@@ -409,8 +402,8 @@
       <rect>
        <x>10</x>
        <y>20</y>
-       <width>341</width>
-       <height>201</height>
+       <width>451</width>
+       <height>301</height>
       </rect>
      </property>
      <property name="title">
@@ -421,8 +414,8 @@
        <rect>
         <x>10</x>
         <y>20</y>
-        <width>321</width>
-        <height>171</height>
+        <width>431</width>
+        <height>271</height>
        </rect>
       </property>
       <property name="sizePolicy">
@@ -434,11 +427,11 @@
       <attribute name="horizontalHeaderCascadingSectionResizes">
        <bool>true</bool>
       </attribute>
-      <attribute name="horizontalHeaderMinimumSectionSize">
-       <number>10</number>
-      </attribute>
       <attribute name="horizontalHeaderDefaultSectionSize">
        <number>79</number>
+      </attribute>
+      <attribute name="horizontalHeaderMinimumSectionSize">
+       <number>10</number>
       </attribute>
       <attribute name="horizontalHeaderShowSortIndicator" stdset="0">
        <bool>true</bool>
@@ -476,10 +469,10 @@
     <widget class="QToolButton" name="editParameterButton">
      <property name="geometry">
       <rect>
-       <x>130</x>
-       <y>440</y>
-       <width>91</width>
-       <height>21</height>
+       <x>160</x>
+       <y>600</y>
+       <width>151</width>
+       <height>41</height>
       </rect>
      </property>
      <property name="text">
@@ -490,9 +483,9 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>230</y>
-       <width>341</width>
-       <height>201</height>
+       <y>330</y>
+       <width>451</width>
+       <height>261</height>
       </rect>
      </property>
      <property name="title">
@@ -503,8 +496,8 @@
        <rect>
         <x>10</x>
         <y>20</y>
-        <width>321</width>
-        <height>171</height>
+        <width>431</width>
+        <height>231</height>
        </rect>
       </property>
       <column>
@@ -538,10 +531,10 @@
    <widget class="QGroupBox" name="consoleBox">
     <property name="geometry">
      <rect>
-      <x>380</x>
-      <y>370</y>
-      <width>361</width>
-      <height>161</height>
+      <x>500</x>
+      <y>470</y>
+      <width>401</width>
+      <height>201</height>
      </rect>
     </property>
     <property name="title">
@@ -552,8 +545,8 @@
       <rect>
        <x>10</x>
        <y>20</y>
-       <width>341</width>
-       <height>131</height>
+       <width>381</width>
+       <height>161</height>
       </rect>
      </property>
      <property name="readOnly">
@@ -564,10 +557,10 @@
    <widget class="QGroupBox" name="sequenceGroup">
     <property name="geometry">
      <rect>
-      <x>760</x>
+      <x>910</x>
       <y>10</y>
-      <width>251</width>
-      <height>521</height>
+      <width>321</width>
+      <height>661</height>
      </rect>
     </property>
     <property name="title">
@@ -576,9 +569,9 @@
     <widget class="QPushButton" name="addSweepButton">
      <property name="geometry">
       <rect>
-       <x>10</x>
-       <y>440</y>
-       <width>111</width>
+       <x>30</x>
+       <y>580</y>
+       <width>131</width>
        <height>31</height>
       </rect>
      </property>
@@ -589,9 +582,9 @@
     <widget class="QPushButton" name="removeActionButton">
      <property name="geometry">
       <rect>
-       <x>10</x>
-       <y>480</y>
-       <width>111</width>
+       <x>30</x>
+       <y>620</y>
+       <width>131</width>
        <height>31</height>
       </rect>
      </property>
@@ -602,9 +595,9 @@
     <widget class="QPushButton" name="startSequenceButton">
      <property name="geometry">
       <rect>
-       <x>130</x>
-       <y>480</y>
-       <width>111</width>
+       <x>170</x>
+       <y>620</y>
+       <width>141</width>
        <height>31</height>
       </rect>
      </property>
@@ -617,17 +610,17 @@
       <rect>
        <x>10</x>
        <y>20</y>
-       <width>231</width>
-       <height>371</height>
+       <width>301</width>
+       <height>501</height>
       </rect>
      </property>
     </widget>
     <widget class="QPushButton" name="addSaveButton">
      <property name="geometry">
       <rect>
-       <x>130</x>
-       <y>440</y>
-       <width>111</width>
+       <x>170</x>
+       <y>580</y>
+       <width>141</width>
        <height>31</height>
       </rect>
      </property>
@@ -638,9 +631,9 @@
     <widget class="QPushButton" name="upSequenceButton">
      <property name="geometry">
       <rect>
-       <x>80</x>
-       <y>400</y>
-       <width>41</width>
+       <x>100</x>
+       <y>540</y>
+       <width>51</width>
        <height>23</height>
       </rect>
      </property>
@@ -651,8 +644,8 @@
     <widget class="QPushButton" name="downSequenceButton">
      <property name="geometry">
       <rect>
-       <x>130</x>
-       <y>400</y>
+       <x>180</x>
+       <y>540</y>
        <width>41</width>
        <height>23</height>
       </rect>
@@ -668,8 +661,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1017</width>
-     <height>21</height>
+     <width>1249</width>
+     <height>26</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
