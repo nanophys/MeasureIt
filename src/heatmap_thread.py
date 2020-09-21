@@ -56,12 +56,12 @@ class HeatmapThread(QThread):
         self.out_step = self.sweep.out_step
         self.in_step = self.sweep.in_step
         for x_out in np.linspace(self.sweep.out_start, self.sweep.out_stop,
-                                 abs(self.sweep.out_stop - self.sweep.out_start) / self.sweep.out_step + 1,
+                                 abs(self.sweep.out_stop - self.sweep.out_start) / abs(self.sweep.out_step) + 1,
                                  endpoint=True):
             self.heatmap_dict[x_out] = {}
             self.out_keys.add(x_out)
             for x_in in np.linspace(self.sweep.in_start, self.sweep.in_stop,
-                                    abs(self.sweep.in_stop - self.sweep.in_start) / self.sweep.in_step + 1,
+                                    abs(self.sweep.in_stop - self.sweep.in_start) / abs(self.sweep.in_step) + 1,
                                     endpoint=True):
                 self.heatmap_dict[x_out][x_in] = 0
                 self.in_keys.add(x_in)
