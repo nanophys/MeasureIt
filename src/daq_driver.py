@@ -40,7 +40,7 @@ class Daq(Instrument):
             channel = DaqAOChannel(self, self.device, self._address, ch_name)
             self.add_submodule(ch_name, channel)
             # We now automatically create a task to write on each channel (NECESSARY!)
-            task = nidaqmx.Task("writing " + ch_name)
+            task = nidaqmx.Task(f"writing {self._address}_{ch_name}")
             channel.add_self_to_task(task)
         # Similarly, create a DaqAIChannel object for each (real) input channel
         for b in range(self.ai_num):
@@ -54,7 +54,7 @@ class Daq(Instrument):
                 ch_name = 'ai' + str(b)
                 channel = DaqAIChannel(self, self.device, self._address, ch_name)
                 self.add_submodule(ch_name, channel)
-                task = nidaqmx.Task("reading " + ch_name)
+                task = nidaqmx.Task(f"reading {self._address}_{ch_name}")
                 channel.add_self_to_task(task)
                 count += 1
             # Update the actual number of ai ports
