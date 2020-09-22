@@ -14,6 +14,8 @@
 
 To install the contributor drivers (such as the Oxford IPS120):
 - Download repository, 'git clone https://github.com/QCoDeS/Qcodes_contrib_drivers.git'
+- Move into the repository directory, and run 'conda develop .'
+- You can now directly access the module by calling 'import qcodes_contrib_drivers' in python scripts
 
 To create a desktop icon:
 - Add the following to PATH (under system's environment variables):
