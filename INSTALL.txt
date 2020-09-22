@@ -4,7 +4,7 @@
 - From Anaconda Prompt, move into QCoDeS repository, and run:
     - conda env create -f environment.yml
     - conda activate qcodes
-    - pip install -e .
+    - conda develop .
     - conda config --add channels conda-forge 
     - conda install nidaqmx-python
     - Download and install the NI DAQmx drivers at 'http://www.ni.com/en-us/support/downloads/drivers/download/unpackaged.ni-daqmx.291872.html'
@@ -30,4 +30,4 @@ TO UPDATE QCODES:
     - git pull
     - conda activate qcodes
     - conda env update --file environment.yml
-    - pip install -e .
+    - conda develop .
