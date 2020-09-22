@@ -12,6 +12,16 @@
 - Download this repository 'git clone https://github.com/nanophys/MeasureIt.git'
 - Set 'MeasureItHome' to base folder in the MeasureIt repository as an environment variable in your Windows system.
 
+To install the contributor drivers (such as the Oxford IPS120):
+- Download repository, 'git clone https://github.com/QCoDeS/Qcodes_contrib_drivers.git'
+
+To create a desktop icon:
+- Add the following to PATH (under system's environment variables):
+    - "%USERPROFILE%\anaconda3"
+    - "%USERPROFILE%\anaconda3\Scripts"
+    - "%USERPROFILE%\anaconda3\condabin"
+- Right-click 'MeasureIt.bat' in the repository, and change the second line to match the user's path to the repository
+- Right-click 'MeasureIt.bat' and click 'Create shortcut' and drag the new shortcut to the desktop
 
 TO UPDATE QCODES:
 - From Anaconda Prompt, move into QCoDeS repository, and run:
