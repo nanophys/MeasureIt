@@ -108,6 +108,9 @@ class Daq(Instrument):
         return snap
 
     def close(self):
+        with open(self.cfg_fp, 'w') as conf:
+            self.cfg_obj.write(conf)
+
         for a, c in self.submodules.items():
             c.clear_task()
 
@@ -119,6 +122,7 @@ class Daq(Instrument):
         relaunching the software.
         """
         try:
+            self.close()
             for a, c in self.submodules.items():
                 #               Removes all Task objects from the channels, so system doesn't complain
                 c.__del__()
@@ -172,11 +176,9 @@ class DaqAOChannel(InstrumentChannel):
         """
         Sets the voltage to the value passed as '_voltage'
         """
-        if self.task != None:
+        if self.task is not None:
             self.task.write(_voltage)
             self.parent.cfg_output[self.my_name] = str(_voltage)
-            with open(self.parent.cfg_fp, 'w') as conf:
-                self.parent.cfg_obj.write(conf)
 
             self._voltage = _voltage
 
