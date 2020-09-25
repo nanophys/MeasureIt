@@ -11,6 +11,9 @@
     - Download and install the NI VISA package at 'http://www.ni.com/download/ni-visa-18.5/7973/en/'
 - Download this repository 'git clone https://github.com/nanophys/MeasureIt.git'
 - Set 'MeasureItHome' to base folder in the MeasureIt repository as an environment variable in your Windows system.
+- From Anaconda Prompt, move into MeasureIt repository, and run:
+    - conda activate qcodes
+    - python setup.py
 
 To install the contributor drivers (such as the Oxford IPS120):
 - Download repository, 'git clone https://github.com/QCoDeS/Qcodes_contrib_drivers.git'
