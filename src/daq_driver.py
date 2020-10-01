@@ -61,7 +61,7 @@ class Daq(Instrument):
             # Update the actual number of ai ports
             self.ai_num = count
 
-        print(f"Initialized NI DAQ {self.device.product_type} ({self._address}) in {(time.time()-start_time):.2f}s")
+        print(f"Connected to: NI DAQ {self.device.product_type} ({self._address}) in {(time.time()-start_time):.2f}s")
         self.log.info(f"Connected to instrument: {self._address}")
 
     def get_ao_num(self):
