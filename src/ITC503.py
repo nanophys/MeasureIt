@@ -17,11 +17,11 @@ class ITC503(VisaInstrument):
         3: 'Remote and Unlocked'
     }
 
-    _GET_COMMAND_STATUS = {
+    _GET_OUTPUT_MODE = {
         0: 'Heater Manual, Gas Manual',
         1: 'Heater Auto, Gas Manual',
         2: 'Heater Manual, Gas Auto',
-        3: 'Heater Auto, Gas Manual'
+        3: 'Heater Auto, Gas Auto'
     }
 
     _GET_AUTOPID_STATUS = {
@@ -115,9 +115,23 @@ class ITC503(VisaInstrument):
                            get_cmd=self._get_heat_sensor,
                            vals=vals.Ints(1, 3))
 
-        self.add_parameter('command_status',
-                           label='Manual heater output',
-                           docstring='Sets the heater output in manual mode.')
+        self.add_parameter('output_mode',
+                           label='Output mode',
+                           set_cmd=self._set_output_mode,
+                           get_cmd=self._get_output_mode)
+
+        self.add_parameter('manual_output',
+                           label='Manual output power (%)',
+                           docstring='Sets the manual output power and turns the heater to MANUAL mode.',
+                           set_cmd=self._set_manual_output,
+                           get_cmd=partial(self._get_reading, 5),
+                           vals=vals.Numbers(0, 99.9))
+
+        self.add_parameter('sweep',
+                           label='Sweep',
+                           set_cmd=self._set_sweep,
+                           get_cmd=self._get_sweep_status,
+                           vals=vals.Ints(0, 1))
 
         print(f"Connected to ITC503 in {(time.time()-connect_time):.2f} seconds.")
 
@@ -138,8 +152,8 @@ class ITC503(VisaInstrument):
         ex = self._execute('X')
 
         print(f'System status: {ex[1]}')
-        print(f'Auto/Manual Status: {self._GET_STATUS_MODE[int(ex[3])]}')
-        print(f'Command Status: {self._GET_COMMAND_MODE[int(ex[5])]}')
+        print(f'Local/Remote Status: {self._GET_STATUS_MODE[int(ex[3])]}')
+        print(f'Output Mode: {self._GET_OUTPUT_MODE[int(ex[5])]}')
         print(f'Sweep Status: {self._sweep_status[int(ex[7:9])]}')
         print(f'Control Sensor: {ex[10]}')
         print(f'Auto-PID Status: {self._GET_AUTOPID_STATUS[int(ex[12])]}')
@@ -161,8 +175,15 @@ class ITC503(VisaInstrument):
     def _set_D(self, D):
         return self._execute(f'D{D}')
 
-    def _set_auto_manual(self, n):
+    def _set_output_mode(self, n):
         return self._execute(f'A{n}')
+
+    def _get_output_mode(self):
+        result = self._execute(f'X')
+        return self._GET_OUTPUT_MODE[int(result[5])]
+
+    def _set_manual_output(self, n):
+        return self._execute(f'O{n:.1f}')
 
     def _set_control_status(self, n):
         return self._execute(f'C{n}')
@@ -177,6 +198,9 @@ class ITC503(VisaInstrument):
     def _get_heater_sensor(self):
         result = self._execute(f'X')
         return int(result[10])
+
+    def _set_sweep(self, n):
+        return self._execute(f'S{n}')
 
     def _get_sweep_status(self):
         result = self._execute(f'X')
