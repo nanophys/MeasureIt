@@ -1,9 +1,7 @@
 import logging
-import visa
 import time
 from qcodes.instrument import VisaInstrument
 import qcodes.utils.validators as vals
-from time import sleep
 from functools import partial
 
 log = logging.getLogger(__name__)
@@ -133,7 +131,7 @@ class ITC503(VisaInstrument):
                            get_cmd=self._get_sweep_status,
                            vals=vals.Ints(0, 1))
 
-        print(f"Connected to ITC503 in {(time.time()-connect_time):.2f} seconds.")
+        print(f"Connected to Oxford Instruments ITC-503 in {(time.time()-connect_time):.2f} seconds.")
 
     def _execute(self, message):
         self.log.info('Send the following command to the device: %s' % message)
