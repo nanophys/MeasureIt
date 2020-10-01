@@ -12,18 +12,21 @@ class LM510(IPInstrument):
                            label='Pressure setpoint',
                            get_cmd='PSET?',
                            set_cmd=f'PSET {{}}',
+                           vals=vals.Numbers(0.15, 14.25),
                            get_parser=lambda resp: resp.replace('\r\n', ''))
 
         self.add_parameter('heater_limit',
                            label='Heater limit',
                            get_cmd='HLIM?',
                            set_cmd=f'HLIM {{}}',
+                           vals=vals.Numbers(0.1, 10),
                            get_parser=lambda resp: resp.replace('\r\n', ''))
 
         self.add_parameter('heater_enabled',
                            label='Heater enabled',
                            get_cmd='HEAT?',
                            set_cmd=f'HEAT {{}}',
+                           vals=vals.Enum('ON', 'OFF'),
                            get_parser=lambda resp: resp.replace('\r\n', '')
                            )
 
