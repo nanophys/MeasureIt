@@ -127,8 +127,13 @@ class Daq(Instrument):
         """
         try:
             self.close()
+        except Exception as e:
+            print('Driver couldn\'t close properly.')
+            print(e)
+
+        try:
             for a, c in self.submodules.items():
-                #               Removes all Task objects from the channels, so system doesn't complain
+                # Removes all Task objects from the channels, so system doesn't complain
                 c.__del__()
         except:
             pass
