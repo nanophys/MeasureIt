@@ -74,7 +74,11 @@ class ITC503(VisaInstrument):
 
         self.add_parameter('heater_output',
                            label='Heater Output (%)',
-                           get_cmd=partial(self._get_reading, 5))
+                           docstring="Output power of heater, expressed as percent of maximum output. Setting this "
+                                     "parameter will change heater output to MANUAL mode.",
+                           set_cmd=self._set_manual_output,
+                           get_cmd=partial(self._get_reading, 5),
+                           vals=vals.Numbers(0, 99.9))
 
         self.add_parameter('heater_output_volts',
                            label='Heater Output (V)',
@@ -116,14 +120,8 @@ class ITC503(VisaInstrument):
         self.add_parameter('output_mode',
                            label='Output mode',
                            set_cmd=self._set_output_mode,
-                           get_cmd=self._get_output_mode)
-
-        self.add_parameter('manual_output',
-                           label='Manual output power (%)',
-                           docstring='Sets the manual output power and turns the heater to MANUAL mode.',
-                           set_cmd=self._set_manual_output,
-                           get_cmd=partial(self._get_reading, 5),
-                           vals=vals.Numbers(0, 99.9))
+                           get_cmd=self._get_output_mode,
+                           vals=vals.Ints(0, 3))
 
         self.add_parameter('sweep',
                            label='Sweep',

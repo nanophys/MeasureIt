@@ -10,17 +10,19 @@ class LM510(IPInstrument):
 
         self.add_parameter('setpoint',
                            label='Pressure setpoint',
+                           unit='psi',
                            get_cmd='PSET?',
                            set_cmd=f'PSET {{}}',
                            vals=vals.Numbers(0.15, 14.25),
-                           get_parser=lambda resp: resp.replace('\r\n', ''))
+                           get_parser=lambda resp: resp.replace(' PSI\r\n', ''))
 
         self.add_parameter('heater_limit',
                            label='Heater limit',
+                           unit='W',
                            get_cmd='HLIM?',
                            set_cmd=f'HLIM {{}}',
                            vals=vals.Numbers(0.1, 10),
-                           get_parser=lambda resp: resp.replace('\r\n', ''))
+                           get_parser=lambda resp: resp.replace(' Watts\r\n', ''))
 
         self.add_parameter('heater_enabled',
                            label='Heater enabled',
