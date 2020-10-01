@@ -17,6 +17,7 @@ class Daq(Instrument):
         name, and the number of ao and ai ports. Creates QCoDeS Parameters for each of the io channels.
         """
 
+        start_time = time.time()
         # Initialize the DAQ system
         super().__init__(name)
         system = nidaqmx.system.System.local()
@@ -59,6 +60,9 @@ class Daq(Instrument):
                 count += 1
             # Update the actual number of ai ports
             self.ai_num = count
+
+        print(f"Initialized NI DAQ {self.device.product_type} ({self._address}) in {(time.time()-start_time):.2f} "
+              f"seconds.")
 
     def get_ao_num(self):
         """
