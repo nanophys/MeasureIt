@@ -27,29 +27,12 @@ from qcodes import Station, initialise_or_create_database_at
 from qcodes.dataset.experiment_container import experiments
 from qcodes.logger.logger import start_all_logging
 from qcodes.dataset.data_set import DataSet, load_by_run_spec
-from qcodes.instrument_drivers.Lakeshore.Model_372 import Model_372
-from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
-from qcodes.instrument_drivers.stanford_research.SR860 import SR860
-from qcodes.instrument_drivers.tektronix.Keithley_2450 import Keithley2450
-from qcodes.tests.instrument_mocks import DummyInstrument, MockParabola
-from src.DAQ import DAQAnalogOutputs, DAQAnalogInputs
 
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 matplotlib.use('Qt5Agg')
 
 
 class UImain(QtWidgets.QMainWindow):
-    # To add an instrument, import the driver then add it to our instrument
-    # dictionary with the name as the key, and the class as the value
-    SUPPORTED_INSTRUMENTS = {'Dummy': DummyInstrument,
-                             'Test': MockParabola,
-                             'NI DAQ': Daq,
-                             'NI DAQAI': DAQAnalogInputs,
-                             'NI DAQAO': DAQAnalogOutputs,
-                             'Model_372': Model_372,
-                             'AMI430': AMI430,
-                             'SR860': SR860,
-                             'Keithley2450': Keithley2450}
 
     def __init__(self, parent=None, config_file=None):
         super(UImain, self).__init__(parent)

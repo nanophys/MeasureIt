@@ -18,6 +18,7 @@ from qcodes import load_by_run_spec
 from src.util import _value_parser, save_to_csv
 from src.sweep0d import Sweep0D
 from src.sweep1d import Sweep1D
+from local_instruments import LOCAL_INSTRUMENTS
 
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 
@@ -290,7 +291,7 @@ class AddDeviceGUI(QtWidgets.QDialog):
         self.ui.setupUi(self)
         self.setWindowTitle("Add Device")
 
-        for name, dev in UImain.SUPPORTED_INSTRUMENTS.items():
+        for name, dev in LOCAL_INSTRUMENTS.items():
             self.ui.deviceBox.addItem(name, dev)
 
         self.show()
