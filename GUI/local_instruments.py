@@ -11,4 +11,5 @@ LOCAL_INSTRUMENTS = {'NI DAQ': Daq,
                      'Model_372': Model_372,
                      'AMI430': AMI430,
                      'SR860': SR860,
+                     'SR830': SR830,
                      'Keithley2450': Keithley2450}
