@@ -13,8 +13,8 @@ class Daq(Instrument):
 
     def __init__(self, name="Daq", address=""):
         """
-        Initialization for the DAQ driver. Takes in the machine given device address (typically "Dev1"), a user-defined
-        name, and the number of ao and ai ports. Creates QCoDeS Parameters for each of the io channels.
+        Initialization for the DAQ driver. Takes in the machine given device address (typically "Dev1"), and a user-defined
+        name. Creates QCoDeS Parameters for each of the io channels.
         """
 
         start_time = time.time()
@@ -34,6 +34,9 @@ class Daq(Instrument):
         self.cfg_output = self.cfg_obj['OUTPUT']
 
         # For each output channel, create a corresponding DaqAOChannel object
+        # If the device is already in use, system will throw a 'DaqError'. If so,
+        # let's catch it and close the device, removing the instance from qcodes,
+        # then throw the error.
         try:
             for a in range(self.ao_num):
                 ch_name = 'ao' + str(a)
