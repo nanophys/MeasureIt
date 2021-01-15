@@ -113,11 +113,13 @@ class Daq(Instrument):
         return snap
 
     def close(self):
-        for a, c in self.submodules.items():
-            c.close()
+        if hasattr(self, 'submodules'):
+            for a, c in self.submodules.items():
+                c.close()
 
-        with open(self.cfg_fp, 'w') as conf:
-            self.cfg_obj.write(conf)
+        if hasattr(self, 'cfg_fp'):
+            with open(self.cfg_fp, 'w') as conf:
+                self.cfg_obj.write(conf)
 
         super().close()
 
