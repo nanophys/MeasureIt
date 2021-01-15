@@ -34,33 +34,37 @@ class Daq(Instrument):
         self.cfg_output = self.cfg_obj['OUTPUT']
 
         # For each output channel, create a corresponding DaqAOChannel object
-        for a in range(self.ao_num):
-            ch_name = 'ao' + str(a)
-            if ch_name not in self.cfg_output.keys():
-                self.cfg_output[ch_name] = '0'
-            channel = DaqAOChannel(self, self.device, self._address, ch_name)
-            self.add_submodule(ch_name, channel)
-            # We now automatically create a task to write on each channel (NECESSARY!)
-            write_task = nidaqmx.Task(f"writing {self._address}_{ch_name}")
-            read_task = nidaqmx.Task(f"reading {self._address}_{ch_name}")
-            channel.add_self_to_task(write_task, read_task)
-        # Similarly, create a DaqAIChannel object for each (real) input channel
-        for b in range(self.ai_num):
-            # NI DAQs can use each of the coax pins as analog inputs separately, and
-            # numbers them as such. (AI0-7 is voltage-part of coax reading for first 
-            # 8 pins, 8-15 is ground reading of coax for first 8 pins).
-            # We don't want this behavior, we use each port as one input (ground and 
-            # voltage), so we make sure to only grab the "real" analog inputs
-            count = 0
-            if int(b / 8) % 2 == 0:
-                ch_name = 'ai' + str(b)
-                channel = DaqAIChannel(self, self.device, self._address, ch_name)
+        try:
+            for a in range(self.ao_num):
+                ch_name = 'ao' + str(a)
+                if ch_name not in self.cfg_output.keys():
+                    self.cfg_output[ch_name] = '0'
+                channel = DaqAOChannel(self, self.device, self._address, ch_name)
                 self.add_submodule(ch_name, channel)
-                task = nidaqmx.Task(f"reading {self._address}_{ch_name}")
-                channel.add_self_to_task(task)
-                count += 1
-            # Update the actual number of ai ports
-            self.ai_num = count
+                # We now automatically create a task to write on each channel (NECESSARY!)
+                write_task = nidaqmx.Task(f"writing {self._address}_{ch_name}")
+                read_task = nidaqmx.Task(f"reading {self._address}_{ch_name}")
+                channel.add_self_to_task(write_task, read_task)
+            # Similarly, create a DaqAIChannel object for each (real) input channel
+            for b in range(self.ai_num):
+                # NI DAQs can use each of the coax pins as analog inputs separately, and
+                # numbers them as such. (AI0-7 is voltage-part of coax reading for first
+                # 8 pins, 8-15 is ground reading of coax for first 8 pins).
+                # We don't want this behavior, we use each port as one input (ground and
+                # voltage), so we make sure to only grab the "real" analog inputs
+                count = 0
+                if int(b / 8) % 2 == 0:
+                    ch_name = 'ai' + str(b)
+                    channel = DaqAIChannel(self, self.device, self._address, ch_name)
+                    self.add_submodule(ch_name, channel)
+                    task = nidaqmx.Task(f"reading {self._address}_{ch_name}")
+                    channel.add_self_to_task(task)
+                    count += 1
+                # Update the actual number of ai ports
+                self.ai_num = count
+        except nidaqmx.errors.DaqError as e:
+            self.close()
+            raise e
 
         print(f"Connected to: NI DAQ {self.device.product_type} ({self._address}) in {(time.time()-start_time):.2f}s")
         self.log.info(f"Connected to instrument: {self._address}")
