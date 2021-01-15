@@ -23,7 +23,7 @@ from src.sweep0d import Sweep0D
 from src.sweep1d import Sweep1D
 from src.sweep_queue import SweepQueue, DatabaseEntry
 import qcodes as qc
-from qcodes import Station, initialise_or_create_database_at
+from qcodes import Station, Instrument, initialise_or_create_database_at
 from qcodes.dataset.experiment_container import experiments
 from qcodes.logger.logger import start_all_logging
 from qcodes.dataset.data_set import DataSet, load_by_run_spec
@@ -68,7 +68,7 @@ class UImain(QtWidgets.QMainWindow):
         self.db_set = False
         self.datasets = []
 
-        self.update_dev_menu()
+        self.update_instrument_menu()
         self.load_station_and_connect_instruments(config_file)
         self.update_datasets()
 
@@ -214,7 +214,7 @@ class UImain(QtWidgets.QMainWindow):
                 self.show_error('Instrument Error', f'Error connecting to {name}, '
                                                     'either the name is already in use or the device is unavailable.',
                                 e)
-        self.update_dev_menu()
+        self.update_instrument_menu()
 
     def save_station(self):
         ss_ui = SaveStationGUI(self)
@@ -702,68 +702,73 @@ class UImain(QtWidgets.QMainWindow):
         # TODO:
         #   Add in ability to pass args and kwargs to the constructor
 
-        device_ui = AddDeviceGUI(self)
-        if device_ui.exec_():
-            d = device_ui.get_selected()
+        instrument_ui = AddInstrumentGUI(self)
+        if instrument_ui.exec_():
+            d = instrument_ui.get_selected()
             try:
                 d['name'] = _name_parser(d['name'])
             except ValueError as e:
                 self.show_error("Error", "Instrument name must start with a letter.", e)
                 return
 
-            if device_ui.ui.nameEdit.text() in self.devices.keys():
+            if instrument_ui.ui.nameEdit.text() in self.devices.keys():
                 self.show_error("Error", "Already have an instrument with that name in the station.")
                 return
 
             # Now, set up our initialization for each device, if it doesn't follow the standard initialization
-            new_dev = None
-            try:
-                new_dev = self.connect_device(d['device'], d['class'], d['name'], d['address'], d['args'], d['kwargs'])
-            except Exception as e:
-                self.show_error("Error", f'Couldn\'t connect to the instrument. Check address and try again.', e)
-                print(e, file=sys.stderr)
-                new_dev = None
+            new_dev = self.connect_device(d['device'], d['class'], d['name'], d['address'], d['args'], d['kwargs'])
 
             if new_dev is not None:
                 self.devices[d['name']] = new_dev
                 self.station.add_component(new_dev, update_snapshot=False)
-                self.update_dev_menu()
+                self.update_instrument_menu()
 
     def connect_device(self, device, classtype, name, address, args=[], kwargs={}):
-        if device == 'Dummy' or device == 'Test':
-            new_dev = classtype(name)
-        else:
-            new_dev = classtype(name, address, *args, **kwargs)
-            if len(kwargs.keys()) > 0:
-                self.device_init[name] = kwargs
-        #print(args, kwargs)
+        new_dev = None
+        if name in Instrument.instances():
+            self.show_error("Error", f'Instrument name is already in use. Try again with a new name.')
+            return None
+        try:
+            if device == 'Dummy' or device == 'Test':
+                new_dev = classtype(name)
+            else:
+                new_dev = classtype(name, address, *args, **kwargs)
+                if len(kwargs.keys()) > 0:
+                    self.device_init[name] = kwargs
+        except Exception as e:
+            self.show_error("Error", f'Couldn\'t connect to the instrument. Check address and try again.', e)
+            print(e, file=sys.stderr)
+            if hasattr(new_dev, 'close'):
+                new_dev.close()
+            new_dev = None
+
         return new_dev
 
-    def update_dev_menu(self):
+    def update_instrument_menu(self):
         # TODO: 
         #   Add some clickable action to the name hanging out in the device menu
-        self.ui.menuDevices.clear()
+        self.ui.menuInstruments.clear()
 
-        self.ui.addDeviceAction = QAction("Add device...", self.ui.menuDevices)
-        self.ui.addDeviceAction.setStatusTip("Connect to a new device")
-        self.ui.addDeviceAction.triggered.connect(self.add_device)
+        self.ui.addInstrumentAction = QAction("Add instrument...", self.ui.menuInstruments)
+        self.ui.addInstrumentAction.setStatusTip("Connect to a new instrument")
+        self.ui.addInstrumentAction.triggered.connect(self.add_device)
 
-        self.ui.removeDeviceAction = QAction("Remove device...", self.ui.menuDevices)
-        self.ui.removeDeviceAction.setStatusTip("Disconnect a device")
-        self.ui.removeDeviceAction.triggered.connect(self.remove_device)
+        self.ui.removeInstrumentAction = QAction("Remove instrument...", self.ui.menuInstruments)
+        self.ui.removeInstrumentAction.setStatusTip("Disconnect an instrument")
+        self.ui.removeInstrumentAction.triggered.connect(self.remove_device)
 
-        self.ui.menuDevices.addAction(self.ui.addDeviceAction)
-        self.ui.menuDevices.addAction(self.ui.removeDeviceAction)
-        self.ui.menuDevices.addSeparator()
+        self.ui.menuInstruments.addAction(self.ui.addInstrumentAction)
+        self.ui.menuInstruments.addAction(self.ui.removeInstrumentAction)
+        self.ui.menuInstruments.addSeparator()
 
         for name, dev in self.devices.items():
-            act = self.ui.menuDevices.addAction(f"{dev.name} ({dev.__class__.__name__})")
+            act = self.ui.menuInstruments.addAction(f"{dev.name} ({dev.__class__.__name__})")
             act.setData(dev)
 
     def remove_device(self):
-        remove_ui = RemoveDeviceGUI(self.devices, self)
+        remove_ui = RemoveInstrumentGUI(self.devices, self)
         if remove_ui.exec_():
-            dev = remove_ui.ui.deviceBox.currentText()
+            dev = remove_ui.ui.instrumentBox.currentText()
             if len(dev) > 0:
                 self.do_remove_device(dev)
 
@@ -773,7 +778,7 @@ class UImain(QtWidgets.QMainWindow):
         dev.close()
         if name in self.device_init.keys():
             self.device_init.pop(name)
-        self.update_dev_menu()
+        self.update_instrument_menu()
 
     @pyqtSlot(str)
     def append_stdout(self, text):

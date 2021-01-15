@@ -40,7 +40,7 @@
    </property>
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <layout class="QHBoxLayout" name="deviceLayout">
+     <layout class="QHBoxLayout" name="instrumentLayout">
       <item>
        <spacer name="horizontalSpacer">
         <property name="orientation">
@@ -58,9 +58,9 @@
        </spacer>
       </item>
       <item>
-       <widget class="QLabel" name="deviceLabel">
+       <widget class="QLabel" name="instrumentLabel">
         <property name="text">
-         <string>Device</string>
+         <string>Instrument</string>
         </property>
         <property name="alignment">
          <set>Qt::AlignCenter</set>
@@ -68,7 +68,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QComboBox" name="deviceBox"/>
+       <widget class="QComboBox" name="instrumentBox"/>
       </item>
       <item>
        <spacer name="horizontalSpacer_2">

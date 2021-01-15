@@ -4,9 +4,9 @@ import sys, os
 import matplotlib.pyplot as plt
 from GUI_Measureit import *
 from edit_parameter_ui import Ui_editParameter
-from add_device_ui import Ui_addDevice
+from add_instrument_ui import Ui_addInstrument
 from save_station_ui import Ui_saveStation
-from remove_device_ui import Ui_removeDevice
+from remove_instrument_ui import Ui_removeInstrument
 from save_data_ui import Ui_saveData
 from edit_sweep_ui import Ui_editSweep
 from view_dataset_ui import Ui_viewDataset
@@ -209,10 +209,10 @@ class SaveStationGUI(QtWidgets.QDialog):
 
 
 class EditParameterGUI(QtWidgets.QDialog):
-    def __init__(self, devices, track_params, set_params, parent=None):
+    def __init__(self, instruments, track_params, set_params, parent=None):
         super(EditParameterGUI, self).__init__(parent)
         self.parent = parent
-        self.devices = devices
+        self.instruments = instruments
         self.ui = Ui_editParameter()
         self.ui.setupUi(self)
 
@@ -220,8 +220,8 @@ class EditParameterGUI(QtWidgets.QDialog):
         self.new_track_params = {}
         self.new_set_params = {}
 
-        for name, dev in self.devices.items():
-            self.ui.deviceBox.addItem(name, dev)
+        for name, dev in self.instruments.items():
+            self.ui.instrumentBox.addItem(name, dev)
 
         for name, p in track_params.items():
             listitem = QListWidgetItem(p.full_name)
@@ -234,19 +234,19 @@ class EditParameterGUI(QtWidgets.QDialog):
             self.ui.setParamsWidget.addItem(listitem)
             self.new_set_params[p.full_name] = p
 
-        self.update_avail_device_params(0)
+        self.update_avail_instrument_params(0)
 
         self.show()
 
-    def update_avail_device_params(self, index):
+    def update_avail_instrument_params(self, index):
         self.ui.allParamsWidget.clear()
-        if len(self.devices) > 0:
-            device = self.ui.deviceBox.currentData()
-            for key, p in device.parameters.items():
+        if len(self.instruments) > 0:
+            instrument = self.ui.instrumentBox.currentData()
+            for key, p in instrument.parameters.items():
                 listitem = QListWidgetItem(p.full_name)
                 listitem.setData(32, p)
                 self.ui.allParamsWidget.addItem(listitem)
-            for name, submodule in device.submodules.items():
+            for name, submodule in instrument.submodules.items():
                 if hasattr(submodule, 'parameters'):
                     for key, p in submodule.parameters.items():
                         listitem = QListWidgetItem(p.full_name)
@@ -262,7 +262,7 @@ class EditParameterGUI(QtWidgets.QDialog):
                                                                     self.ui.setParamsWidget, 1))
         self.ui.delSetButton.clicked.connect(lambda: self.del_param(self.new_set_params,
                                                                     self.ui.setParamsWidget))
-        self.ui.deviceBox.activated.connect(self.update_avail_device_params)
+        self.ui.instrumentBox.activated.connect(self.update_avail_instrument_params)
 
     def add_param(self, param_dict, widget, setting):
         params = self.ui.allParamsWidget.selectedItems()
@@ -283,23 +283,23 @@ class EditParameterGUI(QtWidgets.QDialog):
             param_dict.pop(p.data(32).full_name)
 
 
-class AddDeviceGUI(QtWidgets.QDialog):
+class AddInstrumentGUI(QtWidgets.QDialog):
     def __init__(self, parent=None):
-        super(AddDeviceGUI, self).__init__(parent)
+        super(AddInstrumentGUI, self).__init__(parent)
         self.parent = parent
-        self.ui = Ui_addDevice()
+        self.ui = Ui_addInstrument()
         self.ui.setupUi(self)
-        self.setWindowTitle("Add Device")
+        self.setWindowTitle("Add Instrument")
 
         for name, dev in LOCAL_INSTRUMENTS.items():
-            self.ui.deviceBox.addItem(name, dev)
+            self.ui.instrumentBox.addItem(name, dev)
 
         self.show()
 
     def get_selected(self):
         selected = {}
-        selected['device'] = self.ui.deviceBox.currentText()
-        selected['class'] = self.ui.deviceBox.currentData()
+        selected['device'] = self.ui.instrumentBox.currentText()
+        selected['class'] = self.ui.instrumentBox.currentData()
         selected['name'] = self.ui.nameEdit.text()
         selected['address'] = self.ui.addressEdit.text()
         selected['args'] = []
@@ -341,16 +341,16 @@ class AddDeviceGUI(QtWidgets.QDialog):
         return selected
 
 
-class RemoveDeviceGUI(QtWidgets.QDialog):
-    def __init__(self, devices, parent=None):
-        super(RemoveDeviceGUI, self).__init__(parent)
+class RemoveInstrumentGUI(QtWidgets.QDialog):
+    def __init__(self, instruments, parent=None):
+        super(RemoveInstrumentGUI, self).__init__(parent)
         self.parent = parent
-        self.ui = Ui_removeDevice()
+        self.ui = Ui_removeInstrument()
         self.ui.setupUi(self)
-        self.setWindowTitle("Remove Device")
+        self.setWindowTitle("Remove Instrument")
 
-        for name, dev in devices.items():
-            self.ui.deviceBox.addItem(name, dev)
+        for name, dev in instruments.items():
+            self.ui.instrumentBox.addItem(name, dev)
 
         self.show()
 

@@ -662,7 +662,7 @@
      <x>0</x>
      <y>0</y>
      <width>1249</width>
-     <height>26</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -671,12 +671,12 @@
     </property>
     <addaction name="actionQuit"/>
    </widget>
-   <widget class="QMenu" name="menuDevices">
+   <widget class="QMenu" name="menuInstruments">
     <property name="title">
-     <string>Devices</string>
+     <string>Instruments</string>
     </property>
-    <addaction name="addDeviceAction"/>
-    <addaction name="removeDeviceAction"/>
+    <addaction name="addInstrumentAction"/>
+    <addaction name="removeInstrumentAction"/>
     <addaction name="separator"/>
    </widget>
    <widget class="QMenu" name="menuExperiment">
@@ -708,15 +708,15 @@
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuStation"/>
-   <addaction name="menuDevices"/>
+   <addaction name="menuInstruments"/>
    <addaction name="menuExperiment"/>
    <addaction name="menuData"/>
    <addaction name="menu2D_Sweep"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
-  <action name="addDeviceAction">
+  <action name="addInstrumentAction">
    <property name="text">
-    <string>Add device...</string>
+    <string>Add instrument...</string>
    </property>
   </action>
   <action name="actionQuit">
@@ -727,9 +727,9 @@
     <string>Ctrl+Q</string>
    </property>
   </action>
-  <action name="removeDeviceAction">
+  <action name="removeInstrumentAction">
    <property name="text">
-    <string>Remove device...</string>
+    <string>Remove instrument...</string>
    </property>
   </action>
   <action name="actionSaveStation">
