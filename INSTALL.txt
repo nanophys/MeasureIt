@@ -6,7 +6,7 @@
     - conda activate qcodes
     - conda develop .
     - conda config --add channels conda-forge 
-    - conda install nidaqmx-python
+    - conda install nidaqmx-python jupyterlab
     - Download and install the NI DAQmx drivers at 'http://www.ni.com/en-us/support/downloads/drivers/download/unpackaged.ni-daqmx.291872.html'
     - Download and install the NI VISA package at 'http://www.ni.com/download/ni-visa-18.5/7973/en/'
 - Download this repository 'git clone https://github.com/nanophys/MeasureIt.git'
