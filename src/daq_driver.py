@@ -313,7 +313,7 @@ class DaqAOChannel(InstrumentChannel):
         # Add the channel to the task
         write_task.ao_channels.add_ao_voltage_chan(self.fullname)
         self.write_task = write_task
-        read_task.ai_channels.add_ai_voltage_chan(f"{self.address}/_{self.my_name}_vs_aognd")
+        read_task.ai_channels.add_ai_voltage_chan(f"{self.address}/_{self.my_name}_vs_aognd", min_val=-10, max_val=10)
         self.read_task = read_task
         # Channel handler that can be used to communicate things like gain, impedance
         # back to the DAQ
@@ -480,7 +480,7 @@ class DaqAIChannel(InstrumentChannel):
             self.clear_task()
 
         # Add the channel to the task
-        task.ai_channels.add_ai_voltage_chan(self.fullname)
+        task.ai_channels.add_ai_voltage_chan(self.fullname, min_val=-10, max_val=10)
         self.task = task
         # Channel handler that can be used to communicate things like gain, impedance
         # back to the DAQ
