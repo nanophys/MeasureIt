@@ -24,12 +24,12 @@ class Daq(Instrument):
         self._address = address
         try:
             self.device = system.devices[self._address]
-        except DaqError as e:
+            # Grab the number of AO, AI channels
+            self.ao_num = len(self.device.ao_physical_chans.channel_names)
+            self.ai_num = len(self.device.ai_physical_chans.channel_names)
+        except nidaqmx.errors.DaqError as e:
             self.close()
             raise e
-        # Grab the number of AO, AI channels
-        self.ao_num = len(self.device.ao_physical_chans.channel_names)
-        self.ai_num = len(self.device.ai_physical_chans.channel_names)
 
         # Read the max/min output/input voltages
         self.max_out = max(self.device.ao_voltage_rngs)
