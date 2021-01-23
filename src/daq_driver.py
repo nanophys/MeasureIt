@@ -22,7 +22,11 @@ class Daq(Instrument):
         super().__init__(name)
         system = nidaqmx.system.System.local()
         self._address = address
-        self.device = system.devices[self._address]
+        try:
+            self.device = system.devices[self._address]
+        except DaqError as e:
+            self.close()
+            raise e
         # Grab the number of AO, AI channels
         self.ao_num = len(self.device.ao_physical_chans.channel_names)
         self.ai_num = len(self.device.ai_physical_chans.channel_names)
