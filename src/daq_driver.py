@@ -27,6 +27,12 @@ class Daq(Instrument):
         self.ao_num = len(self.device.ao_physical_chans.channel_names)
         self.ai_num = len(self.device.ai_physical_chans.channel_names)
 
+        # Read the max/min output/input voltages
+        self.max_out = max(self.device.ao_voltage_rngs)
+        self.min_out = min(self.device.ao_voltage_rngs)
+        self.max_in = max(self.device.ai_voltage_rngs)
+        self.min_in = min(self.device.ai_voltage_rngs)
+
         # Read the config file
         self.cfg_fp = os.getenv('MeasureItHome') + '\\cfg\\daq_output.cfg'
         self.cfg_obj = ConfigParser()
@@ -42,7 +48,8 @@ class Daq(Instrument):
                 ch_name = 'ao' + str(a)
                 if ch_name not in self.cfg_output.keys():
                     self.cfg_output[ch_name] = '0'
-                channel = DaqAOChannel(self, self.device, self._address, ch_name)
+                channel = DaqAOChannel(self, self.device, self._address, ch_name, self.min_out, self.max_out,
+                                       self.min_in, self.max_in)
                 self.add_submodule(ch_name, channel)
                 # We now automatically create a task to write on each channel (NECESSARY!)
                 write_task = nidaqmx.Task(f"writing {self._address}_{ch_name}")
@@ -58,7 +65,7 @@ class Daq(Instrument):
                 count = 0
                 if int(b / 8) % 2 == 0:
                     ch_name = 'ai' + str(b)
-                    channel = DaqAIChannel(self, self.device, self._address, ch_name)
+                    channel = DaqAIChannel(self, self.device, self._address, ch_name, self.min_in, self.max_in)
                     self.add_submodule(ch_name, channel)
                     task = nidaqmx.Task(f"reading {self._address}_{ch_name}")
                     channel.add_self_to_task(task)
@@ -235,7 +242,7 @@ class DaqAOChannel(InstrumentChannel):
     #        if self.channel != None:
     #            self.channel.ao_load_impedance=_imp
 
-    def __init__(self, parent: Instrument, device, address, channel):
+    def __init__(self, parent: Instrument, device, address, channel, min_output, max_output, min_in, max_in):
         """
         Initialization function. Saves information about the DAQ, creates and initializes
         the QCoDeS values.
@@ -249,6 +256,12 @@ class DaqAOChannel(InstrumentChannel):
         self.my_name = str(channel)
         # Full name, e.g. Dev1/ao1
         self.fullname = self.address + "/" + self.my_name
+
+        # Extrema
+        self.max_V = max_output
+        self.min_V = min_output
+        self.min_in = min_in
+        self.max_in = max_in
 
         # Initializes the values of the Parameters
         self.gain = 1
@@ -297,7 +310,7 @@ class DaqAOChannel(InstrumentChannel):
                            set_cmd=self.set_voltage,
                            label=f'{self.my_name} Voltage',
                            unit='V',
-                           vals=vals.Numbers(-10, 10)
+                           vals=vals.Numbers(self.min_V, self.max_V)
                            )
 
     def add_self_to_task(self, write_task, read_task):
@@ -313,7 +326,8 @@ class DaqAOChannel(InstrumentChannel):
         # Add the channel to the task
         write_task.ao_channels.add_ao_voltage_chan(self.fullname)
         self.write_task = write_task
-        read_task.ai_channels.add_ai_voltage_chan(f"{self.address}/_{self.my_name}_vs_aognd", min_val=-10, max_val=10)
+        read_task.ai_channels.add_ai_voltage_chan(f"{self.address}/_{self.my_name}_vs_aognd",
+                                                  min_val=self.min_in, max_val=self.max_in)
         self.read_task = read_task
         # Channel handler that can be used to communicate things like gain, impedance
         # back to the DAQ
@@ -410,7 +424,7 @@ class DaqAIChannel(InstrumentChannel):
     #        if self.channel != None:
     #            self.channel.ai_load_impedance=_imp
 
-    def __init__(self, parent: Instrument, device, address, channel):
+    def __init__(self, parent: Instrument, device, address, channel, min_input, max_input):
         """
         Initialization function. Saves information about the DAQ, creates and initializes
         the QCoDeS values.
@@ -422,6 +436,10 @@ class DaqAIChannel(InstrumentChannel):
         self.channel = channel
         self.my_name = str(channel)
         self.fullname = self.address + "/" + self.my_name
+
+        # Set our maximum input/output
+        self.max_in = max_input
+        self.min_in = min_input
 
         # Set the default Parameter values
         self.gain = 1
@@ -466,7 +484,7 @@ class DaqAIChannel(InstrumentChannel):
                            get_parser=float,
                            label=f'{self.my_name} Voltage',
                            unit='V',
-                           vals=vals.Numbers(-10, 10)
+                           vals=vals.Numbers(self.min_in, self.max_in)
                            )
 
     def add_self_to_task(self, task):
@@ -480,7 +498,7 @@ class DaqAIChannel(InstrumentChannel):
             self.clear_task()
 
         # Add the channel to the task
-        task.ai_channels.add_ai_voltage_chan(self.fullname, min_val=-10, max_val=10)
+        task.ai_channels.add_ai_voltage_chan(self.fullname, min_val=self.min_in, max_val=self.max_in)
         self.task = task
         # Channel handler that can be used to communicate things like gain, impedance
         # back to the DAQ
