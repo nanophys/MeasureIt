@@ -17,8 +17,8 @@ class Sweep2D(BaseSweep):
     """
     completed = pyqtSignal()
 
-    def __init__(self, in_params, out_params, runner=None, plotter=None, inter_delay=0.1,
-                 outer_delay=1, save_data=True, plot_data=True, complete_func=None, update_func=None, plot_bin=1):
+    def __init__(self, in_params, out_params, inter_delay=0.1, outer_delay=1, save_data=True, plot_data=True,
+                 complete_func=None, update_func=None, plot_bin=1, runner=None, plotter=None, back_multiplier=1):
         """
         Initializes the sweep. It reads in the settings for each of the sweeps, as well
         as the standard BaseSweep arguments.
@@ -67,8 +67,8 @@ class Sweep2D(BaseSweep):
 
         # Create the inner sweep object
         self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
-                                inter_delay=self.inter_delay, save_data=self.save_data,
-                                x_axis_time=0, plot_data=plot_data)
+                                inter_delay=self.inter_delay, save_data=self.save_data, x_axis_time=0,
+                                plot_data=self.plot_data, back_multiplier=back_multiplier)
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
         self.in_sweep.follow_param(self.set_param)
