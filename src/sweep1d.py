@@ -18,8 +18,8 @@ class Sweep1D(BaseSweep):
     completed = pyqtSignal()
 
     def __init__(self, set_param, start, stop, step, bidirectional=False, runner=None, plotter=None, datasaver=None,
-                 inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=1,
-                 parent=None, continual=False, plot_bin=1):
+                 inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=0,
+                 parent=None, continual=False, plot_bin=1, back_multiplier=1):
         """
         Initializes the sweep. There are only 5 new arguments to read in.
         
@@ -49,6 +49,7 @@ class Sweep1D(BaseSweep):
         self.bidirectional = bidirectional
         self.continuous = continual
         self.direction = 0
+        self.back_multiplier = back_multiplier
         self.is_ramping = False
         self.ramp_sweep = None
         self.runner = runner
@@ -230,8 +231,10 @@ class Sweep1D(BaseSweep):
         # If backwards, go forwards, and vice versa
         if self.direction:
             self.direction = 0
+            self.step /= self.back_multiplier
         else:
             self.direction = 1
+            self.step *= self.back_multiplier
 
         self.send_updates(no_sp=True)
 
