@@ -18,8 +18,8 @@ class BaseSweep(QObject):
     update_signal = pyqtSignal(dict)
     dataset_signal = pyqtSignal(dict)
 
-    def __init__(self, set_param=None, inter_delay=0.01, save_data=True, complete_func=None,
-                 plot_data=True, x_axis_time=1, datasaver=None, parent=None, plot_bin=1):
+    def __init__(self, set_param=None, inter_delay=0.01, save_data=True, plot_data=True, x_axis_time=1,
+                 datasaver=None, parent=None, plot_bin=1):
         """
         Initializer for both classes, called by super().__init__() in Sweep0D and Sweep1D classes.
         Simply initializes the variables and flags.
