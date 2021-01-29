@@ -5,7 +5,7 @@ from src.base_sweep import BaseSweep
 from PyQt5.QtCore import pyqtSignal, pyqtSlot
 from qcodes.dataset.data_set import DataSet
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
-# from qcodes.instrument_drivers.oxford.IPS120 import OxfordInstruments_IPS120
+from qcodes_contrib_drivers.drivers.Oxford.IPS120 import OxfordInstruments_IPS120
 from functools import partial
 
 
@@ -18,8 +18,8 @@ class Sweep1D(BaseSweep):
     completed = pyqtSignal()
 
     def __init__(self, set_param, start, stop, step, bidirectional=False, runner=None, plotter=None, datasaver=None,
-                 inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=0,
-                 parent=None, continual=False, plot_bin=1, back_multiplier=1):
+                 inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=0, parent=None,
+                 continual=False, plot_bin=1, back_multiplier=1, persistent_magnet=False):
         """
         Initializes the sweep. There are only 5 new arguments to read in.
         
@@ -54,6 +54,7 @@ class Sweep1D(BaseSweep):
         self.ramp_sweep = None
         self.runner = runner
         self.plotter = plotter
+        self.persistent_magnet = persistent_magnet
         self.instrument = self.set_param.instrument
 
         # Set the function to call when we are finished
@@ -121,8 +122,9 @@ class Sweep1D(BaseSweep):
         # If we are sweeping the magnet, let's deal with it here
         if isinstance(self.instrument, AMI430) and 'field' in self.set_param.full_name:
             return self.step_AMI430()
-        #        elif isinstance(self.instrument, OxfordInstruments_IPS120):
-        #            return self.step_IPS120()
+        # We also enable different functionality for the IPS120
+        elif isinstance(self.instrument, OxfordInstruments_IPS120) and 'field' in self.set_param.full_name:
+            return self.step_IPS120()
 
         # If we aren't at the end, keep going
         if abs(self.setpoint - self.end) >= abs(self.step / 2):
@@ -153,7 +155,7 @@ class Sweep1D(BaseSweep):
         beginning, then ask it for the current field while it is ramping.
         """
         # Check if we have set the magnetic field yet
-        if self.magnet_initialized == False:
+        if self.magnet_initialized is False:
             self.instrument.set_field(self.end, block=False)
             self.magnet_initialized = True
             time.sleep(self.inter_delay)
@@ -199,10 +201,10 @@ class Sweep1D(BaseSweep):
         beginning, then ask it for the current field while it is ramping.
         """
         # Check if we have set the magnetic field yet
-        if self.magnet_initialized == False:
-            print("Attaching the heater switch. Waiting 40 s . . .")
-            # Attach the heater switch
-            self.instrument.switch_heater.set(1)
+        if self.magnet_initialized is False:
+            print("Checking the status of the magnet and switch heater.")
+            self.instrument.leave_persistent_mode()
+
             # Set the field setpoint
             self.instrument.field_setpoint.set(self.end)
             # Set us to go to setpoint
@@ -214,12 +216,13 @@ class Sweep1D(BaseSweep):
         # Check our stop conditions- being at the end point
         if self.instrument.mode2() == 'At rest':
             self.is_running = False
-            print("Detaching the heater switch. Waiting 40 s . . . ")
-            # Detach the heater switch
-            self.instrument.switch_heater.set(2)
+
             # Set status to 'hold'
             self.instrument.activity(0)
             self.magnet_initialized = False
+
+            if self.persistent_magnet is True:
+                self.instrument.set_persistent()
 
         # Return our data pair, just like any other sweep
         return data_pair
