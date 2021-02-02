@@ -103,9 +103,9 @@ class RunnerThread(QThread):
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
 
             if sleep_time > 0:
-                print(f"time: {time.time()}  sleep time: {sleep_time}")
+                #print(f"time: {time.time()}  sleep time: {sleep_time}")
                 time.sleep(sleep_time)
-                print(f"time2: {time.time()}")
+                #print(f"time2: {time.time()}")
 
             if self.flush_flag is True and self.sweep.save_data is True:
                 self.datasaver.flush_data_to_database()
