@@ -147,6 +147,24 @@ class SweepQueue(QObject):
             self.newSweepSignal.emit(self.current_sweep)
         self.current_sweep.start()
 
+    def stop(self):
+        if self.current_sweep is not None:
+            self.current_sweep.stop()
+        else:
+            print("No sweep currently running, nothing to stop")
+    
+    def resume(self):
+        if self.current_sweep is not None:
+            self.current_sweep.resume()
+        else:
+            print("No current sweep, nothing to resume!")
+            
+    def is_running(self):
+        if self.current_sweep is not None:
+            return self.current_sweep.is_running
+        else:
+            print("Sweep queue is not currently running")
+            
     @pyqtSlot()
     def begin_next(self):
         """
@@ -303,5 +321,14 @@ class DatabaseEntry(QObject):
     def set_complete_func(self, func):
         self.callback = func
 
+    def stop(self):
+        pass
+    
+    def resume(self):
+        pass
+    
+    def is_running(self):
+        return True
+    
     def kill(self):
         pass
