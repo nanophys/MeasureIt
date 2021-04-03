@@ -15,7 +15,7 @@ class Sweep0D(BaseSweep):
     # Signal for when the sweep is completed
     completed = pyqtSignal()
 
-    def __init__(self, runner=None, plotter=None, max_time=None, complete_func=None, *args, **kwargs):
+    def __init__(self, runner=None, plotter=None, max_time=1e6, complete_func=None, *args, **kwargs):
         """
         Initialization class. Simply calls the BaseSweep initialization, and saves a few extra variables.
         

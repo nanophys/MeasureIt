@@ -49,6 +49,7 @@ class BaseSweep(QObject):
         self.is_running = False
         self.t0 = 0
 
+        self.persist_data = None
         self.datasaver = datasaver
 
         QObject.__init__(self)
@@ -343,6 +344,7 @@ class BaseSweep(QObject):
         Arguments:
             func - function to call
         """
+        self.complete_func = func
         self.completed.connect(func)
 
     @pyqtSlot()

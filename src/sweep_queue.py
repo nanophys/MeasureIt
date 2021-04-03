@@ -31,6 +31,7 @@ class SweepQueue(QObject):
         self.inter_delay = inter_delay
         self.exp_name = ""
         self.sample_name = ""
+        self.rts=True
 
     @classmethod
     def init_from_json(cls, fn, station=Station()):
@@ -123,7 +124,7 @@ class SweepQueue(QObject):
         self.queue.insert(new_pos, item)
         return new_pos
 
-    def start(self):
+    def start(self, rts=True):
         """
         Starts the sweep. Takes the leftmost object in the queue and starts it.
         """
