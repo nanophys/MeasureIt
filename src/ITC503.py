@@ -6,8 +6,8 @@ from functools import partial
 
 log = logging.getLogger(__name__)
 
-class ITC503(VisaInstrument):
 
+class ITC503(VisaInstrument):
     _GET_STATUS_MODE = {
         0: 'Local and Locked',
         1: 'Remote and Locked',
@@ -33,7 +33,7 @@ class ITC503(VisaInstrument):
 
         connect_time = time.time()
 
-        super().__init__(name, address, **kwargs)
+        super().__init__(name, address, terminator='\r', **kwargs)
 
         self.add_parameter('control',
                            label='Control',
@@ -129,7 +129,7 @@ class ITC503(VisaInstrument):
                            get_cmd=self._get_sweep_status,
                            vals=vals.Ints(0, 1))
 
-        print(f"Connected to: Oxford Instruments ITC-503 in {(time.time()-connect_time):.2f} seconds.")
+        print(f"Connected to: Oxford Instruments ITC-503 in {(time.time() - connect_time):.2f} seconds.")
         self.log.info(f"Connected to instrument: Oxford Instruments ITC-503")
 
     def _execute(self, message):
@@ -207,9 +207,6 @@ class ITC503(VisaInstrument):
         if n == 0:
             return 'Sweep not running'
         elif n % 2 == 1:
-            return f'Sweeping to step {(n+1)/2}'
+            return f'Sweeping to step {(n + 1) / 2}'
         else:
-            return f'Holding at step {n/2}'
-
-
-
+            return f'Holding at step {n / 2}'
