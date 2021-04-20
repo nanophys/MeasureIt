@@ -48,11 +48,28 @@ def connect_station_instruments(station):
     return devices
 
 
-def save_to_csv(ds, fn):
+def save_to_csv(ds, fn, use_labels=True):
+    def find_param_label(name):
+        use_name = name
+        unit = None
+        for p_name, ps in ds.paramspecs.items():
+            if name == p_name:
+                unit = ps.unit
+                if ps.label is not None:
+                    use_name = ps.label
+
+        if unit is not None:
+            use_name = f'{use_name} ({unit})'
+        return use_name
+
     df = ds.get_data_as_pandas_dataframe()
     export_ds = pd.DataFrame()
     for key, value in df.items():
-        export_ds[[key]] = value[[key]]
+        if use_labels:
+            export_key = find_param_label(key)
+        else:
+            export_key = key
+        export_ds[[export_key]] = value[[key]]
 
     # Choose where you want the CSV saved
     export_ds.to_csv(fn)
