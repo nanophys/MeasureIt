@@ -208,7 +208,7 @@ class PlotterThread(QThread):
             
             # Smart sleep, by checking if the whole process has taken longer than
             # our sleep time
-            sleep_time = self.sweep.inter_delay/4 - (time.monotonic() - t)
+            sleep_time = self.sweep.inter_delay/2 - (time.monotonic() - t)
             if sleep_time > 0:
                 time.sleep(sleep_time)
                 

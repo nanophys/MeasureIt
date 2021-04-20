@@ -41,8 +41,12 @@ class Daq(Instrument):
         self.cfg_fp = os.getenv('MeasureItHome') + '\\cfg\\daq_output.cfg'
         self.cfg_obj = ConfigParser()
         self.cfg_obj.read(self.cfg_fp)
-        self.cfg_output = self.cfg_obj['OUTPUT']
-
+        if 'OUTPUT' in self.cfg_obj.keys():
+            self.cfg_output = self.cfg_obj['OUTPUT']
+        else:
+            self.cfg_obj['OUTPUT'] = {}
+            self.cfg_output = self.cfg_obj['OUTPUT']
+            
         # For each output channel, create a corresponding DaqAOChannel object
         # If the device is already in use, system will throw a 'DaqError'. If so,
         # let's catch it and close the device, removing the instance from qcodes,

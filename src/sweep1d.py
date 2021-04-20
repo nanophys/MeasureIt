@@ -81,7 +81,7 @@ class Sweep1D(BaseSweep):
             print(f"Sweep is already running.")
             return
 
-        if ramp_to_start is True:
+        if ramp_to_start is True and not isinstance(self.instrument, OxfordInstruments_IPS120) and not isinstance(self.instrument, AMI430):
             print(f"Ramping to our starting setpoint value of {self.begin} {self.set_param.unit}")
             self.ramp_to(self.begin, start_on_finish=True, persist=persist_data, multiplier=ramp_multiplier)
         else:
@@ -105,6 +105,8 @@ class Sweep1D(BaseSweep):
 
         if isinstance(self.instrument, AMI430):
             self.set_param.set(self.set_param.get())
+        elif isinstance(self.instrument, OxfordInstruments_IPS120):
+            self.instrument.activity(0)
 
         super().stop()
 
@@ -204,7 +206,8 @@ class Sweep1D(BaseSweep):
         if self.magnet_initialized is False:
             print("Checking the status of the magnet and switch heater.")
             self.instrument.leave_persistent_mode()
-
+            time.sleep(1)
+            
             # Set the field setpoint
             self.instrument.field_setpoint.set(self.end)
             # Set us to go to setpoint
@@ -219,6 +222,7 @@ class Sweep1D(BaseSweep):
 
             # Set status to 'hold'
             self.instrument.activity(0)
+            time.sleep(1)
             self.magnet_initialized = False
 
             if self.persistent_magnet is True:
@@ -279,7 +283,7 @@ class Sweep1D(BaseSweep):
         self.ramp_sweep = Sweep1D(self.set_param, curr_value, value, multiplier * self.step,
                                   inter_delay=self.inter_delay,
                                   complete_func=partial(self.done_ramping, value, start_on_finish, persist),
-                                  save_data=False, plot_data=True)
+                                  save_data=False, plot_data=self.plot_data)
 
         self.is_running = False
         self.is_ramping = True
