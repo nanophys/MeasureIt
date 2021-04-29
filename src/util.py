@@ -67,6 +67,7 @@ def save_to_csv(ds, fn, use_labels=True):
     for key, value in df.items():
         if use_labels:
             export_key = find_param_label(key)
+            value.index.name = find_param_label(value.index.name)
         else:
             export_key = key
         export_ds[[export_key]] = value[[key]]
