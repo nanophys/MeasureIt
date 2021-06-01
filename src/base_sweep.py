@@ -1,11 +1,12 @@
 # base_sweep.py
 import importlib
 import time, json
-from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
+from PyQt5.QtWidgets import QApplication
 from qcodes.dataset.measurements import Measurement
 from qcodes import Station
 from src.runner_thread import RunnerThread
-from src.plotter_thread import PlotterThread
+from src.plotter_thread import Plotter
 from src.util import _autorange_srs
 from qcodes.dataset.data_set import DataSet
 
@@ -17,6 +18,8 @@ class BaseSweep(QObject):
     """
     update_signal = pyqtSignal(dict)
     dataset_signal = pyqtSignal(dict)
+    reset_plots = pyqtSignal()
+    add_break = pyqtSignal(int)
 
     def __init__(self, set_param=None, inter_delay=0.01, save_data=True, plot_data=True, x_axis_time=1,
                  datasaver=None, parent=None, plot_bin=1):
@@ -51,6 +54,11 @@ class BaseSweep(QObject):
 
         self.persist_data = None
         self.datasaver = datasaver
+
+        self.plotter = None
+        self.plotter_thread = None
+        self.runner = None
+        self.app = QApplication([])
 
         QObject.__init__(self)
 
@@ -175,11 +183,10 @@ class BaseSweep(QObject):
             self.send_updates()
         # Gently shut down the plotter
         if self.plotter is not None:
-            self.plotter.kill_flag = True
-            if not self.plotter.wait(1000):
-                self.plotter.terminate()
+            if not self.plotter_thread.wait(1000):
+                self.plotter_thread.terminate()
                 print('forced plotter to terminate')
-            self.plotter.clear()
+            self.reset_plots.emit()
             self.plotter = None
 
     def check_running(self):
@@ -211,8 +218,12 @@ class BaseSweep(QObject):
 
         # If we don't have a plotter yet want to plot, create it and the figures
         if self.plotter is None and self.plot_data is True:
-            self.plotter = PlotterThread(self, self.plot_bin)
-            self.plotter.create_figs()
+            self.plotter = Plotter(self, self.plot_bin)
+            self.plotter_thread = QThread()
+            #self.plotter.moveToThread(self.plotter_thread)
+            #self.plotter_thread.started.connect(self.plotter.run)
+            self.add_break.connect(self.plotter.add_break)
+            self.reset_plots.connect(self.plotter.reset)
 
         # If we don't have a runner, create it and tell it of the plotter,
         # which is where it will send data to be plotted
@@ -231,14 +242,17 @@ class BaseSweep(QObject):
         self.persist_data = persist_data
 
         # Tells the threads to begin
-        if self.plot_data is True and self.plotter.isRunning() is False:
-            self.plotter.start()
+        if self.plot_data is True and self.plotter_thread.isRunning() is False:
+            self.plotter_thread.start()
+            self.plotter.run()
         elif self.plot_data is True and self.plotter.figs_set is False:
             # print("somehow here")
             self.plotter.create_figs()
         if not self.runner.isRunning():
             self.runner.kill_flag = False
             self.runner.start()
+
+        self.app.exec_()
 
     def resume(self):
         """
@@ -330,7 +344,7 @@ class BaseSweep(QObject):
         Clears the currently showing plots.
         """
         if self.plotter is not None:
-            self.plotter.reset()
+            self.reset_plots.emit()
 
     def set_plot_bin(self, pb):
         self.plot_bin = pb

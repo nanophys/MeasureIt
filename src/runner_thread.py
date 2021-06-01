@@ -11,6 +11,7 @@ class RunnerThread(QThread):
     Class to separate to a new thread the communications with the instruments.
     """
     get_dataset = pyqtSignal(dict)
+    send_data = pyqtSignal(list, int)
 
     def __init__(self, sweep):
         """
@@ -49,6 +50,7 @@ class RunnerThread(QThread):
                       sweep
         """
         self.plotter = plotter
+        self.send_data.connect(self.plotter.add_data)
 
     def _set_parent(self, sweep):
         """
@@ -93,15 +95,15 @@ class RunnerThread(QThread):
                 # Send it to the plotter if we are going
                 # Note: we check again if running, because we won't know if we are
                 # done until we try to step the parameter once more
-                if self.sweep.is_running is True and self.plotter is not None and self.sweep.plot_data is True:
-                    self.plotter.add_data_to_queue(data, self.sweep.direction)
+                if self.plotter is not None and self.sweep.plot_data is True:
+                    self.send_data.emit(data, self.sweep.direction)
 
             # Smart sleep, by checking if the whole process has taken longer than
             # our sleep time
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
 
             if sleep_time > 0:
-                time.sleep(sleep_time)
+                QThread.sleep(sleep_time)
 
             if self.flush_flag is True and self.sweep.save_data is True:
                 self.datasaver.flush_data_to_database()

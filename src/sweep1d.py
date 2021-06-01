@@ -16,6 +16,8 @@ class Sweep1D(BaseSweep):
 
     # Signal for when the sweep is completed
     completed = pyqtSignal()
+    update_signal = pyqtSignal(dict)
+    add_break = pyqtSignal(int)
 
     def __init__(self, set_param, start, stop, step, bidirectional=False, runner=None, plotter=None, datasaver=None,
                  inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=0, parent=None,
@@ -252,7 +254,7 @@ class Sweep1D(BaseSweep):
         self.setpoint -= self.step
 
         if self.plot_data is True and self.plotter is not None:
-            self.plotter.add_break(self.direction)
+            self.add_break.emit(self.direction)
 
     def ramp_to(self, value, start_on_finish=False, persist=None, multiplier=1):
         """
