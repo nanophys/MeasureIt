@@ -2,13 +2,11 @@
 import importlib
 import time, json
 from PyQt5.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
-from PyQt5.QtWidgets import QApplication
 from qcodes.dataset.measurements import Measurement
 from qcodes import Station
 from src.runner_thread import RunnerThread
 from src.plotter_thread import Plotter
-from src.util import _autorange_srs
-from qcodes.dataset.data_set import DataSet
+from src.util import _autorange_srs, safe_get, safe_set
 
 
 class BaseSweep(QObject):
@@ -58,7 +56,6 @@ class BaseSweep(QObject):
         self.plotter = None
         self.plotter_thread = None
         self.runner = None
-        self.app = QApplication([])
 
         QObject.__init__(self)
 
@@ -220,7 +217,8 @@ class BaseSweep(QObject):
         if self.plotter is None and self.plot_data is True:
             self.plotter = Plotter(self, self.plot_bin)
             self.plotter_thread = QThread()
-            #self.plotter.moveToThread(self.plotter_thread)
+            self.plotter.moveToThread(self.plotter_thread)
+            self.plotter.create_figs()
             #self.plotter_thread.started.connect(self.plotter.run)
             self.add_break.connect(self.plotter.add_break)
             self.reset_plots.connect(self.plotter.reset)
@@ -244,15 +242,12 @@ class BaseSweep(QObject):
         # Tells the threads to begin
         if self.plot_data is True and self.plotter_thread.isRunning() is False:
             self.plotter_thread.start()
-            self.plotter.run()
         elif self.plot_data is True and self.plotter.figs_set is False:
             # print("somehow here")
             self.plotter.create_figs()
         if not self.runner.isRunning():
             self.runner.kill_flag = False
             self.runner.start()
-
-        self.app.exec_()
 
     def resume(self):
         """
@@ -311,7 +306,7 @@ class BaseSweep(QObject):
 
         for i, p in enumerate(self._params):
             if p is not persist_param:
-                v = p.get()
+                v = safe_get(p)
                 data.append((p, v))
 
         if self.save_data and self.is_running:
@@ -319,7 +314,6 @@ class BaseSweep(QObject):
 
         self.send_updates()
 
-        # print(data)
         return data
 
     def send_updates(self, no_sp=False):

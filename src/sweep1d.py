@@ -2,8 +2,8 @@
 
 import time
 from src.base_sweep import BaseSweep
+from src.util import safe_set, ParameterException
 from PyQt5.QtCore import pyqtSignal, pyqtSlot
-from qcodes.dataset.data_set import DataSet
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes_contrib_drivers.drivers.Oxford.IPS120 import OxfordInstruments_IPS120
 from functools import partial
@@ -133,7 +133,7 @@ class Sweep1D(BaseSweep):
         # If we aren't at the end, keep going
         if abs(self.setpoint - self.end) >= abs(self.step / 2):
             self.setpoint = self.setpoint + self.step
-            self.set_param.set(self.setpoint)
+            safe_set(self.set_param, self.setpoint)
             return [(self.set_param, self.setpoint)]
         # If we want to go both ways, we flip the start and stop, and run again
         elif self.continuous:

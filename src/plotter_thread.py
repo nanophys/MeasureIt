@@ -142,6 +142,7 @@ class Plotter(QObject):
 
         self.cid = self.fig.canvas.mpl_connect('key_press_event', self.key_pressed)
 
+        self.fig.canvas.draw()
         plt.show(block=False)
 
     @pyqtSlot(list, int)
@@ -159,6 +160,7 @@ class Plotter(QObject):
     def update_plots(self, force=False):
         # Remove all the data points from the deque
         updates = 0
+
         if (len(self.data_queue) >= self.plot_bin or force is True) and self.figs_set is True:
             while len(self.data_queue) > 0:
                 temp = self.data_queue.popleft()
