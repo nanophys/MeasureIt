@@ -1,6 +1,7 @@
 # runner_thread.py
 
 from PyQt5.QtCore import QThread, pyqtSignal
+from src.util import ParameterException
 import time
 
 from qcodes.dataset.data_set import DataSet
@@ -87,7 +88,16 @@ class RunnerThread(QThread):
 
             if self.sweep.is_running is True:
                 # Get the new data
-                data = self.sweep.update_values()
+                try:
+                    data = self.sweep.update_values()
+                except ParameterException as e:
+                    self.sweep.is_running = False
+                    if e.set is True:
+                        print(f"Could not set {e.p.label} to {e.sp}.", e.message)
+                    else:
+                        print(f"Could not get {e.p.label}.", e.message)
+                    continue
+
                 # Check if we've hit the end- update_values will return None
                 if data is None:
                     continue
@@ -103,7 +113,7 @@ class RunnerThread(QThread):
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
 
             if sleep_time > 0:
-                QThread.sleep(sleep_time)
+                time.sleep(sleep_time)
 
             if self.flush_flag is True and self.sweep.save_data is True:
                 self.datasaver.flush_data_to_database()

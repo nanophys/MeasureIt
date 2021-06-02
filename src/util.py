@@ -22,6 +22,41 @@ unit_dict = {
     '': 10 ** 0
 }
 
+class ParameterException(Exception):
+    def __init__(self, p, set, message, sp=None):
+        self.p = p
+        self.set = set
+        self.message = message
+        self.sp = sp
+        super().__init__(self)
+
+def safe_set(p, value, last_try=False):
+    ret = None
+    try:
+        ret = p.set(value)
+    except Exception as e:
+        if last_try is False:
+            print(f"Couldn't set {p.name} to {value}. Trying again.", e)
+            time.sleep(1)
+            return safe_set(p, value, last_try=True)
+        else:
+            print(f"Still couldn't set {p.name} to {value}. Giving up.", e)
+            raise ParameterException(p, True, print(e), value) from e
+    return ret
+
+def safe_get(p, last_try=False):
+    ret = None
+    try:
+        ret = p.get()
+    except Exception as e:
+        if last_try is False:
+            print(f"Couldn't get {p.name}. Trying again.", e)
+            time.sleep(1)
+            return safe_get(p, last_try=True)
+        else:
+            print(f"Still couldn't get {p.name}. Giving up.", e)
+            raise ParameterException(p, False, print(e)) from e
+    return ret
 
 def connect_to_station(config_file=None):
     if os.path.isfile(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json'):
