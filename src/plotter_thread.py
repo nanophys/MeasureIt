@@ -3,7 +3,6 @@
 from PyQt5.QtCore import QObject, pyqtSlot
 from collections import deque
 import math
-import time
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -27,6 +26,8 @@ class Plotter(QObject):
             axesline - same as above for following params
             axes - same as above for following params
         """
+        QObject.__init__(self)
+
         self.sweep = sweep
         self.data_queue = deque([])
         self.setaxline = setaxline
@@ -38,8 +39,6 @@ class Plotter(QObject):
         self.figs_set = False
         self.kill_flag = False
         self.plot_bin = plot_bin
-
-        QObject.__init__(self)
 
     def __del__(self):
         """
@@ -62,11 +61,12 @@ class Plotter(QObject):
 
     @pyqtSlot(int)
     def add_break(self, direction):
-        self.setaxline.set_xdata(np.append(self.setaxline.get_xdata(), np.nan))
-        self.setaxline.set_ydata(np.append(self.setaxline.get_ydata(), np.nan))
-        for i, p in enumerate(self.sweep._params):
-            self.axesline[i][direction].set_xdata(np.append(self.axesline[i][direction].get_xdata(), np.nan))
-            self.axesline[i][direction].set_ydata(np.append(self.axesline[i][direction].get_ydata(), np.nan))
+        break_data = [('time', np.nan)]
+        if self.sweep.set_param is not None:
+            break_data.append((self.sweep.set_param, np.nan))
+        for p in self.sweep._params:
+            break_data.append((p, np.nan))
+        self.data_queue.append((break_data, direction))
 
     def create_figs(self):
         """
