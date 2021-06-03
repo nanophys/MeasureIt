@@ -2,22 +2,17 @@
 
 import time
 from src.base_sweep import BaseSweep
-from src.util import safe_set, ParameterException
-from PyQt5.QtCore import pyqtSignal, pyqtSlot
+from src.util import safe_set
+from PyQt5.QtCore import QObject, pyqtSlot
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes_contrib_drivers.drivers.Oxford.IPS120 import OxfordInstruments_IPS120
 from functools import partial
 
 
-class Sweep1D(BaseSweep):
+class Sweep1D(BaseSweep, QObject):
     """
     Class extending BaseSweep to sweep one parameter.
     """
-
-    # Signal for when the sweep is completed
-    completed = pyqtSignal()
-    update_signal = pyqtSignal(dict)
-    add_break = pyqtSignal(int)
 
     def __init__(self, set_param, start, stop, step, bidirectional=False, runner=None, plotter=None, datasaver=None,
                  inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=0, parent=None,
@@ -34,8 +29,10 @@ class Sweep1D(BaseSweep):
             x_axis_time - 1 for plotting parameters against time, 0 for set_param
         """
         # Initialize the BaseSweep
-        super().__init__(set_param=set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data,
-                         x_axis_time=x_axis_time, datasaver=datasaver, parent=parent, plot_bin=plot_bin)
+        BaseSweep.__init__(self, set_param=set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data,
+                           x_axis_time=x_axis_time, datasaver=datasaver, plot_bin=plot_bin, parent=parent,
+                           complete_func=complete_func)
+        QObject.__init__(self)
 
         self.begin = start
         self.end = stop
@@ -59,11 +56,6 @@ class Sweep1D(BaseSweep):
         self.persistent_magnet = persistent_magnet
         self.instrument = self.set_param.instrument
 
-        # Set the function to call when we are finished
-        if complete_func is None:
-            complete_func = self.no_change
-        self.completed.connect(complete_func)
-
         self.magnet_initialized = False
 
     def __str__(self):
@@ -83,7 +75,8 @@ class Sweep1D(BaseSweep):
             print(f"Sweep is already running.")
             return
 
-        if ramp_to_start is True and not isinstance(self.instrument, OxfordInstruments_IPS120) and not isinstance(self.instrument, AMI430):
+        if ramp_to_start is True and not isinstance(self.instrument, OxfordInstruments_IPS120) and not isinstance(
+                self.instrument, AMI430):
             print(f"Ramping to our starting setpoint value of {self.begin} {self.set_param.unit}")
             self.ramp_to(self.begin, start_on_finish=True, persist=persist_data, multiplier=ramp_multiplier)
         else:
@@ -209,7 +202,7 @@ class Sweep1D(BaseSweep):
             print("Checking the status of the magnet and switch heater.")
             self.instrument.leave_persistent_mode()
             time.sleep(1)
-            
+
             # Set the field setpoint
             self.instrument.field_setpoint.set(self.end)
             # Set us to go to setpoint

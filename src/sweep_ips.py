@@ -1,35 +1,30 @@
 # sweep_ips.py
 
 from src.sweep0d import Sweep0D
-from PyQt5.QtCore import QThread, pyqtSignal
+from src.util import _autorange_srs
+from PyQt5.QtCore import QObject
 import time
 
-class SweepIPS(Sweep0D):
-    
-    # Signal for when the sweep is completed
-    completed = pyqtSignal()
-    
-    def __init__(self, magnet, setpoint, persistent_magnet=False, complete_func=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
+
+class SweepIPS(Sweep0D, QObject):
+
+    def __init__(self, magnet, setpoint, persistent_magnet=False, *args, **kwargs):
+        Sweep0D.__init__(self, *args, **kwargs)
+        QObject.__init__(self)
+
         self.magnet = magnet
         self.setpoint = setpoint
         self.persistent_magnet = persistent_magnet
-        
+
         self.initialized = False
         self.follow_param(self.magnet.field)
-        
-        # Set the function to call when we are finished
-        if complete_func is None:
-            complete_func = self.no_change
-        self.completed.connect(complete_func)
-        
+
     def __str__(self):
         return f"Sweeping IPS to {self.setpoint} T."
 
     def __repr__(self):
         return f"SweepIPS({self.setpoint} T)"
-    
+
     def update_values(self):
         """
         Iterates our data points, changing our setpoint if we are sweeping, and refreshing
@@ -44,48 +39,38 @@ class SweepIPS(Sweep0D):
         if not self.initialized:
             print("Checking the status of the magnet and switch heater.")
             self.magnet.leave_persistent_mode()
-            QThread.sleep(1)
-            
+            time.sleep(1)
+
             # Set the field setpoint
             self.magnet.field_setpoint.set(self.setpoint)
-            QThread.sleep(0.5)
+            time.sleep(0.5)
             # Set us to go to setpoint
             self.magnet.activity(1)
             self.initialized = True
 
         data = []
         t = time.monotonic() - self.t0
-        
-        if t >= self.max_time:
-            if self.save_data:
-                self.runner.datasaver.flush_data_to_database()
-            self.is_running = False
-            print(f"Done with the sweep, t={t} s")
-            self.completed.emit()
 
-            return None           
-        else:
-            data.append(('time', t))
-        
-        # Grab our data
-        data_pair = (self.magnet.field, self.magnet.field.get())
+        data.append(('time', t))
+        data.append(self.magnet.field, self.magnet.field.get())
+
         # Check our stop conditions- being at the end point
         if self.magnet.mode2() == 'At rest':
             self.is_running = False
             if self.save_data:
                 self.runner.datasaver.flush_data_to_database()
-            print(f"Done with the sweep, t={t} s")
-            
+            print(f"Done with the sweep, B={self.magnet.field.get():.2f} T, t={t:.2f} s.")
+
             # Set status to 'hold'
             self.magnet.activity(0)
-            QThread.sleep(1)
+            time.sleep(1)
             self.magnet_initialized = False
 
             print("Done with the sweep!")
-            
+
             if self.persistent_magnet is True:
                 self.magnet.set_persistent()
-                
+
             self.completed.emit()
 
         persist_param = None

@@ -1,21 +1,18 @@
 # sweep0d.py
 
 import time
-import src.base_sweep
 from src.base_sweep import BaseSweep
-from PyQt5.QtCore import pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QObject
+from src.util import _autorange_srs
 
 
-class Sweep0D(BaseSweep):
+class Sweep0D(BaseSweep, QObject):
     """
     Class for the following/live plotting, i.e. "0-D sweep" class. As of now, is just an extension of
     BaseSweep, but has been separated for future convenience.
     """
 
-    # Signal for when the sweep is completed
-    completed = pyqtSignal()
-
-    def __init__(self, runner=None, plotter=None, max_time=1e6, complete_func=None, *args, **kwargs):
+    def __init__(self, max_time=1e6, *args, **kwargs):
         """
         Initialization class. Simply calls the BaseSweep initialization, and saves a few extra variables.
         
@@ -25,19 +22,13 @@ class Sweep0D(BaseSweep):
                       of creating it's own automatically.
             max_time - int counting seconds of the amount of time to run the sweep
         """
-        super().__init__(None, *args, **kwargs)
+        BaseSweep.__init__(self, set_param=None, *args, **kwargs)
+        QObject.__init__(self)
 
-        self.runner = runner
-        self.plotter = plotter
         # Direction variable, not used here, but kept to maintain consistency with Sweep1D.
         self.direction = 0
         # Amount of time to run
         self.max_time = max_time
-
-        # Set the function to call when we are finished
-        if complete_func is None:
-            complete_func = self.no_change
-        self.completed.connect(complete_func)
 
     def __str__(self):
         if self.max_time is None:

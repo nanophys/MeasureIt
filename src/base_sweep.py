@@ -16,11 +16,12 @@ class BaseSweep(QObject):
     """
     update_signal = pyqtSignal(dict)
     dataset_signal = pyqtSignal(dict)
-    reset_plots = pyqtSignal()
+    reset_plot = pyqtSignal()
     add_break = pyqtSignal(int)
+    completed = pyqtSignal()
 
     def __init__(self, set_param=None, inter_delay=0.01, save_data=True, plot_data=True, x_axis_time=1,
-                 datasaver=None, parent=None, plot_bin=1):
+                 datasaver=None, parent=None, plot_bin=1, complete_func=None):
         """
         Initializer for both classes, called by super().__init__() in Sweep0D and Sweep1D classes.
         Simply initializes the variables and flags.
@@ -31,7 +32,8 @@ class BaseSweep(QObject):
             save_data - Flag used to determine if the data should be saved or not
             plot_data - Flag to determine if we should live-plot data
         """
-        super(QObject, self).__init__()
+        QObject.__init__(self)
+
         self._params = []
         self._srs = []
         self.set_param = set_param
@@ -53,11 +55,14 @@ class BaseSweep(QObject):
         self.persist_data = None
         self.datasaver = datasaver
 
+        # Set the function to call when we are finished
+        if complete_func is None:
+            complete_func = self.no_change
+        self.completed.connect(complete_func)
+
         self.plotter = None
         self.plotter_thread = None
         self.runner = None
-
-        QObject.__init__(self)
 
     @classmethod
     def init_from_json(cls, fn, station):
@@ -183,7 +188,7 @@ class BaseSweep(QObject):
             if not self.plotter_thread.wait(1000):
                 self.plotter_thread.terminate()
                 print('forced plotter to terminate')
-            self.reset_plots.emit()
+            self.close_plots()
             self.plotter = None
 
     def check_running(self):
@@ -221,7 +226,7 @@ class BaseSweep(QObject):
             self.plotter.create_figs()
             #self.plotter_thread.started.connect(self.plotter.run)
             self.add_break.connect(self.plotter.add_break)
-            self.reset_plots.connect(self.plotter.reset)
+            self.reset_plot.connect(self.plotter.reset)
 
         # If we don't have a runner, create it and tell it of the plotter,
         # which is where it will send data to be plotted
@@ -333,12 +338,19 @@ class BaseSweep(QObject):
 
         self.update_signal.emit(update_dict)
 
-    def clear_plot(self):
+    def reset_plots(self):
         """
         Clears the currently showing plots.
         """
         if self.plotter is not None:
-            self.reset_plots.emit()
+            self.reset_plot.emit()
+
+    def close_plots(self):
+        """
+        Close the plotter
+        """
+        if self.plotter is not None:
+            self.plotter.clear()
 
     def set_plot_bin(self, pb):
         self.plot_bin = pb

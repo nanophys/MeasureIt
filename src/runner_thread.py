@@ -4,8 +4,6 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from src.util import ParameterException
 import time
 
-from qcodes.dataset.data_set import DataSet
-
 
 class RunnerThread(QThread):
     """
@@ -23,22 +21,21 @@ class RunnerThread(QThread):
             sweep - Object of type BaseSweep (or its children) that is controlling
                     this thread
         """
+        QThread.__init__(self)
+
         self.sweep = sweep
         self.plotter = None
         self.datasaver = None
+        self.dataset = None
         self.db_set = False
         self.kill_flag = False
         self.flush_flag = False
         self.runner = None
 
-        QThread.__init__(self)
-
     def __del__(self):
         """
         Standard destructor.
         """
-        # if self.runner is not None:
-        #    self.runner.__exit__()
         self.wait()
 
     def add_plotter(self, plotter):
@@ -47,8 +44,7 @@ class RunnerThread(QThread):
         data for plotting.
         
         Arguments:
-            plotter - PlotterThread object, should be same plotter created by parent
-                      sweep
+            plotter - PlotterThread object, should be same plotter created by parent sweep
         """
         self.plotter = plotter
         self.send_data.connect(self.plotter.add_data)

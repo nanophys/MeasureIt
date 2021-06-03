@@ -6,16 +6,15 @@ from functools import partial
 from src.base_sweep import BaseSweep
 from src.sweep1d import Sweep1D
 from src.heatmap_thread import HeatmapThread
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import QObject
 
 
-class Sweep2D(BaseSweep):
+class Sweep2D(BaseSweep, QObject):
     """
     A 2-D Sweep of QCoDeS Parameters. This class runs by setting its outside parameter, then running
     an inner Sweep1D object, which handles all the saving of data and communications through the
     Thread objects. 
     """
-    completed = pyqtSignal()
 
     def __init__(self, in_params, out_params, inter_delay=0.1, outer_delay=1, save_data=True, plot_data=True,
                  complete_func=None, update_func=None, plot_bin=1, runner=None, plotter=None, back_multiplier=1):
@@ -62,8 +61,9 @@ class Sweep2D(BaseSweep):
             self.out_step = (-1) * abs(self.out_step)
 
         # Initialize the BaseSweep
-        super().__init__(set_param=self.set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data,
-                         plot_bin=plot_bin)
+        BaseSweep.__init__(self, set_param=self.set_param, inter_delay=inter_delay, save_data=save_data,
+                           plot_data=plot_data, plot_bin=plot_bin, complete_func=complete_func)
+        QObject.__init__(self)
 
         # Create the inner sweep object
         self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
@@ -85,11 +85,6 @@ class Sweep2D(BaseSweep):
         self.inner_ramp = False
         self.outer_ramp = False
         self.ramp_sweep = None
-
-        # Set the function to call when the 2D sweep is finished
-        if complete_func is None:
-            complete_func = self.no_change
-        self.completed.connect(complete_func)
 
         # Set the function to call when the inner sweep finishes
         if update_func is None:
@@ -213,12 +208,12 @@ class Sweep2D(BaseSweep):
             # Stop the function from running any further, as we don't want to check anything else
             return
 
-        #print("trying to update heatmap")
+        # print("trying to update heatmap")
         # Update our heatmap!
         lines = self.in_sweep.plotter.axes[1].get_lines()
         self.heatmap_plotter.add_lines(lines)
         self.heatmap_plotter.start()
-        #print("past lines")
+        # print("past lines")
         # Check our update condition
         self.update_rule(self.in_sweep, lines)
         #        self.in_sweep.ramp_to(self.in_sweep.begin, start_on_finish=False)
