@@ -17,7 +17,7 @@ from queue import Queue
 sys.path.append(os.environ['MeasureItHome'])
 import src
 from src.daq_driver import Daq, DaqAOChannel, DaqAIChannel
-from src.util import _value_parser, _name_parser, save_to_csv
+from src.util import _value_parser, _name_parser, save_to_csv, safe_set, safe_get, ParameterException
 from src.base_sweep import BaseSweep
 from src.sweep0d import Sweep0D
 from src.sweep1d import Sweep1D
@@ -299,7 +299,7 @@ class UImain(QtWidgets.QMainWindow):
 
             updateButton = QPushButton("Get")
             updateButton.clicked.connect(lambda checked, m=m, p=p, valueitem=valueitem:
-                                         valueitem.setText(str(p.get())))
+                                         valueitem.setText(safe_get(p)))
             self.ui.followParamTable.setCellWidget(m, 4, updateButton)
 
         # Set up the output parameter table
@@ -330,7 +330,7 @@ class UImain(QtWidgets.QMainWindow):
 
             getButton = QPushButton("Get")
             getButton.clicked.connect(lambda checked, p=p, valueitem=valueitem:
-                                      valueitem.setText(str(p.get())))
+                                      valueitem.setText(self.get_param(p)))
             self.ui.outputParamTable.setCellWidget(n, 4, getButton)
 
             self.ui.scanParameterBox.addItem(p.label, p)
@@ -342,22 +342,29 @@ class UImain(QtWidgets.QMainWindow):
     def set_param(self, p, valueitem):
         try:
             if "Int" in repr(p.vals) or "Number" in repr(p.vals):
-                p.set(_value_parser(valueitem.text()))
+                safe_set(p, _value_parser(valueitem.text()))
             elif "String" in repr(p.vals):
-                p.set(str(valueitem.text()))
+                safe_set(p, str(valueitem.text()))
             elif "Bool" in repr(p.vals) or 'False' in repr(p.vals):
                 value = valueitem.text()
-                if value == "false" or value == "False":
-                    p.set(False)
-                elif value == "true" or value == "True":
-                    p.set(True)
+                if value == "false" or value == "False" or value == "0":
+                    safe_set(p, False)
+                elif value == "true" or value == "True" or value == "1":
+                    safe_set(p, True)
                 else:
-                    p.set(value)
+                    safe_set(p, value)
             else:
-                p.set(valueitem.text())
-        except Exception as e:
-            self.show_error('Error', 'Could not set the Parameter to the desired value. Check the command and try '
+                safe_set(p, valueitem.text())
+        except ParameterException as e:
+            self.show_error('Error', f'Could not set {p.label} to {valueitem.text()}. Check the command and try '
                                      'again.', e)
+
+    def get_param(self, p):
+        try:
+            return str(safe_get(p))
+        except ParameterException as e:
+            self.show_error('Error', f'Could not get {p.label}. Check the exception and try again.', e)
+            return ''
 
     def update_labels(self, p, newlabel):
         p.label = newlabel
