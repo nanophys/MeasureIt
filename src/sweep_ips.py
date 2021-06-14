@@ -52,7 +52,6 @@ class SweepIPS(Sweep0D, QObject):
         t = time.monotonic() - self.t0
 
         data.append(('time', t))
-        data.append(self.magnet.field, self.magnet.field.get())
 
         # Check our stop conditions- being at the end point
         if self.magnet.mode2() == 'At rest':
