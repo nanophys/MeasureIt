@@ -3,19 +3,15 @@ import math
 import time
 from functools import partial
 
-import numpy as np
-from PyQt5.QtCore import pyqtSlot, pyqtSignal
+from PyQt5.QtCore import pyqtSlot, QObject
 
 from src.base_sweep import BaseSweep
-from src.sweep1d import Sweep1D
 from src.util import _autorange_srs
 
 
-class SimulSweep(BaseSweep):
-    # Signal for when the sweep is completed
-    completed = pyqtSignal()
+class SimulSweep(BaseSweep, QObject):
 
-    def __init__(self, _p, bidirectional=False, continual=False, complete_func=None, *args, **kwargs):
+    def __init__(self, _p, bidirectional=False, continual=False, *args, **kwargs):
         if len(_p.keys()) < 1 or not all(isinstance(p, dict) for p in _p.values()):
             raise ValueError('Must pass at least one Parameter and the associated values as dictionaries.')
 
@@ -33,7 +29,8 @@ class SimulSweep(BaseSweep):
         sp = list(_p.keys())[0]
         # Force time to be on the x axis
         kwargs['x_axis_time'] = 1
-        super().__init__(sp, *args, **kwargs)
+        BaseSweep.__init__(self, sp, *args, **kwargs)
+        QObject.__init__(self)
 
         for p, v in self.set_params_dict.items():
             self.simul_params.append(p)
@@ -57,11 +54,6 @@ class SimulSweep(BaseSweep):
 
         self.follow_param([p for p in self.simul_params if p is not self.set_param])
         self.persist_data = []
-
-        # Set the function to call when we are finished
-        if complete_func is None:
-            complete_func = self.no_change
-        self.completed.connect(complete_func)
 
     def start(self, persist_data=None, ramp_to_start=True, ramp_multiplier=1):
         """
