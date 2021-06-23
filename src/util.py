@@ -22,13 +22,15 @@ unit_dict = {
     '': 10 ** 0
 }
 
+
 class ParameterException(Exception):
-    def __init__(self, p, set, message, sp=None):
-        self.p = p
-        self.set = set
+    def __init__(self, message):
         self.message = message
-        self.sp = sp
         super().__init__(self)
+
+    def __str__(self):
+        return self.message
+
 
 def safe_set(p, value, last_try=False):
     ret = None
@@ -41,8 +43,9 @@ def safe_set(p, value, last_try=False):
             return safe_set(p, value, last_try=True)
         else:
             print(f"Still couldn't set {p.name} to {value}. Giving up.", e)
-            raise ParameterException(p, True, print(e), value) from e
+            raise ParameterException(f"Couldn't set {p.name} to {value}.")
     return ret
+
 
 def safe_get(p, last_try=False):
     ret = None
@@ -55,8 +58,9 @@ def safe_get(p, last_try=False):
             return safe_get(p, last_try=True)
         else:
             print(f"Still couldn't get {p.name}. Giving up.", e)
-            raise ParameterException(p, False, print(e)) from e
+            raise ParameterException(f'Could not get {p.name}.')
     return ret
+
 
 def connect_to_station(config_file=None):
     if os.path.isfile(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json'):
@@ -198,7 +202,7 @@ def _value_parser(value):
     and a single char
     """
     if len(str(value)) == 0:
-        raise ValueError
+        raise ParameterException('No value given.')
         return
 
     value = str(value).strip()
@@ -212,7 +216,7 @@ def _value_parser(value):
 
     parsedVal = regex.search(value)
     if not parsedVal:
-        raise ValueError
+        raise ParameterException(f'Could not parse the input "{value}".')
         return
 
     parsedNum = float(parsedVal.groups(' ')[0])
