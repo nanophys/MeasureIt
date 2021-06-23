@@ -286,11 +286,7 @@ class UImain(QtWidgets.QMainWindow):
                                               self.update_labels(p, labelitem.text()))
             self.ui.followParamTable.setCellWidget(m, 1, labelitem)
 
-            try:
-                valueitem = QTableWidgetItem(str(p.get()))
-            except Exception as e:
-                self.show_error('Error', f'Could not get the value for {p.label}.', e)
-                valueitem = QTableWidgetItem('')
+            valueitem = QTableWidgetItem(str(self.get_param(p)))
             self.ui.followParamTable.setItem(m, 2, valueitem)
 
             includeBox = QCheckBox()
@@ -299,7 +295,7 @@ class UImain(QtWidgets.QMainWindow):
 
             updateButton = QPushButton("Get")
             updateButton.clicked.connect(lambda checked, m=m, p=p, valueitem=valueitem:
-                                         valueitem.setText(safe_get(p)))
+                                         valueitem.setText(str(self.get_param(p))))
             self.ui.followParamTable.setCellWidget(m, 4, updateButton)
 
         # Set up the output parameter table
@@ -320,7 +316,7 @@ class UImain(QtWidgets.QMainWindow):
                                               self.update_labels(p, labelitem.text()))
             self.ui.outputParamTable.setCellWidget(n, 1, labelitem)
 
-            valueitem = QLineEdit(str(p.get()))
+            valueitem = QLineEdit(str(self.get_param(p)))
             self.ui.outputParamTable.setCellWidget(n, 2, valueitem)
 
             setButton = QPushButton("Set")
@@ -330,7 +326,7 @@ class UImain(QtWidgets.QMainWindow):
 
             getButton = QPushButton("Get")
             getButton.clicked.connect(lambda checked, p=p, valueitem=valueitem:
-                                      valueitem.setText(self.get_param(p)))
+                                      valueitem.setText(str(self.get_param(p))))
             self.ui.outputParamTable.setCellWidget(n, 4, getButton)
 
             self.ui.scanParameterBox.addItem(p.label, p)
@@ -355,9 +351,9 @@ class UImain(QtWidgets.QMainWindow):
                     safe_set(p, value)
             else:
                 safe_set(p, valueitem.text())
-        except ParameterException as e:
+        except ParameterException:
             self.show_error('Error', f'Could not set {p.label} to {valueitem.text()}. Check the command and try '
-                                     'again.', e)
+                                     'again.')
 
     def get_param(self, p):
         try:
