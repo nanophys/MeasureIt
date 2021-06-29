@@ -5,8 +5,8 @@ from functools import partial
 
 from src.base_sweep import BaseSweep
 from src.sweep1d import Sweep1D
-from src.heatmap_thread import HeatmapThread
-from PyQt5.QtCore import QObject
+from src.heatmap_thread import Heatmap
+from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 
 class Sweep2D(BaseSweep, QObject):
@@ -15,6 +15,8 @@ class Sweep2D(BaseSweep, QObject):
     an inner Sweep1D object, which handles all the saving of data and communications through the
     Thread objects. 
     """
+    add_heatmap_lines = pyqtSignal(list)
+    clear_heatmap_plot = pyqtSignal()
 
     def __init__(self, in_params, out_params, inter_delay=0.1, outer_delay=1, save_data=True, plot_data=True,
                  complete_func=None, update_func=None, plot_bin=1, runner=None, plotter=None, back_multiplier=1):
@@ -61,9 +63,9 @@ class Sweep2D(BaseSweep, QObject):
             self.out_step = (-1) * abs(self.out_step)
 
         # Initialize the BaseSweep
+        QObject.__init__(self)
         BaseSweep.__init__(self, set_param=self.set_param, inter_delay=inter_delay, save_data=save_data,
                            plot_data=plot_data, plot_bin=plot_bin, complete_func=complete_func)
-        QObject.__init__(self)
 
         # Create the inner sweep object
         self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
@@ -167,8 +169,13 @@ class Sweep2D(BaseSweep, QObject):
 
             if self.heatmap_plotter is None:
                 # Initialize our heatmap
-                self.heatmap_plotter = HeatmapThread(self)
+                self.heatmap_plotter = Heatmap(self)
+                self.heatmap_thread = QThread()
+                self.heatmap_plotter.moveToThread(self.heatmap_thread)
                 self.heatmap_plotter.create_figs()
+                self.add_heatmap_lines.connect(self.heatmap_plotter.add_lines)
+                self.clear_heatmap_plot.connect(self.heatmap_plotter.clear)
+                self.heatmap_thread.start()
 
             self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
 
@@ -211,9 +218,8 @@ class Sweep2D(BaseSweep, QObject):
         # print("trying to update heatmap")
         # Update our heatmap!
         lines = self.in_sweep.plotter.axes[1].get_lines()
-        self.heatmap_plotter.add_lines(lines)
-        self.heatmap_plotter.start()
-        # print("past lines")
+        self.add_heatmap_lines.emit(lines)
+
         # Check our update condition
         self.update_rule(self.in_sweep, lines)
         #        self.in_sweep.ramp_to(self.in_sweep.begin, start_on_finish=False)
@@ -222,16 +228,15 @@ class Sweep2D(BaseSweep, QObject):
         #            time.sleep(0.5)
 
         # If we aren't at the end, keep going
-        if abs(self.out_setpoint - self.out_stop) >= abs(self.out_step / 2):
+        if abs(self.out_setpoint - self.out_stop) - abs(self.out_step / 2) > abs(self.out_step) * 1e-4:
             self.out_setpoint = self.out_setpoint + self.out_step
             time.sleep(self.outer_delay)
             print(f"Setting {self.set_param.label} to {self.out_setpoint} {self.set_param.unit}")
             self.set_param.set(self.out_setpoint)
             time.sleep(self.outer_delay)
             # Reset our plots
-            self.in_sweep.plotter.reset()
-            self.in_sweep.start()
-            # self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
+            self.in_sweep.reset_plots()
+            self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
         # If neither of the above are triggered, it means we are at the end of the sweep
         else:
             self.is_running = False
@@ -266,10 +271,11 @@ class Sweep2D(BaseSweep, QObject):
 
         # Gently shut down the heatmap
         if self.heatmap_plotter is not None:
-            if not self.heatmap_plotter.wait(1000):
-                self.heatmap_plotter.terminate()
+            self.clear_heatmap_plot.emit()
+            self.heatmap_thread.exit()
+            if not self.heatmap_thread.wait(1000):
+                self.heatmap_thread.terminate()
                 print('forced heatmap to terminate')
-            self.heatmap_plotter.clear()
             self.heatmap_plotter = None
 
     def ramp_to(self, value, start_on_finish=False, multiplier=1):
