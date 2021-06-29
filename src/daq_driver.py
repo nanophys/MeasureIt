@@ -1,7 +1,10 @@
 # daq_driver.py
 
-import nidaqmx, time, os
 from configparser import ConfigParser
+
+import nidaqmx
+import os
+import time
 from qcodes import (Instrument, validators as vals)
 from qcodes.instrument.channel import InstrumentChannel
 
@@ -46,7 +49,7 @@ class Daq(Instrument):
         else:
             self.cfg_obj['OUTPUT'] = {}
             self.cfg_output = self.cfg_obj['OUTPUT']
-            
+
         # For each output channel, create a corresponding DaqAOChannel object
         # If the device is already in use, system will throw a 'DaqError'. If so,
         # let's catch it and close the device, removing the instance from qcodes,
@@ -84,7 +87,7 @@ class Daq(Instrument):
             self.close()
             raise e
 
-        print(f"Connected to: NI DAQ {self.device.product_type} ({self._address}) in {(time.time()-start_time):.2f}s")
+        print(f"Connected to: NI DAQ {self.device.product_type} ({self._address}) in {(time.time() - start_time):.2f}s")
         self.log.info(f"Connected to instrument: {self._address}")
 
     def get_ao_num(self):
@@ -280,36 +283,37 @@ class DaqAOChannel(InstrumentChannel):
         self.write_task = None
         self.read_task = None
         self.channel = None
+        self.channel_handle = None
 
         # Add a Parameter for the output gain, set the unit to 'V/V' as default
-        self.add_parameter('gain_factor',
-                           get_cmd=self.get_gain_factor,
-                           set_cmd=self.set_gain_factor,
-                           label=f'{self.my_name} Gain factor',
-                           unit='V/V'
-                           )
+        # self.add_parameter('gain_factor',
+        #                   get_cmd=self.get_gain_factor,
+        #                   set_cmd=self.set_gain_factor,
+        #                   label=f'{self.my_name} Gain factor',
+        #                   unit='V/V'
+        #                   )
 
         # Create the Parameter for the units of gain
-        self.add_parameter('gain_units',
-                           set_cmd=self.set_gain_units,
-                           label=f'{self.my_name} Gain units',
-                           )
+        # self.add_parameter('gain_units',
+        #                   set_cmd=self.set_gain_units,
+        #                   label=f'{self.my_name} Gain units',
+        #                   )
 
         # Add a Parameter for the output impedance
-        self.add_parameter('impedance',
-                           get_cmd=self.get_load_impedance,
-                           get_parser=float,
-                           set_cmd=self.set_load_impedance,
-                           label=f'{self.my_name} Load Impedance',
-                           vals=vals.Numbers(0, 1000)
-                           )
+        # self.add_parameter('impedance',
+        #                   get_cmd=self.get_load_impedance,
+        #                   get_parser=float,
+        #                   set_cmd=self.set_load_impedance,
+        #                   label=f'{self.my_name} Load Impedance',
+        #                   vals=vals.Numbers(0, 1000)
+        #                   )
 
         # Add a Parameter for the value
-        self.add_parameter('value',
-                           get_cmd=self.get_value,
-                           set_cmd=self.set_value,
-                           label='Voltage * Factor'
-                           )
+        # self.add_parameter('value',
+        #                   get_cmd=self.get_value,
+        #                   set_cmd=self.set_value,
+        #                   label='Voltage * Factor'
+        #                   )
 
         # Add a Parameter for the voltage
         self.add_parameter('voltage',
@@ -457,34 +461,35 @@ class DaqAIChannel(InstrumentChannel):
 
         self.task = None
         self.channel = None
+        self.channel_handle = None
 
         # Create the Parameter for gain, with default unit 'V/V'
-        self.add_parameter('gain_factor',
-                           get_cmd=self.get_gain_factor,
-                           set_cmd=self.set_gain_factor,
-                           label=f'{self.my_name} gain',
-                           unit='V/V'
-                           )
+        # self.add_parameter('gain_factor',
+        #                   get_cmd=self.get_gain_factor,
+        #                   set_cmd=self.set_gain_factor,
+        #                   label=f'{self.my_name} gain',
+        #                   unit='V/V'
+        #                   )
 
         # Create the Parameter for the units of gain
-        self.add_parameter('gain_units',
-                           set_cmd=self.set_gain_units,
-                           label=f'{self.my_name} gain units',
-                           )
+        # self.add_parameter('gain_units',
+        #                   set_cmd=self.set_gain_units,
+        #                   label=f'{self.my_name} gain units',
+        #                   )
 
         # Create the Parameter for impedance
-        self.add_parameter('impedance',
-                           get_cmd=self.get_load_impedance,
-                           get_parser=float,
-                           set_cmd=self.set_load_impedance,
-                           label=f'{self.my_name} Load Impedance',
-                           vals=vals.Numbers(0, 1000)
-                           )
+        # self.add_parameter('impedance',
+        #                   get_cmd=self.get_load_impedance,
+        #                   get_parser=float,
+        #                   set_cmd=self.set_load_impedance,
+        #                   label=f'{self.my_name} Load Impedance',
+        #                   vals=vals.Numbers(0, 1000)
+        #                   )
 
         # Create the Parameter for value, which is the voltage * gain
-        self.add_parameter('value',
-                           get_cmd=self.get_value,
-                           label='Voltage * Factor')
+        # self.add_parameter('value',
+        #                   get_cmd=self.get_value,
+        #                   label='Voltage * Factor')
 
         # Create the Parameter for input voltage
         self.add_parameter('voltage',
@@ -532,41 +537,3 @@ class DaqAIChannel(InstrumentChannel):
         Destructor, makes sure task is clean.
         """
         self.clear_task()
-
-
-def main():
-    from util import _value_parser
-    print(_value_parser('  -.005p'))
-    print(_value_parser(' 2.1 '))
-    print(_value_parser('2.5  u'))
-    print(_value_parser('2.5 U'))
-    print(_value_parser(' -2.5 G'))
-    print(_value_parser('.'))
-    print(_value_parser('2f'))
-    print(_value_parser('.05f'))
-    print(_value_parser('2.u'))
-
-
-def main_daq():
-    daq = Daq("Dev1", "test", 2, 24)
-    print(daq.ai1)
-    print(daq.ao1)
-    daq.ao1.set("gain factor", 4)
-    print(daq.ao1.get("gain"))
-    writer = nidaqmx.Task()
-    reader = nidaqmx.Task()
-    daq.ao1.add_self_to_task(writer)
-    daq.ai2.add_self_to_task(reader)
-    daq.ao1.set("voltage", 1)
-    print(daq.ai2.get("voltage"))
-    print(daq.ai2.get("voltage"))
-    print(daq.ai2.get("voltage"))
-    writer.close()
-    time.sleep(3)
-    print(daq.ai2.get("voltage"))
-    reader.close()
-    daq.close()
-
-
-if __name__ == "__main__":
-    main()
