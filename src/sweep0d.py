@@ -22,8 +22,8 @@ class Sweep0D(BaseSweep, QObject):
                       of creating it's own automatically.
             max_time - int counting seconds of the amount of time to run the sweep
         """
-        BaseSweep.__init__(self, set_param=None, *args, **kwargs)
         QObject.__init__(self)
+        BaseSweep.__init__(self, set_param=None, *args, **kwargs)
 
         # Direction variable, not used here, but kept to maintain consistency with Sweep1D.
         self.direction = 0
