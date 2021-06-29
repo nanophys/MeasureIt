@@ -185,6 +185,7 @@ class BaseSweep(QObject):
             self.send_updates()
         # Gently shut down the plotter
         if self.plotter is not None:
+            self.plotter_thread.exit()
             if not self.plotter_thread.wait(1000):
                 self.plotter_thread.terminate()
                 print('forced plotter to terminate')
