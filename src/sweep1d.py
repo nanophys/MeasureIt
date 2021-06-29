@@ -28,11 +28,12 @@ class Sweep1D(BaseSweep, QObject):
             complete_func - optional function to be called when the sweep is finished
             x_axis_time - 1 for plotting parameters against time, 0 for set_param
         """
+
         # Initialize the BaseSweep
+        QObject.__init__(self)
         BaseSweep.__init__(self, set_param=set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data,
                            x_axis_time=x_axis_time, datasaver=datasaver, plot_bin=plot_bin, parent=parent,
                            complete_func=complete_func)
-        QObject.__init__(self)
 
         self.begin = start
         self.end = stop
@@ -81,7 +82,7 @@ class Sweep1D(BaseSweep, QObject):
             self.ramp_to(self.begin, start_on_finish=True, persist=persist_data, multiplier=ramp_multiplier)
         else:
             print(f"Sweeping {self.set_param.label} to {self.end} {self.set_param.unit}")
-            super().start(persist_data)
+            super().start(persist_data=persist_data)
 
     def stop(self):
         if self.is_ramping and self.ramp_sweep is not None:
@@ -124,7 +125,7 @@ class Sweep1D(BaseSweep, QObject):
             return self.step_IPS120()
 
         # If we aren't at the end, keep going
-        if abs(self.setpoint - self.end) >= abs(self.step / 2):
+        if abs(self.setpoint - self.end) - abs(self.step / 2) > abs(self.step) * 1e-4:
             self.setpoint = self.setpoint + self.step
             safe_set(self.set_param, self.setpoint)
             return [(self.set_param, self.setpoint)]
@@ -271,7 +272,7 @@ class Sweep1D(BaseSweep, QObject):
         if abs(value - curr_value) <= self.step / 2:
             # print(f"Already within {self.step} of the desired ramp value. Current value: {curr_value},
             # ramp setpoint: {value}.\nSetting our setpoint directly to the ramp value.")
-            self.done_ramping(value, start_on_finish)
+            self.done_ramping(value, start_on_finish, persist)
             return
 
         # Create a new sweep to ramp our outer parameter to zero
@@ -315,8 +316,8 @@ class Sweep1D(BaseSweep, QObject):
             self.ramp_sweep.kill()
             self.ramp_sweep = None
 
-        if start_on_finish == True:
-            self.start(ramp_to_start=False, persist_data=pd)
+        if start_on_finish is True:
+            self.start(persist_data=pd, ramp_to_start=False)
 
     def get_param_setpoint(self):
         """
