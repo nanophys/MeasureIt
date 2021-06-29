@@ -40,12 +40,6 @@ class Plotter(QObject):
         self.kill_flag = False
         self.plot_bin = plot_bin
 
-    def __del__(self):
-        """
-        Standard destructor.
-        """
-        #self.clear()
-
     def handle_close(self, evt):
         self.clear()
 
