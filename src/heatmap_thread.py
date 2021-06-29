@@ -1,6 +1,6 @@
 # heatmap_thread.py
 
-from PyQt5.QtCore import QThread
+from PyQt5.QtCore import QObject, pyqtSlot
 import math
 from collections import deque
 import numpy as np
@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-class HeatmapThread(QThread):
+class Heatmap(QObject):
     """
     Thread to control the plotting of a sweep of class BaseSweep. Gets the data
     from the RunnerThread to plot.
@@ -30,19 +30,13 @@ class HeatmapThread(QThread):
         self.min_datapt = float("inf")
         self.figs_set = False
 
-        QThread.__init__(self)
-
-    def __del__(self):
-        """
-        Standard destructor.
-        """
-        self.wait()
+        QObject.__init__(self)
 
     def create_figs(self):
         """
         Creates the heatmap for the 2D sweep. Creates and initializes new plots
         """
-        if self.figs_set == True:
+        if self.figs_set is True:
             return
 
         # First, determine the resolution on each axis
@@ -56,12 +50,12 @@ class HeatmapThread(QThread):
         self.out_step = self.sweep.out_step
         self.in_step = self.sweep.in_step
         for x_out in np.linspace(self.sweep.out_start, self.sweep.out_stop,
-                                 abs(self.sweep.out_stop - self.sweep.out_start) / abs(self.sweep.out_step) + 1,
+                                 int(abs(self.sweep.out_stop - self.sweep.out_start) / abs(self.sweep.out_step) + 1),
                                  endpoint=True):
             self.heatmap_dict[x_out] = {}
             self.out_keys.add(x_out)
             for x_in in np.linspace(self.sweep.in_start, self.sweep.in_stop,
-                                    abs(self.sweep.in_stop - self.sweep.in_start) / abs(self.sweep.in_step) + 1,
+                                    int(abs(self.sweep.in_stop - self.sweep.in_start) / abs(self.sweep.in_step) + 1),
                                     endpoint=True):
                 self.heatmap_dict[x_out][x_in] = 0
                 self.in_keys.add(x_in)
@@ -96,6 +90,7 @@ class HeatmapThread(QThread):
 
         self.figs_set = True
 
+    @pyqtSlot(list)
     def add_lines(self, lines):
         """
         Feed the thread Line2D objects to add to the heatmap.
@@ -104,6 +99,7 @@ class HeatmapThread(QThread):
             lines - tuple of Line2D objects (backwards and forwards) to be added to heatmap
         """
         self.lines_to_add.append(lines)
+        self.update_heatmap()
 
     def add_to_plot(self, line):
         in_key = 0
@@ -133,10 +129,7 @@ class HeatmapThread(QThread):
         for i, x in enumerate(self.in_keys):
             self.heatmap_data[x_out][i] = self.heatmap_dict[self.out_keys[self.count]][x]
 
-    def run(self):
-        # while self.sweep.is_running is True:
-        #    t = time.monotonic()
-
+    def update_heatmap(self):
         while len(self.lines_to_add) != 0:
             # Grab the lines to add
             line_pair = self.lines_to_add.popleft()
@@ -158,43 +151,7 @@ class HeatmapThread(QThread):
         #    if sleep_time > 0:
         #        time.sleep(sleep_time)
 
-    def run_dep(self):
-        """
-        Run function that executes the thread. This takes the lines that have been collected
-        and adds them to the heatmap
-        """
-        while len(self.lines_to_add) != 0:
-            # Grab the lines to add
-            line_pair = self.lines_to_add.popleft()
-
-            forward_line = line_pair[0]
-            backward_line = line_pair[1]
-
-            # Get our data
-            x_data_forward = forward_line.get_xdata()
-            y_data_forward = forward_line.get_ydata()
-
-            x_data_backward = backward_line.get_xdata()
-            y_data_backward = backward_line.get_ydata()
-
-            # Add the data to the heatmap
-            for i, x in enumerate(x_data_forward):
-                # We need to keep track of where we are in the heatmap, so we use self.count
-                # to make sure we are in the right row
-                self.heatmap_data[self.res_out - self.count - 1, i] = y_data_forward[i]
-                if y_data_forward[i] > self.max_datapt:
-                    self.max_datapt = y_data_forward[i]
-                if y_data_forward[i] < self.min_datapt:
-                    self.min_datapt = y_data_forward[i]
-
-            self.count += 1
-
-        # Refresh the image!
-        self.heatmap.set_data(self.heatmap_data)
-        self.heatmap.set_clim(self.min_datapt, self.max_datapt)
-        self.heat_fig.canvas.draw()
-        self.heat_fig.canvas.flush_events()
-
+    @pyqtSlot()
     def clear(self):
         plt.close(self.heat_fig)
         self.figs_set = False
