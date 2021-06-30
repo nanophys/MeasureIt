@@ -29,8 +29,8 @@ class SimulSweep(BaseSweep, QObject):
         sp = list(_p.keys())[0]
         # Force time to be on the x axis
         kwargs['x_axis_time'] = 1
-        BaseSweep.__init__(self, sp, *args, **kwargs)
         QObject.__init__(self)
+        BaseSweep.__init__(self, sp, *args, **kwargs)
 
         for p, v in self.set_params_dict.items():
             self.simul_params.append(p)
@@ -97,7 +97,7 @@ class SimulSweep(BaseSweep, QObject):
             self.ramp_sweep.kill()
         super().kill()
 
-    def send_updates(self):
+    def send_updates(self, no_sp=True):
         pass
 
     def step_param(self):
@@ -111,7 +111,7 @@ class SimulSweep(BaseSweep, QObject):
 
         for p, v in self.set_params_dict.items():
             # If we aren't at the end, keep going
-            if abs(v['setpoint'] - v['stop']) >= abs(v['step'] / 2):
+            if abs(v['setpoint'] - v['stop']) - abs(v['step'] / 2) > abs(v['step']) * 1e-4:
                 v['setpoint'] = v['setpoint'] + v['step']
                 p.set(v['setpoint'])
                 rets.append((p, v['setpoint']))
