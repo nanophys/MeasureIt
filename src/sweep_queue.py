@@ -23,7 +23,6 @@ class SweepQueue(QObject):
         Initializes the variables needed
         """
         QObject.__init__(self)
-        SweepQueue.__init__(self)
         self.queue = deque([])
         # Pointer to the sweep currently running
         self.current_sweep = None
