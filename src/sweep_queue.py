@@ -22,7 +22,8 @@ class SweepQueue(QObject):
         """
         Initializes the variables needed
         """
-        super(SweepQueue, self).__init__()
+        QObject.__init__(self)
+        SweepQueue.__init__(self)
         self.queue = deque([])
         # Pointer to the sweep currently running
         self.current_sweep = None
@@ -31,7 +32,7 @@ class SweepQueue(QObject):
         self.inter_delay = inter_delay
         self.exp_name = ""
         self.sample_name = ""
-        self.rts=True
+        self.rts = True
 
     @classmethod
     def init_from_json(cls, fn, station=Station()):

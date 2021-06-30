@@ -9,8 +9,8 @@ import time
 class SweepIPS(Sweep0D, QObject):
 
     def __init__(self, magnet, setpoint, persistent_magnet=False, *args, **kwargs):
-        Sweep0D.__init__(self, *args, **kwargs)
         QObject.__init__(self)
+        Sweep0D.__init__(self, *args, **kwargs)
 
         self.magnet = magnet
         self.setpoint = setpoint
