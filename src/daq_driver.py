@@ -11,13 +11,43 @@ from qcodes.instrument.channel import InstrumentChannel
 
 class Daq(Instrument):
     """
-    QCoDeS instrument driver for the National Instruments DAQ. Defines Parameters for each of the I/O channels.
+    QCoDeS instrument driver for the National Instruments DAQ. 
+    
+    Attributes
+    ---------
+    name:
+        The user-defined name for the instrument.
+    address:
+        The equipment address of the device, most commonly 'Dev1'.
+    device:
+        Connects the provided equipment address to the proper device in the
+        NIDAQ system.
+    ao_num:
+        The number of AO channels.
+    ai_num:
+        The number of AI channels.
+    max_out:
+        The maximum voltage the device can produce.
+    min_out:
+        The minimum voltage the device can produce.
+    max_in:
+        The maximum voltage the device can receive.
+    min_in:
+        The minimum voltage the device can receive.
+    cfg_fp:
+        Contains the filepath to the DAQ output configuration file.
+    cfg_obj:
+        Created as ConfigParser() to easily read and store data from config file.
+    cfg_output:
+        When 'OUTPUT' is a key in the config file, its information is stored here.
     """
 
     def __init__(self, name="Daq", address=""):
         """
-        Initialization for the DAQ driver. Takes in the machine given device address (typically "Dev1"), and a user-defined
-        name. Creates QCoDeS Parameters for each of the io channels.
+        Initialization for the DAQ driver. 
+        
+        Takes in the machine given device address (typically "Dev1"), and a user-defined
+        name. Creates QCoDeS Parameters for each of the I/O channels.
         """
 
         start_time = time.time()
@@ -92,52 +122,67 @@ class Daq(Instrument):
 
     def get_ao_num(self):
         """
-        Utility function to retrieve the number of AO ports available.
+        Returns the number of AO ports available.
         """
+        
         return self.ao_num
 
     def get_ai_num(self):
         """
-        Utility function to retrieve the number of AI ports available.
+        Returns the number of AI ports available.
         """
+        
         return self.ai_num
 
     def update_all_inputs(self):
         """
         Updates all the AI channel voltage values.
         """
+        
         for chan_name in self.submodules:
             self.submodules[chan_name].get("voltage")
 
     def snapshot_base(self, update=False,
                       params_to_skip_update=None):
         """
-        State of the instrument as a JSON-compatible dict (everything that
-        the custom JSON encoder class :class:`qcodes.utils.helpers.NumpyJSONEncoder`
-        supports).
-
-        Args:
-            update: If True, update the state by querying the
-                instrument. If None only update if the state is known to be
-                invalid. If False, just use the latest values in memory and
-                never update.
-            params_to_skip_update: List of parameter names that will be skipped
-                in update even if update is True. This is useful if you have
-                parameters that are slow to update but can be updated in a
-                different way (as in the qdac). If you want to skip the
-                update of certain parameters in all snapshots, use the
-                ``snapshot_get``  attribute of those parameters instead.
-        Returns:
-            dict: base snapshot
+        QCoDeS method to obstain the state of the instrument as a 
+        JSON-compatible dictionary. 
+        
+        Supported by the custom JSON encoder class: 
+        qcodes.utils.helpers.NumpyJSONEncoder
+       
+        Parameters
+        ---------
+        update: 
+            If True, update the state by querying the instrument. 
+            If None, only update if the state is known to be invalid. 
+            If False, use the latest values in memory and do not update.
+        params_to_skip_update: 
+            List of parameter names that will be skipped in update even if
+            update is True. This is useful if you have parameters that are 
+            slow to update but can be updated in a different way (as in the qdac). 
+            If you want to skip the update of certain parameters in all snapshots, 
+            use the `snapshot_get` attribute of those parameters instead.
+        
+        Returns
+        ---------
+            Dictionary containing snapshot of information on base instrument
         """
+        
         snap = super().snapshot_base(update=update,
                                      params_to_skip_update=params_to_skip_update)
-
         snap['address'] = self._address
 
         return snap
 
     def close(self):
+        """
+        Stops the QCoDeS instrument frees its resources.
+        
+        Closes all subclasses which may have other resources to close;
+        writes the object configuration in the desired filepath.
+        """
+        
         if hasattr(self, 'submodules'):
             for a, c in self.submodules.items():
                 c.close()
@@ -150,9 +195,12 @@ class Daq(Instrument):
 
     def __del__(self):
         """
-        Destructor method. Seemingly necessary for the nidaqmx library to not cause issues upon
+        Destructor method to close program. 
+        
+        Necessary for the nidaqmx library to avoid issues upon
         relaunching the software.
         """
+        
         try:
             self.close()
         except Exception as e:
@@ -172,90 +220,32 @@ class Daq(Instrument):
 
 class DaqAOChannel(InstrumentChannel):
     """
-    Channel object representing AO channels. Defines the relevant Parameters:
-        voltage, gain, impedance, and value (the multiplication of voltage and gain)
-    Defines utility functions for each Parameter.
+    Child class to represent AO channels for DAQ.
+    
+    Defines utility functions for each Parameter. Channels are created
+    when DAQ Instrument is initialized.
+    
+    Attributes
+    ---------
+    parent:
+        QCoDeS parent instrument, in this case the DAQ.
+    device:
+        Device address of the machine.
+    address:
+        Unique address used to connect to DAQ instrument.
+    channel:
+        Channel name for individual AO channels.
+    my_name:
+        Stores individual channel names.
+    fullname:
+        Device address combined with channel name.
     """
-
-    def get_gain_factor(self):
+    
+        def __init__(self, parent: Instrument, device, address, channel, min_output, max_output, min_in, max_in):
         """
-        Returns the gain value and the unit conversion (e.g., mA/V) as a tuple.
-        """
-        return (self.gain, self.parameters["gain factor"].unit)
-
-    def set_gain_factor(self, _gain):
-        """
-        Sets the gain value and the unit conversion (e.g., uV/V).
-        Arguments:
-            _gain = value
-        """
-        self.gain = _gain
-
-    #        if self.channel != None:
-    #            self.channel.ai_gain=_gain
-
-    def set_gain_units(self, units):
-        """
-        Sets the gain unit conversion (e.g., uV/V).
-        Arguments:
-            units = string for characters
-        """
-        self.parameters["gain factor"].unit = units
-
-    def get_voltage(self):
-        """
-        Returns the current output voltage.
-        """
-        if self.read_task is not None:
-            self._voltage = self.read_task.read()
-
-        return self._voltage
-
-    def set_voltage(self, _voltage):
-        """
-        Sets the voltage to the value passed as '_voltage'
-        """
-        if self.write_task is not None:
-            self.write_task.write(_voltage)
-
-            self._voltage = _voltage
-
-    def get_value(self):
-        """
-        This function calculates, sets, and returns the value after the gain.
-        Returns:
-            ( value, unit )
-        """
-        parts = self.parameters["gain factor"].unit.split("/")
-        self.parameters["value"].unit = parts[0]
-        self._value = self.gain * self.get_voltage()
-        return (self._value, self.parameters["value"].unit)
-
-    def set_value(self, value):
-        """
-        Sets the voltage to the appropriate value, given the gain.
-        """
-        self._value = value
-        self.set_voltage(self._value / self.gain)
-
-    def get_load_impedance(self):
-        """
-        Returns the impedance
-        """
-        return self.impedance
-
-    def set_load_impedance(self, _imp):
-        """
-        Sets the impedance
-        """
-        self.impedance = _imp
-
-    #        if self.channel != None:
-    #            self.channel.ao_load_impedance=_imp
-
-    def __init__(self, parent: Instrument, device, address, channel, min_output, max_output, min_in, max_in):
-        """
-        Initialization function. Saves information about the DAQ, creates and initializes
+        Initialization for the DAQ output channels. 
+        
+        Saves information about the DAQ, creates and initializes
         the QCoDeS values.
         """
         # Saves the information about the DAQ this channel belongs to
@@ -286,34 +276,34 @@ class DaqAOChannel(InstrumentChannel):
         self.channel_handle = None
 
         # Add a Parameter for the output gain, set the unit to 'V/V' as default
-        # self.add_parameter('gain_factor',
-        #                   get_cmd=self.get_gain_factor,
-        #                   set_cmd=self.set_gain_factor,
-        #                   label=f'{self.my_name} Gain factor',
-        #                   unit='V/V'
-        #                   )
+        self.add_parameter('gain_factor',
+                            get_cmd=self.get_gain_factor,
+                            set_cmd=self.set_gain_factor,
+                            label=f'{self.my_name} Gain factor',
+                            unit='V/V'
+                            )
 
         # Create the Parameter for the units of gain
-        # self.add_parameter('gain_units',
-        #                   set_cmd=self.set_gain_units,
-        #                   label=f'{self.my_name} Gain units',
-        #                   )
+        self.add_parameter('gain_units',
+                           set_cmd=self.set_gain_units,
+                           label=f'{self.my_name} Gain units',
+                           )
 
         # Add a Parameter for the output impedance
-        # self.add_parameter('impedance',
-        #                   get_cmd=self.get_load_impedance,
-        #                   get_parser=float,
-        #                   set_cmd=self.set_load_impedance,
-        #                   label=f'{self.my_name} Load Impedance',
-        #                   vals=vals.Numbers(0, 1000)
-        #                   )
+        self.add_parameter('impedance',
+                           get_cmd=self.get_load_impedance,
+                           get_parser=float,
+                           set_cmd=self.set_load_impedance,
+                           label=f'{self.my_name} Load Impedance',
+                           vals=vals.Numbers(0, 1000)
+                           )
 
         # Add a Parameter for the value
-        # self.add_parameter('value',
-        #                   get_cmd=self.get_value,
-        #                   set_cmd=self.set_value,
-        #                   label='Voltage * Factor'
-        #                   )
+        self.add_parameter('value',
+                           get_cmd=self.get_value,
+                           set_cmd=self.set_value,
+                           label='Voltage * Factor'
+                           )
 
         # Add a Parameter for the voltage
         self.add_parameter('voltage',
@@ -324,14 +314,120 @@ class DaqAOChannel(InstrumentChannel):
                            unit='V',
                            vals=vals.Numbers(self.min_V, self.max_V)
                            )
+        
+    def get_gain_factor(self):
+        """
+        Returns the gain value and the unit conversion (e.g., mA/V) as a tuple.
+        """
+        
+        return (self.gain, self.parameters["gain factor"].unit)
+
+    def set_gain_factor(self, _gain):
+        """
+        Sets the gain value.
+        
+        Parameters
+        ---------
+        _gain: 
+            Value to be set as gain attribute.
+        """
+        
+        self.gain = _gain
+
+    #        if self.channel != None:
+    #            self.channel.ai_gain=_gain
+
+    def set_gain_units(self, units):
+        """
+        Sets the gain unit conversion (e.g., uV/V).
+        
+        Parameters
+        ---------
+        units:
+            Value of desired final units of gain.
+            Default unit is the Volt. 
+        """
+        
+        self.parameters["gain factor"].unit = units
+
+    def get_voltage(self):
+        """
+        Returns the current output voltage.
+        """
+        
+        if self.read_task is not None:
+            self._voltage = self.read_task.read()
+
+        return self._voltage
+
+    def set_voltage(self, _voltage):
+        """
+        Sets the voltage to the desired value.
+        """
+        
+        if self.write_task is not None:
+            self.write_task.write(_voltage)
+
+            self._voltage = _voltage
+
+    def get_value(self):
+        """
+        Calculates, sets, and returns the value after the gain.
+        
+        Returns
+        ---------
+            Product of gain and voltage with associated units.
+        """
+        
+        parts = self.parameters["gain factor"].unit.split("/")
+        self.parameters["value"].unit = parts[0]
+        self._value = self.gain * self.get_voltage()
+        return (self._value, self.parameters["value"].unit)
+
+    def set_value(self, value):
+        """
+        Sets the voltage to the appropriate value after considering the gain.
+        
+        Parameters
+        ---------
+        value:
+            The product of voltage and gain.
+        """
+        
+        self._value = value
+        self.set_voltage(self._value / self.gain)
+
+    def get_load_impedance(self):
+        """
+        Returns the load impedance.
+        """
+        
+        return self.impedance
+
+    def set_load_impedance(self, _imp):
+        """
+        Sets the load impedance.
+        """
+        
+        self.impedance = _imp
+
+    #        if self.channel != None:
+    #            self.channel.ao_load_impedance=_imp
 
     def add_self_to_task(self, write_task, read_task):
         """
-        Utility function to define the task that should be used to conduct writes
-        to the port.
-        Arguments:
-            task - task to be used for writing
+        Defines the task that should be used to conduct writes to the port.
+        
+        Parameters
+        ---------
+        write_task: 
+            Argument defined in DAQ Instrument Class, creates task to
+            write on each individual channel.
+        read_task:
+            Argument defined in DAQ Instrument Class, creates task to
+            read each individual channel. 
         """
+        
         if self.write_task is not None or self.read_task is not None:
             self.clear_task()
 
@@ -352,8 +448,9 @@ class DaqAOChannel(InstrumentChannel):
 
     def clear_task(self):
         """
-        Utility function to clean the task object for resource maintenance reasons
+        Clears the current task object for resource maintenance.
         """
+        
         if self.read_task is not None:
             self.read_task.close()
         if self.write_task is not None:
@@ -366,79 +463,39 @@ class DaqAOChannel(InstrumentChannel):
         """
         Destructor, makes sure task is clean.
         """
+        
         self.parent.cfg_output[self.my_name] = str(self._voltage)
         self.clear_task()
 
 
 class DaqAIChannel(InstrumentChannel):
     """
-    Channel object representing AI channels. Defines the relevant Parameters:
-        voltage, gain, impedance, and value (the multiplication of voltage and gain)
-    Defines utility functions for each Parameter.
+    Child class to represent AO channels for DAQ.
+    
+    Defines utility functions for each Parameter. Channels are created
+    when DAQ Instrument is initialized.
+    
+    Attributes
+    ---------
+    parent:
+        QCoDeS parent instrument, in this case the DAQ.
+    device:
+        Device address of the machine.
+    address:
+        Unique address used to connect to DAQ instrument.
+    channel:
+        Channel name for individual AI channels.
+    my_name:
+        Stores individual channel names.
+    fullname:
+        Device address combined with channel name.
     """
 
-    def get_gain_factor(self):
+        def __init__(self, parent: Instrument, device, address, channel, min_input, max_input):
         """
-        Returns the gain value and the unit conversion (e.g., mA/V) as a tuple.
-        """
-        return (self.gain, self.parameters["gain factor"].unit)
-
-    def set_gain_factor(self, _gain):
-        """
-        Sets the gain value and the unit conversion (e.g., uV/V).
-        Arguments:
-            _gain = value
-        """
-        self.gain = _gain
-
-    #        if self.channel != None:
-    #            self.channel.ai_gain=_gain
-
-    def set_gain_units(self, units):
-        """
-        Sets the gain unit conversion (e.g., uV/V).
-        Arguments:
-            units = string for characters
-        """
-        self.parameters["gain"].unit = units
-
-    def get_voltage(self):
-        """
-        Returns the current input voltage.
-        """
-        if self.task is not None:
-            self._voltage = self.task.read()
-        return self._voltage
-
-    def get_value(self):
-        """
-        This function calculates, sets, and returns the value after the gain.
-        Returns:
-            ( value, unit )
-        """
-        parts = self.parameters["gain factor"].unit.split("/")
-        self.parameters["value"].unit = parts[0]
-        self._value = self.gain * self.get_voltage()
-        return (self._value, self.parameters["value"].unit)
-
-    def get_load_impedance(self):
-        """
-        Returns the impedance
-        """
-        return self.impedance
-
-    def set_load_impedance(self, _imp):
-        """
-        Sets the impedance
-        """
-        self.impedance = _imp
-
-    #        if self.channel != None:
-    #            self.channel.ai_load_impedance=_imp
-
-    def __init__(self, parent: Instrument, device, address, channel, min_input, max_input):
-        """
-        Initialization function. Saves information about the DAQ, creates and initializes
+        Initialization for DAQ input channels. 
+        
+        Saves information about the DAQ, creates and initializes
         the QCoDeS values.
         """
         # Saves the information about the DAQ this channel belongs to
@@ -464,34 +521,33 @@ class DaqAIChannel(InstrumentChannel):
         self.channel_handle = None
 
         # Create the Parameter for gain, with default unit 'V/V'
-        # self.add_parameter('gain_factor',
-        #                   get_cmd=self.get_gain_factor,
-        #                   set_cmd=self.set_gain_factor,
-        #                   label=f'{self.my_name} gain',
-        #                   unit='V/V'
-        #                   )
+        self.add_parameter('gain_factor',
+                            get_cmd=self.get_gain_factor,
+                            set_cmd=self.set_gain_factor,
+                            label=f'{self.my_name} gain',
+                            unit='V/V'
+                            )
 
         # Create the Parameter for the units of gain
-        # self.add_parameter('gain_units',
-        #                   set_cmd=self.set_gain_units,
-        #                   label=f'{self.my_name} gain units',
-        #                   )
+        self.add_parameter('gain_units',
+                           set_cmd=self.set_gain_units,
+                           label=f'{self.my_name} gain units',
+                           )
 
         # Create the Parameter for impedance
-        # self.add_parameter('impedance',
-        #                   get_cmd=self.get_load_impedance,
-        #                   get_parser=float,
-        #                   set_cmd=self.set_load_impedance,
-        #                   label=f'{self.my_name} Load Impedance',
-        #                   vals=vals.Numbers(0, 1000)
-        #                   )
+        self.add_parameter('impedance',
+                           get_cmd=self.get_load_impedance,
+                           get_parser=float,
+                           set_cmd=self.set_load_impedance,
+                           label=f'{self.my_name} Load Impedance',
+                           vals=vals.Numbers(0, 1000)
+                           )
 
         # Create the Parameter for value, which is the voltage * gain
-        # self.add_parameter('value',
-        #                   get_cmd=self.get_value,
-        #                   label='Voltage * Factor')
-
-        # Create the Parameter for input voltage
+        self.add_parameter('value',
+                           get_cmd=self.get_value,
+                           label='Voltage * Factor')
+         # Create the Parameter for input voltage
         self.add_parameter('voltage',
                            get_cmd=self.get_voltage,
                            get_parser=float,
@@ -499,14 +555,90 @@ class DaqAIChannel(InstrumentChannel):
                            unit='V',
                            vals=vals.Numbers(self.min_in, self.max_in)
                            )
+        
+    def get_gain_factor(self):
+        """
+        Returns the gain factor unit conversion.
+        """
+        
+        return (self.gain, self.parameters["gain factor"].unit)
+
+    def set_gain_factor(self, _gain):
+        """
+        Sets the gain factor value.
+        
+        Parameters
+        ---------
+            _gain:
+                Value to be set as gain attribute.
+        """
+        
+        self.gain = _gain
+    #        if self.channel != None:
+    #            self.channel.ai_gain=_gain
+
+    def set_gain_units(self, units):
+        """
+        Sets the gain unit conversion (e.g., uV/V).
+        
+        Parameters
+        ---------
+        units:
+            Value of desired final units of gain.
+            Default unit is the Volt. 
+        """
+        
+        self.parameters["gain"].unit = units
+
+    def get_voltage(self):
+        """
+        Returns the current input voltage.
+        """
+        
+        if self.task is not None:
+            self._voltage = self.task.read()
+        return self._voltage
+
+    def get_value(self):
+        """
+        Calculates, sets, and returns the value after the gain.
+        
+        Returns
+        ---------
+            Product of gain and voltage with associated units.
+        """
+        parts = self.parameters["gain factor"].unit.split("/")
+        self.parameters["value"].unit = parts[0]
+        self._value = self.gain * self.get_voltage()
+        return (self._value, self.parameters["value"].unit)
+
+    def get_load_impedance(self):
+        """
+        Returns the load impedance.
+        """
+        
+        return self.impedance
+
+    def set_load_impedance(self, _imp):
+        """
+        Sets the load impedance.
+        """
+        
+        self.impedance = _imp
+    #        if self.channel != None:
+    #            self.channel.ai_load_impedance=_imp
 
     def add_self_to_task(self, task):
         """
-        Utility function to define the task that should be used to conduct writes
-        to the port.
-        Arguments:
-            task - task to be used for writing
+        Defines the task that should be used to conduct writes to the port.
+        
+        Parameters
+        ---------
+        task:
+            Argument defined in DAQ Instrument Class, creates a task to
+            read each individual channel.
         """
+        
         if self.task is not None:
             self.clear_task()
 
@@ -525,8 +657,9 @@ class DaqAIChannel(InstrumentChannel):
 
     def clear_task(self):
         """
-        Utility function to clean the task object for resource maintenance reasons
+        Utility function to clear the task object for resource maintenance.
         """
+        
         if self.task is not None:
             self.task.close()
         self.task = None

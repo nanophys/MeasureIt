@@ -20,16 +20,30 @@ from qcodes.instrument.base import Instrument
 from qcodes.instrument.parameter import Parameter, ArrayParameter
 
 class DAQAnalogInputVoltages(ArrayParameter):
-    """Acquires data from one or several DAQ analog inputs.
-
-    Args:
-        name: Name of parameter (usually 'voltage').
-        task: nidaqmx.Task with appropriate analog inputs channels.
-        samples_to_read: Number of samples to read. Will be averaged based on shape.
-        shape: Desired shape of averaged array, i.e. (nchannels, target_points).
-        timeout: Acquisition timeout in seconds.
-        kwargs: Keyword arguments to be passed to ArrayParameter constructor.
     """
+    Acquires data from one or several DAQ analog inputs.
+
+    Attributes
+    ---------
+    name:
+        Name of parameter (usually 'voltage').
+    task: 
+        nidaqmx.Task with appropriate analog inputs channels.
+    samples_to_read: 
+        Number of samples to read, will be averaged based on shape.
+    shape: 
+        Desired shape of averaged array.
+    timeout: 
+        Acquisition timeout in seconds.
+    **kwargs: 
+        Keyword arguments to be passed to ArrayParameter constructor.
+        
+    Methods
+    ---------
+    get_raw()
+        Averages data to get desired array of target points per channel.
+    """
+    
     def __init__(self, name: str, task: Any, samples_to_read: int,
                  shape: Sequence[int], timeout: Union[float, int], **kwargs) -> None:
         super().__init__(name, shape, **kwargs)
@@ -39,32 +53,50 @@ class DAQAnalogInputVoltages(ArrayParameter):
         self.timeout = timeout
         
     def get_raw(self):
-        """Averages data to get `self.target_points` points per channel.
+        """
+        Averages data to get `self.target_points` points per channel.
+        
         If `self.target_points` == `self.samples_to_read`, no averaging is done.
         """
+        
         data_raw = np.array(self.task.read(number_of_samples_per_channel=self.samples_to_read, timeout=self.timeout))
         return np.mean(np.reshape(data_raw, (self.nchannels, self.target_points, -1)), 2)
     
 class DAQAnalogInputs(Instrument):
-    """Instrument to acquire DAQ analog input data in a qcodes Loop or measurement.
-
-    Args:
-        name: Name of instrument (usually 'daq_ai').
-        dev_name: NI DAQ device name (e.g. 'Dev1').
-        rate: Desired DAQ sampling rate per channel in Hz.
-        channels: Dict of analog input channel configuration.
-        task: fresh nidaqmx.Task to be populated with ai_channels.
-        min_val: minimum of input voltage range (-0.1, -0.2, -0.5, -1, -2, -5 [default], or -10)
-        max_val: maximum of input voltage range (0.1, 0.2, 0.5, 1, 2, 5 [default], or 10)
-        clock_src: Sample clock source for analog inputs. Default: None
-        samples_to_read: Number of samples to acquire from the DAQ
-            per channel per measurement/loop iteration.
-            Default: 2 (minimum number of samples DAQ will acquire in this timing mode).
-        target_points: Number of points per channel we want in our final array.
-            samples_to_read will be averaged down to target_points.
-        timeout: Acquisition timeout in seconds. Default: 60.
-        kwargs: Keyword arguments to be passed to Instrument constructor.
     """
+    Instrument to acquire DAQ analog input data in a QCoDeS Loop or Measurement.
+
+    Attributes
+    ---------
+        name: 
+            Name of instrument (usually 'daq_ai').
+        dev_name: 
+            NI DAQ device name (e.g. 'Dev1').
+        rate: 
+            Desired DAQ sampling rate per channel in Hz.
+        channels: 
+            Dictionary of analog input channel configuration.
+        task: 
+            Open nidaqmx.Task to be populated with ai_channels.
+        min_val: 
+            Minimum of input voltage range (-0.1, -0.2, -0.5, -1, -2, -5 [default], or -10)
+        max_val: 
+            Maximum of input voltage range (0.1, 0.2, 0.5, 1, 2, 5 [default], or 10)
+        clock_src: 
+            Sample clock source for analog inputs. Default: None
+        samples_to_read: 
+            Number of samples to acquire from the DAQ per channel per 
+            measurement/loop iteration. Default: 2 (minimum number of samples 
+            DAQ will acquire in this timing mode).
+        target_points: 
+            Number of points per channel we want in our final array.
+            'samples_to_read' will be averaged down to target_points.
+        timeout: 
+            Acquisition timeout in seconds. Default: 60.
+        kwargs: 
+            Keyword arguments to be passed to Instrument constructor.
+    """
+    
     def __init__(self, name: str, dev_name: str, rate: Union[int, float], channels: Dict[str, int],
                  task: Any, min_val: Optional[float]=-5, max_val: Optional[float]=5,
                  clock_src: Optional[str]=None, samples_to_read: Optional[int]=2,
@@ -113,15 +145,31 @@ class DAQAnalogInputs(Instrument):
         ) 
 
 class DAQAnalogOutputVoltage(Parameter):
-    """Writes data to one or several DAQ analog outputs. This only writes one channel at a time,
-    since Qcodes ArrayParameters are not settable.
-
-    Args:
-        name: Name of parameter (usually 'voltage').
-        dev_name: DAQ device name (e.g. 'Dev1').
-        idx: AO channel index.
-        kwargs: Keyword arguments to be passed to ArrayParameter constructor.
     """
+    QCoDeS Parameter used to monitor output voltage. 
+    
+    This class can only write one channel at a time, as Qcodes ArrayParameters
+    are not settable.
+
+    Attributes
+    ---------
+        name: 
+            The name of the output parameter (usually 'voltage').
+        dev_name: 
+            The device name for the DAQ instrument(e.g. 'Dev1').
+        idx: 
+            Used to specify the AO channel.
+        kwargs: 
+            Keyword arguments to be passed to ArrayParameter constructor. 
+            
+        Methods
+        ---------
+        set_raw()
+            Adds output channel; creates task to write voltage to the channel.
+        get_raw()
+            Returns last voltage array written to outputs.
+    """
+    
     def __init__(self, name: str, dev_name: str, idx: int, **kwargs) -> None:
         super().__init__(name, **kwargs)
         self.dev_name = dev_name
@@ -129,6 +177,8 @@ class DAQAnalogOutputVoltage(Parameter):
         self._voltage = np.nan
      
     def set_raw(self, voltage: Union[int, float]) -> None:
+        """ Adds output channel; creates task to write voltage to the channel. """
+        
         with nidaqmx.Task('daq_ao_task') as ao_task:
             channel = f'{self.dev_name}/ao{self.idx}'
             ao_task.ao_channels.add_ao_voltage_chan(channel, self.name)
@@ -136,18 +186,24 @@ class DAQAnalogOutputVoltage(Parameter):
         self._voltage = voltage
 
     def get_raw(self):
-        """Returns last voltage array written to outputs.
-        """
+        """ Returns last voltage array written to outputs. """
+        
         return self._voltage
 
 class DAQAnalogOutputs(Instrument):
-    """Instrument to write DAQ analog output data in a qcodes Loop or measurement.
+    """
+    Instrument to write DAQ analog output data in a QCoDeS Loop or Measurement.
 
-    Args:
-        name: Name of instrument (usually 'daq_ao').
-        dev_name: NI DAQ device name (e.g. 'Dev1').
-        channels: Dict of analog output channel configuration.
-        **kwargs: Keyword arguments to be passed to Instrument constructor.
+    Attributes
+    ---------
+        name: 
+            Name of instrument (usually 'daq_ao').
+        dev_name: 
+            NIDAQ device name (e.g. 'Dev1').
+        channels: 
+            Dictionary of analog output channel configuration.
+        **kwargs: 
+            Keyword arguments to be passed to Instrument constructor.
     """
     def __init__(self, name: str, dev_name: str, channels: Dict[str, int], **kwargs) -> None:
         super().__init__(name, **kwargs)
