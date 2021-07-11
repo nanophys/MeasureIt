@@ -1,5 +1,6 @@
 # sweep_queue.py
 import importlib
+from functools import partial
 
 from src.base_sweep import BaseSweep
 from src.sweep0d import Sweep0D
@@ -26,6 +27,7 @@ class SweepQueue(QObject):
         self.queue = deque([])
         # Pointer to the sweep currently running
         self.current_sweep = None
+        self.current_action = None
         # Database information. Can be updated for each run.
         self.database = None
         self.inter_delay = inter_delay
@@ -72,7 +74,7 @@ class SweepQueue(QObject):
         Adds a sweep to the queue.
         
         Arguments:
-            sweep - BaseSweep object to be added to queue
+            sweep - BaseSweep or DatabaseEntry object to be added to queue
         """
         for sweep in s:
             if isinstance(sweep, list):
@@ -87,6 +89,16 @@ class SweepQueue(QObject):
             elif isinstance(sweep, DatabaseEntry):
                 sweep.set_complete_func(self.begin_next)
                 self.queue.append(sweep)
+            else:
+                print(f"Invalid object: {str(sweep)}.\nIf this is a function handle or other callable, add it with "
+                      f"the 'append_handle' function.")
+
+    def append_handle(self, fn_handle, *args, **kwargs):
+        def wrap(fn, *args, **kwargs):
+            fn(*args, **kwargs)
+            self.begin_next()
+
+        self.queue.append(partial(wrap, fn_handle, *args, **kwargs))
 
     def delete(self, item):
         if isinstance(item, BaseSweep) or isinstance(item, DatabaseEntry):
@@ -114,7 +126,7 @@ class SweepQueue(QObject):
 
         new_pos = index+distance
         if index == -1:
-            raise ValueError
+            raise ValueError(f"Couldn't find {str(item)} in the queue.")
         elif new_pos < 0:
             new_pos = 0
         elif new_pos >= len(self.queue):
@@ -134,8 +146,9 @@ class SweepQueue(QObject):
             return
 
         print(f"Starting sweeps")
-        self.current_sweep = self.queue.popleft()
-        if isinstance(self.current_sweep, BaseSweep):
+        self.current_action = self.queue.popleft()
+        if isinstance(self.current_action, BaseSweep):
+            self.current_sweep = self.current_action
             # Set the database info
             self.set_database()
             self.current_sweep._create_measurement()
@@ -145,7 +158,14 @@ class SweepQueue(QObject):
             elif isinstance(self.current_sweep, Sweep0D):
                 print(f"Starting 0D Sweep for {self.current_sweep.max_time} seconds.")
             self.newSweepSignal.emit(self.current_sweep)
-        self.current_sweep.start()
+            self.current_sweep.start()
+        elif isinstance(self.current_action, DatabaseEntry):
+            self.current_action.start()
+        elif callable(self.current_action):
+            self.current_action()
+        else:
+            print(f"Invalid action found in the queue!: {str(self.current_action)}"
+                  f"Stopping execution of the queue.")
 
     def stop(self):
         if self.current_sweep is not None:
@@ -171,19 +191,21 @@ class SweepQueue(QObject):
         Function called when one sweep is finished and we want to run the next sweep.
         Connected to completed pyqtSignals in the sweeps.
         """
-        if isinstance(self.current_sweep, Sweep1D):
+        if isinstance(self.current_action, Sweep1D):
             print(f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
                   {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
-        elif isinstance(self.current_sweep, Sweep0D):
+        elif isinstance(self.current_action, Sweep0D):
             print(f"Finished 0D Sweep of {self.current_sweep.max_time} seconds.")
 
-        self.current_sweep.kill()
+        if isinstance(self.current_action, BaseSweep):
+            self.current_sweep.kill()
+            self.current_sweep = None
 
         if len(self.queue) > 0:
-            self.current_sweep = self.queue.popleft()
-            if isinstance(self.current_sweep, BaseSweep):
+            self.current_action = self.queue.popleft()
+            if isinstance(self.current_action, BaseSweep):
+                self.current_sweep = self.current_action
                 self.set_database()
-                self.current_sweep._create_measurement()
                 if isinstance(self.current_sweep, Sweep1D):
                     print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
                           {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
@@ -191,7 +213,14 @@ class SweepQueue(QObject):
                     print(f"Starting 0D Sweep for {self.current_sweep.max_time} seconds.")
                 time.sleep(self.inter_delay)
                 self.newSweepSignal.emit(self.current_sweep)
-            self.current_sweep.start()
+                self.current_sweep.start()
+            elif isinstance(self.current_action, DatabaseEntry):
+                self.current_action.start()
+            elif callable(self.current_action):
+                self.current_action()
+            else:
+                print(f"Invalid action found in the queue!: {str(self.current_action)}"
+                      f"Stopping execution of the queue.")
         else:
             print("Finished all sweeps!")
 
