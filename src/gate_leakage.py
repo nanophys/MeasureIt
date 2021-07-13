@@ -6,6 +6,43 @@ from PyQt5.QtCore import QObject
 
 
 class GateLeakage(Sweep1D, QObject):
+    """
+    Extension of Sweep1D to perform gate leakage measurements.
+    
+    Includes additional max current safety parameter, sets the Sweep1D independent
+    variable range from 0 to infinity, and presents new methods to alert the sweep
+    to change direction. The intent is for the 'set_param' to sweep through a range
+    of voltages while the 'track_param' reports the resulting current data.
+    
+    Attributes
+    ---------
+    set_param:
+        The independent variable to be swept through a desired range.
+    track_param:
+        The followed parameter to be measured during the sweep.
+    max_I:
+        The maximum allowed value for the followed parameter; 
+        the sweep will change directions if surpassed.
+    step:
+        The step size for the independent variable sweep.
+    limit:
+        The end value for Sweep1D. Defaults to nfinity.
+    start:
+        The start value for Sweep1D. Defaults to zero.
+    flips:
+        Tracks the number of times the sweep has changed direction.
+    input_trigger:
+        Increases when followed parameter value is greater than 'max_I'.
+    
+    Methods
+    ---------
+    step_param()
+        Runs sweep once in both directions while measuring 'track_param'.
+    update_values()
+        Keeps record of independent variable data during sweep.
+    flip_direction()
+        Changes direction of the sweep.
+    """
 
     def __init__(self, set_param, track_param, max_I, step, limit=np.inf, start=0, **kwargs):
         self.max_I = max_I
@@ -19,6 +56,20 @@ class GateLeakage(Sweep1D, QObject):
         self.follow_param(self.track_param)
 
     def step_param(self):
+        """
+        Runs Sweep1D in both directions by step size.
+        
+        Stores data of followed 'track_param' at each setpoint of 'set_param'.
+        Changes the direction of the sweep if the 'input_trigger' reaches 2 (based
+        on breaching of max_I), or when either end of the 'set_param' range is met.
+        Sweep ends after two direction changes.
+        
+        Returns
+        ---------
+        A list containing the values of 'set_param' and 'track_param' for each
+        setpoint until the sweep is stopped after 2 total flips.
+        """
+        
         # Our ending condition is if we end up back at 0 after going forwards and backwards
         if self.flips >= 2 and abs(self.setpoint) <= abs(self.step / (3 / 2)):
             self.flips = 0
@@ -55,15 +106,19 @@ class GateLeakage(Sweep1D, QObject):
 
     def update_values(self):
         """
-        Iterates our data points, changing our setpoint if we are sweeping, and refreshing
-        the values of all our followed parameters. If we are saving data, it happens here,
-        and the data is returned.
+        Iterates and keeps record of independent variable data during sweep.
         
-        Returns:
-            data - A list of tuples with the new data. Each tuple is of the format 
-                   (<QCoDeS Parameter>, measurement value). The tuples are passed in order of
-                   time, then set_param (if applicable), then all the followed params.
+        Iterates each 'set_param' individually beginning with time. 
+        If we are saving data, it happens here, and the data is returned.
+        
+        Returns
+        ---------
+        data:
+            A list of tuples with the new data. Each tuple is of the format 
+            (<QCoDeS Parameter>, measurement value). The tuples are passed in order of
+            time, then set_param (if applicable), then all the followed params.
         """
+        
         t = time.monotonic() - self.t0
 
         data = []
@@ -90,6 +145,7 @@ class GateLeakage(Sweep1D, QObject):
         return data
 
     def flip_direction(self):
+        """ Changes direction of the sweep. """
         self.flips += 1
         if self.flips >= 2 and self.setpoint > 0:
             self.step = (-1) * abs(self.step)

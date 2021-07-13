@@ -11,9 +11,99 @@ from src.util import _autorange_srs, safe_get, safe_set
 
 class BaseSweep(QObject):
     """
-    This is the base class for the 0D (tracking) sweep class and the 1D sweep class. Each of these functions
-    is used by both classes.
+    The parent class for the 0D, 1D and 2D sweep classes. 
+    
+    The default independent variable for BaseSweep and Sweep0D Measurements is time.
+    Creating an object in a sweep class results in data acquisition and plotting of 
+    all followed parameters individually measured against the independent variable. 
+    The measured data is transferred in real-time (through QObject slot and signal 
+    connections) from the Sweep classes to the Runner and Plotter Threads to organize, 
+    save, and live-plot the tracked parameters.
+    
+    Attributes:
+    -----------
+    _params: 
+        Defaults as blank list. Desired QCoDeS parameters should be added using 
+        follow_param method.
+    _srs: 
+        Defaults as blank list. Used to incorporate lock-in amplifier with 
+        measurement.
+    set_param: 
+        QCoDeS Parameter to be swept, defaults to None for 0D sweep.
+    inter_delay: 
+        Time (in seconds) to wait between data points.
+    save_data: 
+        Flag used to determine if the data should be saved or not.
+    plot_data: 
+        Flag to determine whether or not to live-plot data
+    x_axis: 
+        Defaults to 1 to set as time for 0D; defaults to 0 in 1D.
+    meas: 
+        Measurement class from QCoDeS, used to register and follow desired 
+        parameters. Default is None until a measurement is created using 
+        the create_measurement method.
+    dataset: 
+        Stores the data obtained during the measurement.
+    continuous: 
+        No effect on Sweep0D. Defaults to False for Sweep1D.
+    plot_bin: 
+        Defaults to 1. Used to plot data that has been sent to the 
+        data_queue list in the Plotter Thread.
+    is_running: 
+        Flag to determine whether or not sweep is currently running.
+    t0: 
+         Set to monotonic time when creating Runner Thread.
+    persist_data: 
+        Always none except in Sweep2D, takes one set_param, allows sweeping of 2 parameters.
+    datasaver: 
+        Initiated by Runner Thread to enable saving and export of data.
+    
+    Methods
+    ---------
+    follow_param(*p)
+        Adds QCoDes parameters from imported drivers to be tracked.            
+    remove_param(*p)
+        Removes parameters that have been assigned to be tracked.
+    follow_srs(l, name, gain)
+        Adds SRS lock-in amplifier to keep range consistent.
+    create_measurement()
+        Creates a QCoDeS Measurement Object
+    stop()
+        Stops/pauses the sweep.
+    kill()
+        Ends all threads and closes any active plots.
+    check_running()
+        Returns the status of the sweep.
+    start(persist_data=None, ramp_to_start = False)
+        Creates QCoDeS Measurement, Runner and Plotter Threads, and begins sweep.            
+    resume()
+        Restarts the sweep using the start method.            
+    get_dataset()
+        Retrieves collected data.
+    receive_dataset(ds_dict)
+        Slot to receive data in dictionary form, reemits received data.            
+    update_values()
+        Returns dictionary of updated [parameter:value] pairs, default parameter is time.       
+    send_updates()
+        Emits signal containing dictionary of parameter, setpoint, direction, and status.
+        If running Sweep0D, will default to time at one second intervals.   
+    clear_plot()
+        Clears any displayed plots.            
+    set_plot_bin(pb)
+        Sets value for the Plotter Thread plot bin.   
+    set_complete_func(func)
+        Sets function to call when sweep is completed.            
+    no_change(*args, **kwargs)
+        Does nothing when sweep is completed.            
+    check_params_are_correct()
+        Compares the followed parameters to the previously created measurement parameters.            
+    export_json(fn=None)
+        Saves all sweep information, attributes, and parameters of QCoDeS Station as
+        JSON dictionary.     
+    import_json(json_dict, station=Station())
+        Loads previously saved experimental setup.
     """
+    
     update_signal = pyqtSignal(dict)
     dataset_signal = pyqtSignal(dict)
     reset_plot = pyqtSignal()
@@ -24,13 +114,45 @@ class BaseSweep(QObject):
                  datasaver=None, parent=None, plot_bin=1, complete_func=None):
         """
         Initializer for both classes, called by super().__init__() in Sweep0D and Sweep1D classes.
-        Simply initializes the variables and flags.
         
-        Arguments:
-            set_param - QCoDeS Parameter to be swept
-            inter_delay - Time (in seconds) to wait between data points
-            save_data - Flag used to determine if the data should be saved or not
-            plot_data - Flag to determine if we should live-plot data
+        Parameters:
+        ---------
+        _params: 
+            Defaults as blank list. Desired QCoDeS parameters should be added using 
+            follow_param method.
+        _srs: 
+            Defaults as blank list. Used to incorporate lock-in amplifier with 
+            measurement.
+        set_param: 
+            QCoDeS Parameter to be swept, defaults to None for 0D sweep.
+        inter_delay: 
+            Time (in seconds) to wait between data points.
+        save_data: 
+            Flag used to determine if the data should be saved or not.
+        plot_data: 
+            Flag to determine whether or not to live-plot data
+        x_axis: 
+            Defaults to 1 to set as time for 0D; defaults to 0 in 1D.
+        meas: 
+            Measurement class from QCoDeS, used to register and follow desired 
+            parameters. Default is None until a measurement is created using 
+            the create_measurement method.
+        dataset: 
+            Stores the data obtained during the measurement.
+        continuous: 
+            No effect on Sweep0D. Defaults to False for Sweep1D.
+        plot_bin: 
+            Defaults to 1. Used to plot data that has been sent to the 
+            data_queue list in the Plotter Thread.
+        is_running: 
+            Flag to determine whether or not sweep is currently running.
+        t0: 
+             Set to monotonic time when creating Runner Thread.
+        persist_data: 
+            Always none except in Sweep2D, takes one set_param, allows sweeping of 2 parameters.
+        datasaver: 
+            Initiated by Runner Thread to enable saving and export of data.
+            
         """
         QObject.__init__(self)
 
@@ -66,19 +188,23 @@ class BaseSweep(QObject):
 
     @classmethod
     def init_from_json(cls, fn, station):
+        """ Initializes QCoDeS station from previously saved setup. """
         with open(fn) as json_file:
             data = json.load(json_file)
             return BaseSweep.import_json(data, station)
 
     def follow_param(self, *p):
         """
-        This function saves parameters to be tracked, for both saving and plotting data.
+        Saves parameters to be tracked, for both saving and plotting data.
+        
         The parameters must be followed before '_create_measurement()' is called.
         
-        Arguments:
-            *p - Variable number of arguments, each of which must be a QCoDeS Parameter
-                 that you want the sweep to follow
+        Parameters:
+            *p: 
+                Variable number of arguments, each of which must be a QCoDeS Parameter
+                that is desired to be followed.
         """
+        
         if self.is_running:
             print("Cannot update the parameter list while the sweep is running.")
 
@@ -93,13 +219,13 @@ class BaseSweep(QObject):
 
     def remove_param(self, *p):
         """
-        This function removes parameters to be tracked, for both saving and plotting data.
-        The parameters must be followed before '_create_measurement()' is called.
+        Removes parameters that were previously followed.
         
-        Arguments:
+        Parameters:
             *p - Variable number of arguments, each of which must be a QCoDeS Parameter
-                 that you want the sweep to remove from its list
+                 that is currently being tracked.
         """
+        
         if self.is_running:
             print("Cannot update the parameter list while the sweep is running.")
 
@@ -114,11 +240,15 @@ class BaseSweep(QObject):
         """
         Adds an SRS lock-in to ensure that the range is kept correctly.
         
-        Arguments:
-            l - lockin instrument
-            name - name of instrument
-            gain - current gain value
+        Parameters:
+            l:
+                The lock-in instrument. 
+            name:
+                The name of the instrument to be followed.
+            gain:
+                The current gain value.
         """
+        
         if self.is_running:
             print("Cannot update the srs list while the sweep is running.")
 
@@ -127,11 +257,17 @@ class BaseSweep(QObject):
 
     def _create_measurement(self):
         """
-        Creates a QCoDeS Measurement object. This controls the saving of data by registering
-        QCoDeS Parameter objects, which this function does. Registers all 'tracked' parameters, 
-        Returns the measurement object.
-        This function will register only parameters that are followed BEFORE this function is
+        Creates a QCoDeS Measurement object. 
+        
+        This controls the saving of data by registering QCoDeS Parameter objects, 
+        which this function does. Registers all followed parameters. This function 
+        will register only parameters that are followed BEFORE this function is
         called.
+        
+        Returns
+        ---------
+        The measurement object with the parameters to be followed.
+        
         """
 
         # First, create time parameter
@@ -155,10 +291,13 @@ class BaseSweep(QObject):
 
     def stop(self):
         """
-        Stops/pauses the program from running by setting the 'is_running' flag to false. This is
-        the flag that the children threads check in their loop to determine if they should
-        continue running.
+        Stops/pauses the program from running by setting the is_running flag to false. 
+        
+        The is_running flag is checked in every thread's loop to determine whether or 
+        not to continue running. When sweep is stopped, all data is updated a final time
+        to ensure all completed measurements are stored.
         """
+        
         if self.save_data and self.runner is not None:
             self.runner.flush_flag = True
 
@@ -168,9 +307,8 @@ class BaseSweep(QObject):
         self.send_updates()
 
     def kill(self):
-        """
-        Ends the threads spawned by the sweep and closes any active plots.
-        """
+        """ Ends the threads spawned by the sweep and closes any active plots. """
+        
         # Stop any data-taking
         self.is_running = False
 
@@ -193,15 +331,23 @@ class BaseSweep(QObject):
             self.plotter = None
 
     def check_running(self):
-        """
-        Returns the status of the sweep.
-        """
+        """ Returns the status of the sweep. """
+        
         return self.is_running
 
     def start(self, persist_data=None, ramp_to_start=False):
         """
-        Starts the sweep by creating and running the worker threads. Used to both start the 
-        program and unpause after calling 'stop()'
+        Starts the sweep by creating and running the worker threads.
+        
+        Can be used to both start the program and unpause after calling 'stop()'.
+        
+        Parameters
+        ---------
+        persist_data:
+            Optional argument which allows Sweep2D to sweep two paramters.
+        ramp_to_start:
+            Optional argument which gradually ramps each parameter to the starting
+            point of its sweep. Default is true for Sweep1D and Sweep2D.
         """
 
         if self.is_running:
@@ -256,41 +402,48 @@ class BaseSweep(QObject):
             self.runner.start()
 
     def resume(self):
-        """
-        Restart the sweep.
-        """
+        """ Restarts the sweep after it has been paused. """
+        
         if self.is_running is False:
             self.start(ramp_to_start=False)
         self.send_updates(no_sp=True)
 
     def get_dataset(self):
-        """
-        Helper function for retrieving datset.
-        
-        Returns
-        -------
-        self.dataset - Dataset object containing all collected data
-
-        """
+        """ Returns the dataset object which contains the collected data. """
 
         return self.dataset
 
     @pyqtSlot(dict)
     def receive_dataset(self, ds_dict):
+        """
+        Connects the dataset of Runner Thread to the dataset object of the sweep.
+        
+        Parameters
+        ---------
+        ds_dict:
+            Dataset dictionary passed between Runner Thread and sweep.
+        """
+        
         self.dataset = ds_dict
         self.dataset_signal.emit(ds_dict)
 
     def update_values(self):
         """
-        Iterates our data points, changing our setpoint if we are sweeping, and refreshing
-        the values of all our followed parameters. If we are saving data, it happens here,
-        and the data is returned.
+        Called as Runner Thread loops to update parameter values.
         
-        Returns:
-            data - A list of tuples with the new data. Each tuple is of the format 
-                   (<QCoDeS Parameter>, measurement value). The tuples are passed in order of
-                   time, then set_param (if applicable), then all the followed params.
+        Verifies the data to be updated depending on type of sweep.
+        Iterates through data point intervals, assigning collected values to 
+        their respective parameters. If data is to be saved, it happens here,
+        and the updated data is emitted to all connected slots.
+        
+        Returns
+        ---------
+        data: 
+            A dictionary of tuples with the updated data. Each tuple is of the format 
+            (<QCoDeS Parameter>, measurement value). The tuples are passed in order of
+            time, then set_param (if applicable), then all the followed params.
         """
+        
         t = time.monotonic() - self.t0
 
         data = [('time', t)]
@@ -323,6 +476,16 @@ class BaseSweep(QObject):
         return data
 
     def send_updates(self, no_sp=False):
+        """
+        Emits the signal after dictionary values are updated by 'update_values'.
+        
+        Parameters
+        ---------
+        no_sp:
+            Represents a 'no setpoints' boolean. Default is False, when true it
+            sets the setpoint key to None in the updated dictionary.
+        """
+        
         update_dict = {}
         if self.set_param is None:
             update_dict['set_param'] = 'time'
@@ -340,30 +503,43 @@ class BaseSweep(QObject):
         self.update_signal.emit(update_dict)
 
     def reset_plots(self):
-        """
-        Clears the currently showing plots.
-        """
+        """ Clears the currently displayed plots. """
+        
         if self.plotter is not None:
             self.reset_plot.emit()
 
     def close_plots(self):
-        """
-        Close the plotter
-        """
+        """ Resets the plotter and closes all displayed plots. """
+        
         if self.plotter is not None:
             self.plotter.clear()
 
     def set_plot_bin(self, pb):
+        """
+        Sets value for the Plotter Thread plot bin.
+        
+        Parameters
+        ---------
+        pb:
+            Integer value which determines the amount of data to remain in 
+            Plotter's data_queue while sweeping. The data queue is only 
+            emptied completely when force is set to True in 'update_plots'.
+        """
+        
         self.plot_bin = pb
         if self.plotter is not None:
             self.plotter.plot_bin = pb
 
     def set_complete_func(self, func):
         """
-        Defines the function to call when finished.
+        Sets a function to be called whenever the sweep is finished.
         
-        Arguments:
-            func - function to call
+        Connects to completed signal for Sweep0D, Sweep1D, and Sweep2D.
+        
+        Parameters
+        ---------
+            func:
+                The function to be called upon completion of the sweep.
         """
         self.complete_func = func
         self.completed.connect(func)
@@ -371,12 +547,25 @@ class BaseSweep(QObject):
     @pyqtSlot()
     def no_change(self, *args, **kwargs):
         """
-        This function is passed when we don't need to connect a function when the 
-        sweep is completed.
+        Passed when there is no function to be called on completion.
+        
+        Simply allows the sweep to end when 'complete_func' is set to None.
         """
         pass
 
     def check_params_are_correct(self):
+        """
+        Compares the followed parameters to the measurement parameters.
+        
+        Pulls paramaters from object _params, compares list to parameters
+        found in QCoDeS measurement dictionary.
+        
+        Returns
+        ---------
+        Boolean value for whether or not each followed parameter is a QCoDeS
+        parameter associated with the measurement instrument.
+        """
+        
         p_list = []
         meas_list = []
         # print("our params list")
@@ -394,6 +583,24 @@ class BaseSweep(QObject):
         return set(p_list) == set(meas_list)
 
     def export_json(self, fn=None):
+        """
+        Saves sweep attributes and parameters of QCoDeS Station as JSON dictionary.
+        
+        Called to save experimental setup to avoid repetitive setup of commonly
+        used measurement instruments.
+        
+        Parameters
+        ---------
+        fn:
+            Represents optional filename to be opened. A copy of the station
+            information will be saved in this file.
+            
+        Returns
+        ---------
+        Dictionary containing all current instruments, parameters, and sweep 
+        attributes.
+        """
+        
         json_dict = {}
         json_dict['class'] = str(self.__class__.__name__)
         json_dict['module'] = str(self.__class__.__module__)
@@ -462,6 +669,13 @@ class BaseSweep(QObject):
 
     @classmethod
     def import_json(cls, json_dict, station=Station()):
+        """
+        Loads previously exported Station setup.
+        
+        Reassigns all dictionary values exported as JSON to their appropriate
+        objects.
+        """
+        
         def load_parameter(name, instr_name, instr_type, station):
             if instr_name in station.components.keys():
                 if isinstance(station.components[instr_name], instr_type):
@@ -535,7 +749,6 @@ class BaseSweep(QObject):
         return sweep
 
     def __del__(self):
-        """
-        Destructor. Should delete all child threads and close all figures when the sweep object is deleted
-        """
+        """ Deletes all child threads and closes all figures. """
+        
         self.kill()
