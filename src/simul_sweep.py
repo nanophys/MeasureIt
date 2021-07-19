@@ -10,6 +10,63 @@ from src.util import _autorange_srs
 
 
 class SimulSweep(BaseSweep, QObject):
+    """
+    Child of BaseSweep used to simultaneously run sweeps on multiple parameters.
+    
+    Parameters must be split into equivalent step intervals. The first key in 
+    the '_p' dictionary is used as the independent variable passed to BaseSweep
+    in the same manner as the Sweep1D 'set_param'.
+    
+    Attributes
+    ---------
+    _p:
+        Dictionary used to pass parameters and their associated information.
+    bidirectional:
+        Set to True to run the sweep in both directions.
+    continuous:
+        Set to True to keep sweep running indefinitely.
+    *args:
+        Optional sweep arguments to be passed in BaseSweep.
+    **kwargs:
+        Optional keyword arguments to be passed in BaseSweep.
+    simul_params:
+        Used to store the parameters from the input '_p' dictionary.
+    set_params_dict:
+        Stores input parameter dictionary.
+    direction:
+        Tells sweep which direction to run; either 0 or 1.
+    is_ramping:
+        Flag to alert that the sweep is ramping a parameter to a staring value.
+    ramp_sweep:
+        Iterates parameters to their starting values before sweep begins.
+    runner:
+        Assigns the desired Runner Thread.
+    plotter:
+        Assigns the desired Plotter Thread.
+        
+    Methods
+    ---------
+    start(persist_data, ramp_to_start, ramp_multiplier)
+        Begins a BaseSweep, creates necessary measurement objects and threads.
+    stop()
+        Stops the BaseSweep.
+    kill()
+        Ends all threads and closes any active plots.
+    send_updates(no_sp)
+        Passed in this class.
+    step_param()
+        Iterates each parameter based on step size.
+    update_values()
+        Returns updated parameter-value pairs, default parameter is time.
+    ramp_to-zero(params=None)
+        Ramps value of all parameters to zero.
+    ramp_to(vals_dict, start_on_finish=False, persist=None, multiplier=1)
+        Begins ramping parameters to assigned starting values.
+    done_ramping(self, vals_dict, start_on_finish=False, pd=None)
+        Ensures that each parameter is at its start value and ends ramp.
+    flip_direction()
+        Changes the direction of the sweep.
+        """
 
     def __init__(self, _p, bidirectional=False, continual=False, *args, **kwargs):
         if len(_p.keys()) < 1 or not all(isinstance(p, dict) for p in _p.values()):
