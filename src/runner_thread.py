@@ -114,7 +114,7 @@ class RunnerThread(QThread):
 
     def run(self):
         """
-        Iterates the sweep and sends the data to the plotter for live plotting.
+        Iterates the sweep and sends data to the plotter for live plotting.
         
         NOTE: start() is called externally to start the thread, but run() 
         defines the behavior of the thread.

@@ -259,9 +259,9 @@ class BaseSweep(QObject):
         """
         Creates a QCoDeS Measurement object. 
         
-        This controls the saving of data by registering QCoDeS Parameter objects, 
-        which this function does. Registers all followed parameters. This function 
-        will register only parameters that are followed BEFORE this function is
+        Controls the saving of data by registering QCoDeS Parameter objects.
+        Registers all desired parameters to be followed. This function will 
+        register only parameters that are followed BEFORE this function is
         called.
         
         Returns

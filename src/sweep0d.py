@@ -8,19 +8,47 @@ from src.util import _autorange_srs
 
 class Sweep0D(BaseSweep, QObject):
     """
-    Class for the following/live plotting, i.e. "0-D sweep" class. As of now, is just an extension of
-    BaseSweep, but has been separated for future convenience.
+    Class for the following/live plotting of one parameter against monotonic time. 
+    
+    As of now, is just an extension of BaseSweep, but has been separated for 
+    future convenience. The default independent variable for Sweep0D Measurements 
+    is time. The measured data is transferred in real-time (through QObject slot 
+    and signal connections) from the Sweep classes to the Runner and Plotter Threads 
+    to organize, save, and live-plot the tracked parameters.
+    
+    Attributes
+    ---------
+    max_time:
+        The cutoff time (in seconds) where the sweep will end itself.
+    *args:
+        Used to set Runner and Plotter threads if previously created by GUI.
+    **kwargs:
+        Passes any keyword arguments to BaseSweep class.
+    direction:
+        Not utilized in Sweep0D.
+    
+    Methods
+    ---------
+    flip_direction()
+        Informs user that direction can not be flipped in Sweep0D.
+    update_values()
+        Returns dictionary of updated [parameter:value] pairs.
     """
 
     def __init__(self, max_time=1e6, *args, **kwargs):
         """
-        Initialization class. Simply calls the BaseSweep initialization, and saves a few extra variables.
+        Calls the BaseSweep initialization with any extra variables.
         
-        Arguments (distinct from BaseSweep):
-            runner - RunnerThread object, if prepared ahead of time, i.e. if a GUI is creating these first.
-            plotter - PlotterThread object, passed if a GUI has plots it wants the thread to use instead
-                      of creating it's own automatically.
-            max_time - int counting seconds of the amount of time to run the sweep
+        Parameters
+        ---------
+        max_time:
+            The cutoff time (in seconds) where the sweep will end itself.
+        *args:
+            Used to set Runner and Plotter threads if previously created by GUI.
+        **kwargs:
+            Passes any keyword arguments to BaseSweep class.
+        direction:
+            Not utilized in Sweep0D.
         """
         QObject.__init__(self)
         BaseSweep.__init__(self, set_param=None, *args, **kwargs)
@@ -41,22 +69,31 @@ class Sweep0D(BaseSweep, QObject):
 
     def flip_direction(self):
         """
-        Define the function so that when called, it will not throw an error.
+        The independent variable can not be flipped in Sweep0D.
+        
+        The default independent variable is time, and can not be flipped.
+        The function is defined so that it will not cause an error if called.
         """
+        
         print("Can't flip the direction, as we are not sweeping a parameter.")
         return
 
     def update_values(self):
         """
-        Iterates our data points, changing our setpoint if we are sweeping, and refreshing
-        the values of all our followed parameters. If we are saving data, it happens here,
-        and the data is returned.
+        Obtains all current parameter values. 
         
-        Returns:
-            data - A list of tuples with the new data. Each tuple is of the format 
-                   (<QCoDeS Parameter>, measurement value). The tuples are passed in order of
-                   time, then set_param (if applicable), then all the followed params.
+        Data is collected in parameter-value pairs, saved to a database if
+        desired, and a signal is emitted sending this data to the slots of
+        the sweep.
+        
+        Returns
+        ---------
+        data: 
+            A list of tuples with the new data. Each tuple is of the format 
+            (<QCoDeS Parameter>, measurement value). The tuples are passed in order 
+            of time, set_param (if applicable), then all the followed parameters.
         """
+        
         t = time.monotonic() - self.t0
 
         data = []

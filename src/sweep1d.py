@@ -11,22 +11,113 @@ from functools import partial
 
 class Sweep1D(BaseSweep, QObject):
     """
-    Class extending BaseSweep to sweep one parameter.
+    Class extending BaseSweep to sweep one independent parameter.
+    
+    The independent parameter defaults to time until a new parameter is 
+    assigned to 'set_param'. Sweep1D will sweep this parameter to its stop
+    value (and back) while measuring any changes in the followed parameters.
+    The data will be live-plotted and saved to a database if desired.
+    
+    Attributes
+    ---------
+    set_param: 
+        QCoDeS Parameter to be swept.
+    begin:
+        The starting value of the sweeping parameter.
+    end:
+        The ending value of the sweeping parameter.
+    step:
+        The step size between measured datapoints.
+    bidirectional:
+        Determines whether or not to run the sweep in both directions.
+    runner:
+        Assigns the Runner Thread.
+    plotter:
+        Assigns the Plotter Thread.
+    datasaver: 
+        Initiated by Runner Thread to enable saving and export of data.
+    inter_delay: 
+        Time (in seconds) to wait between data points.
+    save_data: 
+        Flag used to determine if the data should be saved or not.
+    plot_data: 
+        Flag to determine whether or not to live-plot data.
+    complete_func:
+        Sets a function to be executed upon completion of the sweep.
+    x_axis_time: 
+        Defaults to 0 to allow the 'set_param' to be plotted on the x-axis.
+    parent:
+        Sets a parent Sweep2D object.
+    continual:
+        Causes sweep to continuously run back and forth between start and stop points.
+    plot_bin: 
+        Defaults to 1. Used to plot data that has been sent to the 
+        data_queue list in the Plotter Thread.
+    back_multiplier:
+        Factor to scale the step size after flipping directions.
+    persistent_magnet:
+        Optional argument for IPS120 measurements.
+    setpoint:
+        The first parameter value where a measurement is obtained after starting.
+    direction:
+        Either 0 or 1 to indicate the direction of the sweep.
+    is_ramping: 
+        Flag to determine whether or not sweep is currently ramping to start.
+    ramp_sweep:
+        Defines the sweep used to set the parameter to its starting value.
+    instrument:
+        The instrument used to control/monitor the 'set_param'.
+        
+    Methods
+    ---------
+    start(persist_data=None, ramp_to_start=True, ramp_multiplier=1)
+        Starts the sweep; runs from the BaseSweep start() function.
+    stop()
+        Stops running any currently active sweeps.
+    kill()
+        Ends the threads spawned by the sweep and closes any active plots.
+    step_param()
+        Iterates the parameter.
+    step_AMI430()
+        Used to control sweeps of AMI430 Instrument. 
+    step_IPS120()
+        Used to control sweeps of IPS120 Instrument. 
+    flip_direction()
+        Flips the direction of the sweep, to do bidirectional sweeping.
+    ramp_to(value, start_on_finish=False, persist=None, multiplier=1)
+        Ramps the set_param to a given value, at a rate dictated by the multiplier.
+    ramp_to_zero()
+        Ramps the set_param to 0, at the same rate as already specified.
+    done_ramping(self, value, start_on_finish=False, pd=None)
+        Alerts the sweep that the ramp is finished.
+    get_param_setpoint()
+        Obtains the current value of the setpoint.
+    reset(new_params=None)
+        Resets Sweep1D, optional argument to change sweep details.
     """
 
     def __init__(self, set_param, start, stop, step, bidirectional=False, runner=None, plotter=None, datasaver=None,
                  inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=0, parent=None,
                  continual=False, plot_bin=1, back_multiplier=1, persistent_magnet=False):
         """
-        Initializes the sweep. There are only 5 new arguments to read in.
+        Initializes the sweep.
         
-        New arguments:
-            set param - parameter to be swept
-            start - value to start the sweep at
-            stop - value to stop the sweep at
-            step - step spacing for each measurement
-            complete_func - optional function to be called when the sweep is finished
-            x_axis_time - 1 for plotting parameters against time, 0 for set_param
+        There are 5 additional parameters not included in the BaseSweep initialization.
+        
+        Parameters
+        ---------
+        set param:
+            The independent parameter to be swept.
+        start:
+            The value that the sweep will begin from.
+        stop:
+            The value that the sweep will end at.
+        step:
+            The step spacing for each measurement.
+        complete_func:
+            An optional function to be called when the sweep is finished.
+        x_axis_time:
+            Determines if followed parameters are plotted against time(1) or 'set_param'(0).
         """
 
         # Initialize the BaseSweep
@@ -67,8 +158,18 @@ class Sweep1D(BaseSweep, QObject):
 
     def start(self, persist_data=None, ramp_to_start=True, ramp_multiplier=1):
         """
-        Starts the sweep. Runs from the BaseSweep start() function.
+        Starts the sweep; runs from the BaseSweep start() function.
+        
+        Parameters
+        ---------
+        persist_data:
+            Used to set Sweep2D parameter.
+        ramp_to_start:
+            Gently sweeps parameter to desired starting value.
+        ramp_multiplier:
+            Factor to control ramping speed compared to sweep speed.
         """
+        
         if self.is_ramping:
             print(f"Still ramping. Wait until ramp is done to start the sweep.")
             return
@@ -85,6 +186,8 @@ class Sweep1D(BaseSweep, QObject):
             super().start(persist_data=persist_data)
 
     def stop(self):
+        """ Stops running any currently active sweeps. """
+        
         if self.is_ramping and self.ramp_sweep is not None:
             print(f"Stopping the ramp.")
             self.ramp_sweep.stop()
@@ -107,6 +210,7 @@ class Sweep1D(BaseSweep, QObject):
         super().stop()
 
     def kill(self):
+        """ Ends the threads spawned by the sweep and closes any active plots. """
         if self.is_ramping and self.ramp_sweep is not None:
             self.ramp_sweep.stop()
             self.ramp_sweep.kill()
@@ -115,7 +219,12 @@ class Sweep1D(BaseSweep, QObject):
     def step_param(self):
         """
         Iterates the parameter.
+        
+        Returns
+        ---------
+        Continues stepping until the end of the sweep is reached.
         """
+        
         # The AMI Magnet sweeps very slowly, so we implement sweeps of it  differently
         # If we are sweeping the magnet, let's deal with it here
         if isinstance(self.instrument, AMI430) and 'field' in self.set_param.full_name:
@@ -149,9 +258,16 @@ class Sweep1D(BaseSweep, QObject):
 
     def step_AMI430(self):
         """
-        Function to deal with sweeps of AMI430. Instead of setting intermediate points, we set the endpoint at the
-        beginning, then ask it for the current field while it is ramping.
+        Used to control sweeps of AMI430 Instrument. 
+        
+        The endpoint is determined prior to the sweep, and the current 
+        field is measured during ramping.
+        
+        Returns
+        ---------
+        The parameter-value pair that was measured.
         """
+        
         # Check if we have set the magnetic field yet
         if self.magnet_initialized is False:
             self.instrument.set_field(self.end, block=False)
@@ -195,9 +311,16 @@ class Sweep1D(BaseSweep, QObject):
 
     def step_IPS120(self):
         """
-        Function to deal with sweeps of IPS120. Instead of setting intermediate points, we set the endpoint at the
-        beginning, then ask it for the current field while it is ramping.
+        Used to control sweeps of IPS120 Instrument. 
+        
+        The endpoint is determined prior to the sweep, and the current 
+        field is measured during ramping.
+        
+        Returns
+        ---------
+        The parameter-value pair that was measured.
         """
+        
         # Check if we have set the magnetic field yet
         if self.magnet_initialized is False:
             print("Checking the status of the magnet and switch heater.")
@@ -228,9 +351,7 @@ class Sweep1D(BaseSweep, QObject):
         return data_pair
 
     def flip_direction(self):
-        """
-        Flips the direction of the sweep, to do bidirectional sweeping.
-        """
+        """ Flips the direction of the sweep, to do bidirectional sweeping. """
         # If backwards, go forwards, and vice versa
         if self.direction:
             self.direction = 0
@@ -252,13 +373,19 @@ class Sweep1D(BaseSweep, QObject):
 
     def ramp_to(self, value, start_on_finish=False, persist=None, multiplier=1):
         """
-        Ramps the set_param to a given value, at the same rate as already specified.
+        Ramps the set_param to a given value, at a rate dictated by the multiplier.
         
-        Arguments:
-            value - setpoint to ramp towards
-            start_on_finish - flag if we want to begin the sweep as soon as we are done ramping
-            multiplier - multiplier for the step size, to ramp quicker than the sweep speed
+        Parameters
+        ---------
+        value:
+            The desired starting value for the sweep.
+        start_on_finish:
+            Flag to determine whether to begin the sweep as soon as ramp is finished.
+        multiplier:
+            Factor to alter the step size, used to ramp quicker than the sweep speed.
         """
+        
+        
         # Ensure we aren't currently running
         if self.is_ramping:
             print(f"Currently ramping. Finish current ramp before starting another.")
@@ -288,9 +415,8 @@ class Sweep1D(BaseSweep, QObject):
         print(f'Ramping {self.set_param.label} to {value} . . . ')
 
     def ramp_to_zero(self):
-        """
-        Deprecated. Ramps the set_param to 0, at the same rate as already specified.
-        """
+        """ Ramps the set_param to 0, at the same rate as already specified. """
+        
         self.end = 0
         if self.setpoint - self.end > 0:
             self.step = (-1) * abs(self.step)
@@ -302,6 +428,19 @@ class Sweep1D(BaseSweep, QObject):
 
     @pyqtSlot()
     def done_ramping(self, value, start_on_finish=False, pd=None):
+        """
+        Alerts the sweep that the ramp is finished.
+        
+        Parameters
+        ---------
+        value:
+            The starting value for the sweep, also the current parameter value.
+        start_on_finish:
+            Sweep will be called to start immediately after ramping when set to True.
+        pd:
+            Sets persistent data if running Sweep2D.
+        """
+        
         self.is_ramping = False
         self.is_running = False
         # Grab the beginning 
@@ -320,18 +459,19 @@ class Sweep1D(BaseSweep, QObject):
             self.start(persist_data=pd, ramp_to_start=False)
 
     def get_param_setpoint(self):
-        """
-        Utility function to get the current value of the setpoint
-        """
+        """ Obtains the current value of the setpoint. """
+        
         return f'{self.set_param.label} = {self.set_param.get()} {self.set_param.unit}'
 
     def reset(self, new_params=None):
         """
-        Resets the Sweep1D to reuse the same object with the same plots.
+        Resets Sweep1D, optional argument to change sweep details.
         
-        Arguments:
-            new_params - list of 4 values to determine how we sweep. In order, 
-                         must be [ start value, stop value, step, frequency ]
+        Parameters
+        ---------
+        new_params:
+            A list of 4 values to determine how we sweep. 
+            [ start value, stop value, step, frequency ]
         """
 
         # Set our new values if desired
@@ -350,6 +490,6 @@ class Sweep1D(BaseSweep, QObject):
 
     def __del__(self):
         """
-        Destructor. Should delete all child threads and close all figures when the sweep object is deleted
+        Destructor. Should delete all child threads and close all figures when the sweep object is deleted.
         """
         self.kill()
