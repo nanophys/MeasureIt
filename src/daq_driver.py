@@ -241,7 +241,7 @@ class DaqAOChannel(InstrumentChannel):
         Device address combined with channel name.
     """
     
-        def __init__(self, parent: Instrument, device, address, channel, min_output, max_output, min_in, max_in):
+    def __init__(self, parent: Instrument, device, address, channel, min_output, max_output, min_in, max_in):
         """
         Initialization for the DAQ output channels. 
         
@@ -491,7 +491,7 @@ class DaqAIChannel(InstrumentChannel):
         Device address combined with channel name.
     """
 
-        def __init__(self, parent: Instrument, device, address, channel, min_input, max_input):
+    def __init__(self, parent: Instrument, device, address, channel, min_input, max_input):
         """
         Initialization for DAQ input channels. 
         
