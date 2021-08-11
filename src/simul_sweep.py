@@ -21,6 +21,8 @@ class SimulSweep(BaseSweep, QObject):
     ---------
     _p:
         Dictionary used to pass parameters and their associated information.
+    n_steps:
+        Integer value of number of steps for each parameter to take, instead of offering step sizes in _p
     bidirectional:
         Set to True to run the sweep in both directions.
     continuous:
@@ -58,7 +60,7 @@ class SimulSweep(BaseSweep, QObject):
         Iterates each parameter based on step size.
     update_values()
         Returns updated parameter-value pairs, default parameter is time.
-    ramp_to-zero(params=None)
+    ramp_to_zero(params=None)
         Ramps value of all parameters to zero.
     ramp_to(vals_dict, start_on_finish=False, persist=None, multiplier=1)
         Begins ramping parameters to assigned starting values.
@@ -66,9 +68,9 @@ class SimulSweep(BaseSweep, QObject):
         Ensures that each parameter is at its start value and ends ramp.
     flip_direction()
         Changes the direction of the sweep.
-        """
+    """
 
-    def __init__(self, _p, bidirectional=False, continual=False, *args, **kwargs):
+    def __init__(self, _p, n_steps=None, bidirectional=False, continual=False, *args, **kwargs):
         if len(_p.keys()) < 1 or not all(isinstance(p, dict) for p in _p.values()):
             raise ValueError('Must pass at least one Parameter and the associated values as dictionaries.')
 
@@ -89,6 +91,19 @@ class SimulSweep(BaseSweep, QObject):
         QObject.__init__(self)
         BaseSweep.__init__(self, sp, *args, **kwargs)
 
+        if n_steps is not None:
+            for p, v in self.set_params_dict.items():
+                v['step'] = (v['stop'] - v['start'])/n_steps
+        else:
+            _n_steps = []
+            for key, p in _p.items():
+                _n_steps.append(int(abs(p['stop'] - p['start']) / abs(p['step'])))
+
+            if not all(steps == _n_steps[0] for steps in _n_steps):
+                raise ValueError('Parameters have a different number of steps for the sweep. The Parameters must have '
+                                 'the same number of steps to sweep them simultaneously.'
+                                 f'\nStep numbers: {_n_steps}')
+
         for p, v in self.set_params_dict.items():
             self.simul_params.append(p)
 
@@ -99,15 +114,6 @@ class SimulSweep(BaseSweep, QObject):
                 v['step'] = (-1) * abs(v['step'])
 
             v['setpoint'] = safe_get(p) - v['step']
-
-        n_steps = []
-        for key, p in _p.items():
-            n_steps.append(int(abs(p['stop'] - p['start']) / abs(p['step'])))
-
-        if not all(steps == n_steps[0] for steps in n_steps):
-            raise ValueError('Parameters have a different number of steps for the sweep. The Parameters must have the '
-                             'same number of steps to sweep them simultaneously.'
-                             f'\nStep numbers: {n_steps}')
 
         self.follow_param([p for p in self.simul_params if p is not self.set_param])
         self.persist_data = []
