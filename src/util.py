@@ -213,7 +213,7 @@ def set_experiment_sample_names(sweep, exp, samp):
     sweep._create_measurement()
 
 
-def init_database(db, exp, samp, sweep=None):
+def init_database(db, exp, samp):
     """
     Initializes a new database and creates a new measurement if a sweep is set.
     
@@ -225,13 +225,15 @@ def init_database(db, exp, samp, sweep=None):
         The experiment name.
     sample:
         The sample name.
-    sweep:
-        The optional argument to begin a new sweep with the database.
     """
-    initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db)
+    if '.db' not in db:
+        db = f'{db}.db'
+        
+    if f'{os.environ["MeasureItHome"]}\\Databases\\' in db:
+        initialise_or_create_database_at(db)
+    else:
+        initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db)
     qc.new_experiment(exp, samp)
-    if sweep is not None:
-        sweep._create_measurement()
 
 
 def export_db_to_txt(db_fn, exp_name=None, sample_name=None):
