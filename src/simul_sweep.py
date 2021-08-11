@@ -6,7 +6,7 @@ from functools import partial
 from PyQt5.QtCore import pyqtSlot, QObject
 
 from src.base_sweep import BaseSweep
-from src.util import _autorange_srs
+from src.util import _autorange_srs, safe_set, safe_get
 
 
 class SimulSweep(BaseSweep, QObject):
@@ -98,7 +98,7 @@ class SimulSweep(BaseSweep, QObject):
             else:
                 v['step'] = (-1) * abs(v['step'])
 
-            v['setpoint'] = p.get() - v['step']
+            v['setpoint'] = safe_get(p) - v['step']
 
         n_steps = []
         for key, p in _p.items():
@@ -170,7 +170,7 @@ class SimulSweep(BaseSweep, QObject):
             # If we aren't at the end, keep going
             if abs(v['setpoint'] - v['stop']) - abs(v['step'] / 2) > abs(v['step']) * 1e-4:
                 v['setpoint'] = v['setpoint'] + v['step']
-                p.set(v['setpoint'])
+                safe_set(p, (v['setpoint']))
                 rets.append((p, v['setpoint']))
 
             # If we want to go both ways, we flip the start and stop, and run again
@@ -225,7 +225,7 @@ class SimulSweep(BaseSweep, QObject):
 
         for i, p in enumerate(self._params):
             if p not in self.simul_params:
-                v = p.get()
+                v = safe_get(p)
                 data.append((p, v))
 
         if self.save_data and self.is_running:
@@ -258,11 +258,11 @@ class SimulSweep(BaseSweep, QObject):
             if p not in self.set_params_dict.keys():
                 print("Cannot ramp parameter not in our sweep.")
                 return
-            if abs(v - p.get()) <= self.set_params_dict[p]['step'] / 2:
+            if abs(v - safe_get(p)) <= self.set_params_dict[p]['step'] / 2:
                 continue
 
             ramp_params_dict[p] = {}
-            ramp_params_dict[p]['start'] = p.get()
+            ramp_params_dict[p]['start'] = safe_get(p)
             ramp_params_dict[p]['stop'] = v
 
             p_steps = abs((ramp_params_dict[p]['stop'] - ramp_params_dict[p]['start']) /
@@ -289,11 +289,24 @@ class SimulSweep(BaseSweep, QObject):
     def done_ramping(self, vals_dict, start_on_finish=False, pd=None):
         self.is_ramping = False
         self.is_running = False
-        # Grab the beginning
-        # value = self.ramp_sweep.begin
+
+        # Check if we are at the value we expect, otherwise something went wrong with the ramp
+        for p, v in vals_dict.items():
+            p_step = self.set_params_dict[p]['step']
+            if abs(safe_get(p) - v) - abs(p_step / 2) > abs(p_step) * 1e-4:
+                print(f'Ramping failed (possible that the direction was changed while ramping). '
+                      f'Expected {p.label} final value: {v}. Actual value: {safe_get(p)}. '
+                      f'Stopping the sweep.')
+
+                if self.ramp_sweep is not None:
+                    self.ramp_sweep.kill()
+                    self.ramp_sweep = None
+
+                return
+
         print(f'Done ramping!')
         for p, v in vals_dict.items():
-            p.set(v)
+            safe_set(p, v)
             self.set_params_dict[p]['setpoint'] = v - self.set_params_dict[p]['step']
 
         if self.ramp_sweep is not None:
