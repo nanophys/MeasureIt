@@ -170,7 +170,7 @@ class SimulSweep(BaseSweep, QObject):
             # If we aren't at the end, keep going
             if abs(v['setpoint'] - v['stop']) - abs(v['step'] / 2) > abs(v['step']) * 1e-4:
                 v['setpoint'] = v['setpoint'] + v['step']
-                safe_set(p, (v['setpoint']))
+                safe_set(p, v['setpoint'])
                 rets.append((p, v['setpoint']))
 
             # If we want to go both ways, we flip the start and stop, and run again
