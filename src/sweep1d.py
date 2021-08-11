@@ -2,7 +2,7 @@
 
 import time
 from src.base_sweep import BaseSweep
-from src.util import safe_set
+from src.util import safe_set, safe_get
 from PyQt5.QtCore import QObject, pyqtSlot
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes_contrib_drivers.drivers.Oxford.IPS120 import OxfordInstruments_IPS120
@@ -203,7 +203,7 @@ class Sweep1D(BaseSweep, QObject):
             # print(f"Stopped the ramp, the current setpoint  is {self.setpoint} {self.set_param.unit}")
 
         if isinstance(self.instrument, AMI430):
-            self.set_param.set(self.set_param.get())
+            self.set_param.set(safe_get(self.set_param))
         elif isinstance(self.instrument, OxfordInstruments_IPS120):
             self.instrument.activity(0)
 
@@ -384,8 +384,7 @@ class Sweep1D(BaseSweep, QObject):
         multiplier:
             Factor to alter the step size, used to ramp quicker than the sweep speed.
         """
-        
-        
+
         # Ensure we aren't currently running
         if self.is_ramping:
             print(f"Currently ramping. Finish current ramp before starting another.")
@@ -395,8 +394,8 @@ class Sweep1D(BaseSweep, QObject):
             return
 
         # Check if we are already at the value
-        curr_value = self.set_param.get()
-        if abs(value - curr_value) <= self.step / 2:
+        curr_value = safe_get(self.set_param)
+        if abs(value - curr_value) - abs(self.step/2) < abs(self.step) * 1e-4:
             # print(f"Already within {self.step} of the desired ramp value. Current value: {curr_value},
             # ramp setpoint: {value}.\nSetting our setpoint directly to the ramp value.")
             self.done_ramping(value, start_on_finish, persist)
@@ -445,8 +444,21 @@ class Sweep1D(BaseSweep, QObject):
         self.is_running = False
         # Grab the beginning 
         # value = self.ramp_sweep.begin
+
+        # Check if we are at the value we expect, otherwise something went wrong with the ramp
+        if abs(safe_get(self.set_param) - value) - abs(self.step/2) > abs(self.step) * 1e-4:
+            print(f'Ramping failed (possible that the direction was changed while ramping). '
+                  f'Expected {self.set_param.label} final value: {value}. Actual value: {safe_get(self.set_param)}. '
+                  f'Stopping the sweep.')
+
+            if self.ramp_sweep is not None:
+                self.ramp_sweep.kill()
+                self.ramp_sweep = None
+
+            return
+
         print(f'Done ramping {self.set_param.label} to {value}')
-        self.set_param.set(value)
+        safe_set(self.set_param, value)
         self.setpoint = value - self.step
         # if self.ramp_sweep is not None and self.ramp_sweep.plotter is not None:
         #    self.ramp_sweep.plotter.clear()
@@ -461,7 +473,7 @@ class Sweep1D(BaseSweep, QObject):
     def get_param_setpoint(self):
         """ Obtains the current value of the setpoint. """
         
-        return f'{self.set_param.label} = {self.set_param.get()} {self.set_param.unit}'
+        return f'{self.set_param.label} = {safe_get(self.set_param)} {self.set_param.unit}'
 
     def reset(self, new_params=None):
         """
