@@ -11,29 +11,120 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 class Sweep2D(BaseSweep, QObject):
     """
-    A 2-D Sweep of QCoDeS Parameters. This class runs by setting its outside parameter, then running
-    an inner Sweep1D object, which handles all the saving of data and communications through the
-    Thread objects. 
+    A 2-D Sweep of QCoDeS Parameters. 
+    
+    This class runs by setting an outside parameter, then running
+    an inner Sweep1D object. The inner sweep handles all data saving
+    and communications through the Thread objects. 
+    
+    Attributes
+    ---------
+    in_params:
+        List defining the inner sweep [parameter, start, stop, step].
+    out_params:
+        List defining the outer sweep [parameter, start, stop, step].
+    inter_delay: 
+        Time (in seconds) to wait between data points on inner sweep.
+    outer_delay: 
+        Time (in seconds) to wait between data points on outer sweep.
+    save_data: 
+        Flag used to determine if the data should be saved or not.
+    plot_data: 
+        Flag to determine whether or not to live-plot data.
+    complete_func:
+        Sets a function to be executed upon completion of the outer sweep.
+    update_func:
+        Sets a function to be executed upon completion of the inner sweep.
+    plot_bin: 
+        Defaults to 1. Controls amount of data stored in the data_queue list 
+        in the Plotter Thread.
+    runner:
+        Assigns the Runner Thread.
+    plotter:
+        Assigns the Plotter Thread.
+    back_multiplier:
+        Factor to scale the step size after flipping directions.
+    heatmap_plotter:
+        Uses color to represent values of a third parameter plotted against
+        two sweeping parameters.
+        
+    Methods
+    ---------
+    follow_param(*p)
+        Saves parameters to be tracked, for both saving and plotting data.
+    follow_srs(self, l, name, gain=1.0)
+        Adds an SRS lock-in to Sweep1D to ensure that the range is kept correctly.
+    _create_measurement()
+        Creates the measurement object for the sweep. 
+    start(ramp_to_start=True, persist_data=None)
+        Extends the start() function of BaseSweep.
+    stop()
+        Stops the sweeping of both the inner and outer sweep.
+    resume()
+        Resumes the inner and outer sweeps.
+    update_values()
+        Updates plots and heatmap based on data from the inner and outer sweeps.
+    get_param_setpoint()
+        Obtains the current value of the setpoint.
+    set_update_rule(func)
+        Sets a function to be called upon completion of each inner sweep.
+    send_updates(no_sp=False)
+        Passed in Sweep2D.
+    kill()
+        Ends all threads and closes any active plots.
+    ramp_to(value, start_on_finish=False, multiplier=1)
+        Ramps the set_param to a given value, at a rate specified by multiplier.
+    ramp_to_zero()
+        
+    done_ramping(start_on_finish=False)
+        
     """
+    
     add_heatmap_lines = pyqtSignal(list)
     clear_heatmap_plot = pyqtSignal()
 
     def __init__(self, in_params, out_params, inter_delay=0.1, outer_delay=1, save_data=True, plot_data=True,
                  complete_func=None, update_func=None, plot_bin=1, runner=None, plotter=None, back_multiplier=1):
         """
-        Initializes the sweep. It reads in the settings for each of the sweeps, as well
-        as the standard BaseSweep arguments.
+        Initializes the sweep.
         
-        The inner_sweep_parameters and outer_sweep_parameters MUST be a list, conforming to the 
-        following standard:
+        The inner sweep parameters('in_params') and outer sweep parameters ('out_params') MUST be a list, 
+        conforming to the following standard:
         
             [ <QCoDeS Parameter>, <start value>, <stop value>, <step size> ]
             
-        New arguments: 
-            inner_sweep_parameters - list conforming to above standard for the inner sweep
-            outer_sweep_parameters - list conforming to above standard for the inner sweep
-            complete_func - optional function to be called when the sweep is finished
+        Parameters
+        ---------
+        in_params:
+            A list conforming to above standard for the inner sweep.
+        out_params:
+            A list conforming to above standard for the outer sweep.
+        inter_delay:    
+            Time (in seconds) to wait between data points on inner sweep.
+        outer_delay: 
+            Time (in seconds) to wait between data points on outer sweep.
+        save_data: 
+            Flag used to determine if the data should be saved or not.
+        plot_data: 
+            Flag to determine whether or not to live-plot data.
+        complete_func:
+            Sets a function to be executed upon completion of the outer sweep.
+        update_func:
+            Sets a function to be executed upon completion of the inner sweep.
+        plot_bin: 
+            Defaults to 1. Controls amount of data stored in the data_queue list 
+            in the Plotter Thread.
+        runner:
+            Assigns the Runner Thread.
+        plotter:
+            Assigns the Plotter Thread.
+        back_multiplier:
+            Factor to scale the step size after flipping directions.
+        heatmap_plotter:
+            Uses color to represent values of a third parameter plotted against
+            two sweeping parameters.
         """
+        
         # Ensure that the inputs were passed (at least somewhat) correctly
         if len(in_params) != 4 or len(out_params) != 4:
             raise TypeError('For 2D Sweep, must pass list of 4 object for each sweep parameter, \
@@ -97,16 +188,21 @@ class Sweep2D(BaseSweep, QObject):
 
     def follow_param(self, *p):
         """
-        This function saves parameters to be tracked, for both saving and plotting data.
-        Since the data saving is always handled by the inner Sweep1D object, we actually
-        register all Parameters in the inner Sweep1D object.
+        Saves parameters to be tracked, for both saving and plotting data.
+        
+        
+        Since the data saving is always handled by the inner Sweep1D object, all parameters
+        are registered in the inner Sweep1D object.
         
         The parameters must be followed before '_create_measurement()' is called.
             
-        Arguments:
-            *p - Variable number of arguments, each of which must be a QCoDeS Parameter
-                 or a list of QCoDeS Parameters that you want the sweep to follow
+        Parameters
+        ---------
+        *p:
+            Variable number of arguments, each of which must be a QCoDeS Parameter,
+            or a list of QCoDeS Parameters, for the sweep to follow.
         """
+        
         for param in p:
             if isinstance(param, list):
                 for l in param:
@@ -117,32 +213,50 @@ class Sweep2D(BaseSweep, QObject):
 
     def follow_srs(self, l, name, gain=1.0):
         """
-        Adds an SRS lock-in to ensure that the range is kept correctly.
+        Adds an SRS lock-in to Sweep1D to ensure that the range is kept correctly.
         
-        Arguments:
-            l - lockin instrument
-            name - name of instrument
-            gain - current gain value
+        Parameters
+        ---------
+        l: 
+            The lock-in instrument.
+        name:
+            The user-defined name of the instrument.
+        gain:
+            The current gain value.
         """
+        
         self.in_sweep.follow_srs((l, name, gain))
 
     def _create_measurement(self):
         """
-        Creates the measurement object for the sweep. Again, everything is actually run and saved
-        through the Sweep1D object, so we create the measurement object from there.
+        Creates the measurement object for the sweep. 
         
-        Returns:
-            self.meas - the Measurement object that runs the sweep
+        The measurement object is created through the inner Sweep1D object.
+        
+        Returns
+        ---------
+        self.meas:
+            The QCoDeS Measurement object responsible for running the sweep.
         """
+        
         self.meas = self.in_sweep._create_measurement()
 
         return self.meas
 
     def start(self, ramp_to_start=True, persist_data=None):
         """
-        Extends the start() function of BaseSweep. We set our first outer sweep setpoint, then
-        start the inner sweep, and let it control the run from there.
+        Extends the start() function of BaseSweep. 
+        
+        The first outer sweep setpoint is set, and the inner sweep is started.
+        
+        Parameters
+        ---------
+        ramp_to_start:
+            Sets a sweep to gently iterate the parameter to its starting value.
+        persist_data:
+            Sets the outer parameter for Sweep2D.
         """
+        
         if self.is_running:
             print("Can't start the sweep, we're already running!")
             return
@@ -183,23 +297,24 @@ class Sweep2D(BaseSweep, QObject):
             self.runner = self.in_sweep.runner
 
     def stop(self):
-        """
-        Stops the sweeping of both the inner and outer sweep.
-        """
+        """ Stops the sweeping of both the inner and outer sweep. """
         self.is_running = False
         self.in_sweep.stop()
 
     def resume(self):
+        """ Resumes the inner and outer sweeps. """
         self.is_running = True
         self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint), ramp_to_start=False)
 
     def update_values(self):
         """
-        Iterates the outer parameter and then restarts the inner loop. We also check for our stop
-        condition, and if it is reached, we emit our completed signal and stop running. This is
-        the function attached to the finishing of the inner sweep, so it will be automatically called
-        when our inner sweep is finished.
+        Updates plots and heatmap based on data from the inner and outer sweeps.
+        
+        This function is automatically called upon completion of the inner sweep.
+        The outer parameter is iterated and the inner sweep is restarted. If the stop
+        condition is reached, the completed signal is emitted and the sweeps are stopped. 
         """
+        
         # If this function was called from a ramp down to 0, a special case of sweeping, deal with that
         # independently
         if self.in_sweep.is_ramping:
@@ -245,27 +360,29 @@ class Sweep2D(BaseSweep, QObject):
             self.completed.emit()
 
     def get_param_setpoint(self):
-        """
-        Utility function to get the current value of the setpoint
-        """
+        """ Obtains the current value of the setpoint. """
         s = f"{self.set_param.label} = {self.set_param.get()} {self.set_param.unit} \
         \n{self.inner_sweep.set_param.label} = {self.inner_sweep.set_param.get()} {self.inner_sweep.set_param.unit}"
         return s
 
     def set_update_rule(self, func):
         """
-        Sets the update rule for in between inner sweeps, for example for peak tracking
+        Sets a function to be called upon completion of each inner sweep.
         
-        Arguments:
-            func - function handle for update function. Must take in two arguments: the sweep to be updated,
-                   and the previous data
+        Parameters
+        ---------
+        func:
+            The function handle desired to set the update function. 
         """
+        
         self.update_rule = func
 
     def send_updates(self, no_sp=False):
         pass
 
     def kill(self):
+        """ Ends all threads and closes any active plots. """
+        
         self.in_sweep.kill()
         super().kill()
 
@@ -280,13 +397,18 @@ class Sweep2D(BaseSweep, QObject):
 
     def ramp_to(self, value, start_on_finish=False, multiplier=1):
         """
-        Ramps the set_param to a given value, at the same rate as already specified.
+        Ramps the set_param to a given value, at a rate specified by the multiplier.
 
-        Arguments:
-            value - setpoint to ramp towards
-            start_on_finish - flag if we want to begin the sweep as soon as we are done ramping
-            multiplier - multiplier for the step size, to ramp quicker than the sweep speed
+        Parameter
+        ---------
+        value:
+            The setpoint for the sweep to ramp to.
+        start_on_finish:
+            Flag to determine whether to begin the sweep when ramping is finished.
+        multiplier:
+            The multiplier for the step size, to ramp quicker than the sweep speed.
         """
+        
         # Ensure we aren't currently running
         if self.outer_ramp:
             print(f"Currently ramping. Finish current ramp before starting another.")
@@ -317,9 +439,8 @@ class Sweep2D(BaseSweep, QObject):
         print(f'Ramping {self.set_param.label} to {value} . . . ')
 
     def ramp_to_zero(self):
-        """
-        Ramp our set parameters down to zero.
-        """
+        """Ramps the set_param to 0, at the same rate as already specified. """
+
         print("Ramping both parameters to 0.")
         # Ramp our inner sweep parameter to zero
         self.inner_ramp = True
@@ -340,9 +461,14 @@ class Sweep2D(BaseSweep, QObject):
 
     def done_ramping(self, start_on_finish=False):
         """
-        Function called when our outer sweep parameter has finished ramping to zero. Checks if both parameters
-        are done, then tells the system we have finished.
+        Alerts the sweep that the ramp is finished.
+        
+        Parameters
+        ---------
+        start_on_finish:
+            Sweep will be called to start immediately after ramping when set to True.
         """
+        
         # Our outer parameter has finished ramping
         self.outer_ramp = False
         if self.ramp_sweep is not None:

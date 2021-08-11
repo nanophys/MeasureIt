@@ -13,15 +13,87 @@ from qcodes import initialise_or_create_database_at, Station
 
 class SweepQueue(QObject):
     """
-    SweepQueue is a modifieded double-ended queue (deque) object meant for continuously
-    running different sweeps. 
+    A modifieded double-ended queue meant for continuously running different sweeps.
+    
+    'newSweepSignal' is used to send the current sweep information to the BaseSweep
+    parent each time that a new sweep is to begin. Data can be saved to different
+    databases for each sweep, allowing simple organization of experiments.
+    
+    Attributes
+    ---------
+    inter_delay:
+        The time (in seconds) taken between consecutive sweeps.
+    queue:
+        Double-ended queue used to store sweeps in desired order.
+    current_sweep:
+        The most recent sweep pulled from the queue.
+    database:
+        Path used for saving the sweep data; able to store different databases
+        for individual sweeps.
+    exp_name:
+        User-defined experiment name.
+    sample_name:
+        User-defined sample name.
+    rts:
+        Defaults to true when sweep is started.
+        
+    Methods
+    ---------
+    init_from_json(fn, station=Station())
+        Loads previously saved sweep information and runs the 'import_json' method.
+    export_json(fn=None)
+        Creates JSON dictionary to store queue information.
+    import_json(json_dict, station=Station())
+        Updates SweepQueue attributes from chosen file.
+    append(*s)
+        Adds an arbitrary number of sweeps to the queue.
+    delete(item)
+        Removes/deletes sweeps from the queue.
+    replace(index, item)
+        Replaces sweep at the given index with a new sweep.
+    move(item, distance)
+        Moves a sweep to a new position in the queue.
+    start(rts=True)
+        Begins running the first sweep in the queue.
+    stop()
+        Stops/pauses any running sweeps.
+    resume()
+        Resumes any paused sweeps.
+    is_running()
+        Flag to determine whether a sweep is currently running.
+    begin_next()
+        Begins the next sweep in the queue upon the completion of a sweep.
+    load_database_info(db, exps, samples):
+        Loads the database information for each sweep in the queue.
+    set_database(self):
+        Sets the loaded database information for each sweep before running.
     """
+    
     newSweepSignal = pyqtSignal(BaseSweep)
 
     def __init__(self, inter_delay=1):
         """
-        Initializes the variables needed
+        Initializes the queue.
+        
+        Parameters
+        ---------
+        inter_delay:
+            The time (in seconds) taken between consecutive sweeps.
+        queue:
+            Double-ended queue used to store sweeps in desired order.
+        current_sweep:
+            The most recent sweep pulled from the queue.
+        database:
+            Path used for saving the sweep data; able to store different databases
+            for individual sweeps.
+        exp_name:
+            User-defined experiment name.
+        sample_name:
+            User-defined sample name.
+        rts:
+            Defaults to true when sweep is started.
         """
+        
         QObject.__init__(self)
         self.queue = deque([])
         # Pointer to the sweep currently running
@@ -35,11 +107,46 @@ class SweepQueue(QObject):
 
     @classmethod
     def init_from_json(cls, fn, station=Station()):
+        """ 
+        Loads previously saved sweep information. 
+        
+        Sends the sweep attributes to the import_json module.
+        
+        Parameters
+        ---------
+        fn:
+            Filename path where sweep information is stored.
+        station:
+            Initializes a QCoDeS station.
+            
+        Returns
+        ---------
+        Located data is sent to import_json method.
+        """
+        
         with open(fn) as json_file:
             data = json.load(json_file)
             return SweepQueue.import_json(data, station)
 
     def export_json(self, fn=None):
+        """
+        Saves sweep queue attributes as JSON dictionary.
+        
+        Called to save sweep setup to avoid repetitive input of commonly
+        used sweeps.
+        
+        Parameters
+        ---------
+        fn:
+            Represents optional filename to be opened. A copy of the station
+            information will be saved in this file.
+            
+        Returns
+        ---------
+        Dictionary containing all current instruments, parameters, and sweep 
+        attributes.
+        """
+        
         json_dict = {}
         json_dict['module'] = self.__class__.__module__
         json_dict['class'] = self.__class__.__name__
@@ -57,6 +164,8 @@ class SweepQueue(QObject):
 
     @classmethod
     def import_json(cls, json_dict, station=Station()):
+        """Loads desired attributes into current SweepQueue."""
+        
         sq = SweepQueue(json_dict['inter_delay'])
 
         for item_json in json_dict['queue']:
@@ -69,11 +178,14 @@ class SweepQueue(QObject):
 
     def append(self, *s):
         """
-        Adds a sweep to the queue.
+        Adds an arbitrary number of sweeps to the queue.
         
-        Arguments:
-            sweep - BaseSweep object to be added to queue
+        Parameters
+        ---------
+        *s:
+            A sweep, or list of sweeps, to be added to the queue.
         """
+        
         for sweep in s:
             if isinstance(sweep, list):
                 for l in sweep:
@@ -89,12 +201,24 @@ class SweepQueue(QObject):
                 self.queue.append(sweep)
 
     def delete(self, item):
+        """ Removes sweeps from the queue. """
         if isinstance(item, BaseSweep) or isinstance(item, DatabaseEntry):
             self.queue.remove(item)
         else:
             del self.queue[item]
 
     def replace(self, index, item):
+        """
+        Replaces sweep at the given index with a new sweep.
+        
+        Paramters
+        ---------
+        index:
+            Position of sweep to be replaced (int).
+        item:
+            Sweep to be added to the queue at the indexed position.
+        """
+        
         temp = deque([])
 
         for i in range(len(self.queue)):
@@ -107,6 +231,21 @@ class SweepQueue(QObject):
         self.queue = temp
 
     def move(self, item, distance):
+        """
+        Moves a sweep to a new position in the queue.
+        
+        Paramters
+        ---------
+        item:
+            The name of the sweep to be moved.
+        distance:
+            The number of index positions for the sweep to be moved.
+            
+        Returns
+        ---------
+        The new index position of the targeted sweep.
+        """
+        
         index = -1
         for i, action in enumerate(self.queue):
             if action is item:
@@ -125,9 +264,7 @@ class SweepQueue(QObject):
         return new_pos
 
     def start(self, rts=True):
-        """
-        Starts the sweep. Takes the leftmost object in the queue and starts it.
-        """
+        """ Begins running the first sweep in the queue. """
         # Check that there is something in the queue to run
         if len(self.queue) == 0:
             print("No sweeps loaded!")
@@ -148,18 +285,21 @@ class SweepQueue(QObject):
         self.current_sweep.start()
 
     def stop(self):
+        """ Stops/pauses any running sweeps. """
         if self.current_sweep is not None:
             self.current_sweep.stop()
         else:
             print("No sweep currently running, nothing to stop")
     
     def resume(self):
+        """ Resumes any paused sweeps. """
         if self.current_sweep is not None:
             self.current_sweep.resume()
         else:
             print("No current sweep, nothing to resume!")
             
     def is_running(self):
+        """ Flag to determine whether a sweep is currently running. """
         if self.current_sweep is not None:
             return self.current_sweep.is_running
         else:
@@ -168,9 +308,11 @@ class SweepQueue(QObject):
     @pyqtSlot()
     def begin_next(self):
         """
-        Function called when one sweep is finished and we want to run the next sweep.
+        Begins the next sweep in the queue upon the completion of a sweep.
+        
         Connected to completed pyqtSignals in the sweeps.
         """
+        
         if isinstance(self.current_sweep, Sweep1D):
             print(f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
                   {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
@@ -197,15 +339,22 @@ class SweepQueue(QObject):
 
     def load_database_info(self, db, exps, samples):
         """
-        Loads in database info for each of the sweeps. Can take in either asingle value for each
-        of the database, experiment name, and sample name arguments, or a list of values, with
-        length equal to the number of sweeps loaded into the queue.
+        Loads the database information for each sweep in the queue.
         
-        Arguments:
-            db - name of the database file you want to run at, either list or string
-            exps - name of experiment you want, can either be list or string
-            samples - name of sample, can be either list or string
+        Can take in either (1) a single value for all database, experiment name, 
+        and sample name arguments, or (2) a list of values, with length equal to 
+        the number of sweeps loaded into the queue.
+        
+        Paramters
+        ---------
+        db:
+            The name of the database file for each sweep (list or string).
+        exps:
+            The name of experiment for each sweep (list or string).
+        samples:
+            The name of sample for each sweep (list or string).
         """
+        
         # Check if db was loaded correctly
         if isinstance(db, list):
             # Convert to a deque for easier popping from the queue
@@ -233,9 +382,12 @@ class SweepQueue(QObject):
 
     def set_database(self):
         """
-        Changes the database for the next run. Pops out the next item in a list, if that
-        is what was loaded, or keeps the same string.
+        Sets the loaded database information for each sweep before running.
+        
+        Database information must be previously loaded using the 'load_database_info'
+        method. Creates path for database and begins a new QCoDeS experiment.
         """
+        
         # Grab the next database file name
         if self.database is None:
             return
