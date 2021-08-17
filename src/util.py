@@ -136,7 +136,7 @@ def connect_station_instruments(station):
     return devices
 
 
-def save_to_csv(ds, fn, use_labels=True):
+def save_to_csv(ds, fn=None, use_labels=True):
     """
     Saves the dataset as a CSV file.
     
@@ -145,7 +145,8 @@ def save_to_csv(ds, fn, use_labels=True):
     ds:
         The dataset to be saved.
     fn:
-        The filepath to store the CSV data.
+        The filepath to store the CSV data. If no filepath is given, it will automatically set it to the 'Origin Files'
+        subfolder and name it by the run_id, exp_name, and sample_name
     """
     
     def find_param_label(name):
@@ -161,7 +162,7 @@ def save_to_csv(ds, fn, use_labels=True):
             use_name = f'{use_name} ({unit})'
         return use_name
 
-    df = ds.get_data_as_pandas_dataframe()
+    df = ds.to_pandas_dataframe_dict()
     export_ds = pd.DataFrame()
     for key, value in df.items():
         if use_labels:
@@ -172,8 +173,11 @@ def save_to_csv(ds, fn, use_labels=True):
         export_ds[[export_key]] = value[[key]]
 
     # Choose where you want the CSV saved
-    export_ds.to_csv(fn)
-
+    if fn is not None:
+        export_ds.to_csv(fn)
+    else:
+        fn = f'{os.environ["MeasureItHome"]}\\Origin Files\\{ds.run_id}_{ds.exp_name}_{ds.sample_name}.csv'
+        export_ds.to_csv(fn)
 
 def set_magnet_ramp_ranges(magnet, ranges):
     """ 
