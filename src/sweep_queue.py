@@ -105,6 +105,12 @@ class SweepQueue(QObject):
         self.sample_name = ""
         self.rts = True
 
+    def __iter__(self):
+        """
+        Makes sweep_queue objects iterable.
+        """
+        return iter(self.queue)
+
     @classmethod
     def init_from_json(cls, fn, station=Station()):
         """ 
