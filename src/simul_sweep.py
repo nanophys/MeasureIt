@@ -264,7 +264,9 @@ class SimulSweep(BaseSweep, QObject):
             if p not in self.set_params_dict.keys():
                 print("Cannot ramp parameter not in our sweep.")
                 return
-            if abs(v - safe_get(p)) <= self.set_params_dict[p]['step'] / 2:
+            
+            p_step = self.set_params_dict[p]['step']
+            if abs(v - safe_get(p)) - abs(p_step / 2) < abs(p_step) * 1e-4:
                 continue
 
             ramp_params_dict[p] = {}
@@ -272,7 +274,7 @@ class SimulSweep(BaseSweep, QObject):
             ramp_params_dict[p]['stop'] = v
 
             p_steps = abs((ramp_params_dict[p]['stop'] - ramp_params_dict[p]['start']) /
-                          self.set_params_dict[p]['step'] * multiplier)
+                          p_step * multiplier)
             if p_steps > n_steps:
                 n_steps = math.ceil(p_steps)
 
@@ -284,8 +286,8 @@ class SimulSweep(BaseSweep, QObject):
         for p, v in ramp_params_dict.items():
             v['step'] = (v['stop'] - v['start']) / n_steps
 
-        self.ramp_sweep = SimulSweep(ramp_params_dict, inter_delay=self.inter_delay, plot_data=True, save_data=False,
-                                     complete_func=partial(self.done_ramping, vals_dict,
+        self.ramp_sweep = SimulSweep(ramp_params_dict, n_steps=n_steps, inter_delay=self.inter_delay, plot_data=True, save_data=False,
+                                     complete_func=partial(self.done_ramping, vals_dict, 
                                                            start_on_finish=start_on_finish, pd=persist))
         self.is_ramping = True
         self.is_running = False
