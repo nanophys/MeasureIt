@@ -149,9 +149,6 @@ class SweepQueue(QObject):
         self.current_action = self.queue.popleft()
         if isinstance(self.current_action, BaseSweep):
             self.current_sweep = self.current_action
-            # Set the database info
-            self.set_database()
-            self.current_sweep._create_measurement()
             if isinstance(self.current_sweep, Sweep1D):
                 print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
                       {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
@@ -205,7 +202,6 @@ class SweepQueue(QObject):
             self.current_action = self.queue.popleft()
             if isinstance(self.current_action, BaseSweep):
                 self.current_sweep = self.current_action
-                self.set_database()
                 if isinstance(self.current_sweep, Sweep1D):
                     print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
                           {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
