@@ -302,7 +302,7 @@ class Sweep1D(BaseSweep, QObject):
             self.is_running = False
             print(f"Done with the sweep, {self.set_param.label}={self.set_param.get()}")
             self.flip_direction()
-            print(self.completed.emit())
+            self.completed.emit()
             if self.parent is None:
                 self.runner.kill_flag = True
 
