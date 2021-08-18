@@ -7,6 +7,23 @@ import time
 
 
 class SweepIPS(Sweep0D, QObject):
+    """
+    Child of Sweep0D specialized for Oxford IPS Magnet Power Supply.
+    
+    Attributes
+    ---------
+    magnet:
+        Assigns the IPS magnet to the sweep.
+    setpoint:
+        Determines the starting magnetic field strength (T).
+    persistent_magnet:
+        Sets the magnet to persistent mode when True.
+        
+    Methods
+    ---------
+    update_values()
+        Obtains sweep data and sends signal for saving/plotting.
+    """
 
     def __init__(self, magnet, setpoint, persistent_magnet=False, *args, **kwargs):
         QObject.__init__(self)
@@ -27,15 +44,18 @@ class SweepIPS(Sweep0D, QObject):
 
     def update_values(self):
         """
-        Iterates our data points, changing our setpoint if we are sweeping, and refreshing
-        the values of all our followed parameters. If we are saving data, it happens here,
-        and the data is returned.
+        Obtains all parameter values for each sweep step.
         
-        Returns:
-            data - A list of tuples with the new data. Each tuple is of the format 
-                   (<QCoDeS Parameter>, measurement value). The tuples are passed in order of
-                   time, then set_param (if applicable), then all the followed params.
+        Sends data through signal for saving and/or live-plotting.
+        
+        Returns
+        ---------
+        data:
+            A list of tuples with the new data. Each tuple is of the format 
+            (<QCoDeS Parameter>, measurement value). The tuples are passed in order of
+            time, set_param (if applicable), then all the followed parameters.
         """
+        
         if not self.initialized:
             print("Checking the status of the magnet and switch heater.")
             self.magnet.leave_persistent_mode()

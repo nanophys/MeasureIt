@@ -33,6 +33,19 @@ class ParameterException(Exception):
 
 
 def safe_set(p, value, last_try=False):
+    """
+    Alerts the user when a parameter can not be set to the chosen value.
+    
+    Parameters
+    ---------
+    p:
+        The parameter to be set.
+    value:
+        The desired value.
+    last_try:
+        Flag to stop attempting to set the value.
+    """
+    
     ret = None
     try:
         ret = p.set(value)
@@ -48,6 +61,17 @@ def safe_set(p, value, last_try=False):
 
 
 def safe_get(p, last_try=False):
+    """
+    Alerts the user when a parameter's value can not be obtained.
+    
+    Parameters
+    ---------
+    p:
+        The parameter to be measured.
+    last_try:
+        Flag to stop attempting to set the value.
+    """
+    
     ret = None
     try:
         ret = p.get()
@@ -63,6 +87,19 @@ def safe_get(p, last_try=False):
 
 
 def connect_to_station(config_file=None):
+    """
+    Loads a QCoDeS station configuration file, or starts a new station.
+    
+    Parameters
+    ---------
+    config_file:
+        The file path to the desired configuration file.
+        
+    Returns
+    ---------
+    A loaded or new QCoDeS station for conducting experiments.
+    """
+    
     if os.path.isfile(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json'):
         qc.config.update_config(os.environ['MeasureItHome'] + '\\cfg\\')
     station = Station()
@@ -75,6 +112,18 @@ def connect_to_station(config_file=None):
 
 
 def connect_station_instruments(station):
+    """
+    Loads the instruments from the station to be used during the experiment.
+    
+    Parameters
+    ---------
+    station:
+        The station configuration which contains the instrument information.
+    
+    Returns
+    ---------
+    The list of instruments obtained from the station.
+    """
     devices = {}
     for name, instr in station.config['instruments'].items():
         try:
@@ -87,7 +136,19 @@ def connect_station_instruments(station):
     return devices
 
 
-def save_to_csv(ds, fn, use_labels=True):
+def save_to_csv(ds, fn=None, use_labels=True):
+    """
+    Saves the dataset as a CSV file.
+    
+    Parameters
+    ---------
+    ds:
+        The dataset to be saved.
+    fn:
+        The filepath to store the CSV data. If no filepath is given, it will automatically set it to the 'Origin Files'
+        subfolder and name it by the run_id, exp_name, and sample_name
+    """
+    
     def find_param_label(name):
         use_name = name
         unit = None
@@ -101,7 +162,7 @@ def save_to_csv(ds, fn, use_labels=True):
             use_name = f'{use_name} ({unit})'
         return use_name
 
-    df = ds.get_data_as_pandas_dataframe()
+    df = ds.to_pandas_dataframe_dict()
     export_ds = pd.DataFrame()
     for key, value in df.items():
         if use_labels:
@@ -112,10 +173,24 @@ def save_to_csv(ds, fn, use_labels=True):
         export_ds[[export_key]] = value[[key]]
 
     # Choose where you want the CSV saved
-    export_ds.to_csv(fn)
-
+    if fn is not None:
+        export_ds.to_csv(fn)
+    else:
+        fn = f'{os.environ["MeasureItHome"]}\\Origin Files\\{ds.run_id}_{ds.exp_name}_{ds.sample_name}.csv'
+        export_ds.to_csv(fn)
 
 def set_magnet_ramp_ranges(magnet, ranges):
+    """ 
+    Defines the rate and maximum current for magnet sweeps.
+    
+    Parameters
+    ---------
+    magnet:
+        The device used to sweep the magnetic field.
+    ranges:
+        A list which gives the index, rate, and maximum current for ramping.
+    """
+    
     if not isinstance(ranges, list):
         print("Must pass a list of current ranges, formatted as follows:\
              [(1, <rate>, <max applicable current>), (2, <rate>, <max applicable current>), ..., \
@@ -135,19 +210,39 @@ def set_magnet_ramp_ranges(magnet, ranges):
 
 
 def set_experiment_sample_names(sweep, exp, samp):
+    """ Creates a new measurement with desired experiment and sample names. """
+    
     if sweep.save_data is True:
         qc.new_experiment(exp, samp)
     sweep._create_measurement()
 
 
-def init_database(db, exp, samp, sweep=None):
-    initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db)
+def init_database(db, exp, samp):
+    """
+    Initializes a new database and creates a new measurement if a sweep is set.
+    
+    Parameters
+    ---------
+    db:
+        The desired path of the new database.
+    exp:
+        The experiment name.
+    sample:
+        The sample name.
+    """
+    if '.db' not in db:
+        db = f'{db}.db'
+        
+    if f'{os.environ["MeasureItHome"]}\\Databases\\' in db:
+        initialise_or_create_database_at(db)
+    else:
+        initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db)
     qc.new_experiment(exp, samp)
-    if sweep is not None:
-        sweep._create_measurement()
 
 
 def export_db_to_txt(db_fn, exp_name=None, sample_name=None):
+    """ Prints all experiment and sample names to the console. """
+    
     if '.db' in db_fn:
         initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db_fn)
     else:
@@ -170,6 +265,17 @@ def export_db_to_txt(db_fn, exp_name=None, sample_name=None):
 
 
 def write_sample_to_txt(exp, count=0):
+    """
+    Creates a new file to print the sample data from the experiment.
+    
+    Parameters
+    ---------
+    exp:
+        The QCoDeS experiment containing the desired data.
+    count:
+        Optional argument to start at a desired dataset.
+    """
+    
     # print(exp.data_sets())
     for a in exp.data_sets():
         print(a.run_id)
@@ -198,8 +304,11 @@ def write_sample_to_txt(exp, count=0):
 
 def _value_parser(value):
     """
-    Parses user input for a float and a unit prefix character. Returns a float
-    and a single char
+    Parses user input for a float and a unit prefix character. 
+    
+    Returns
+    ---------
+    A float and a single character.
     """
     if len(str(value)) == 0:
         raise ParameterException('No value given.')

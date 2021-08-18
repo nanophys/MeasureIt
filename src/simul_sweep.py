@@ -6,12 +6,71 @@ from functools import partial
 from PyQt5.QtCore import pyqtSlot, QObject
 
 from src.base_sweep import BaseSweep
-from src.util import _autorange_srs
+from src.util import _autorange_srs, safe_set, safe_get
 
 
 class SimulSweep(BaseSweep, QObject):
+    """
+    Child of BaseSweep used to simultaneously run sweeps on multiple parameters.
+    
+    Parameters must be split into equivalent step intervals. The first key in 
+    the '_p' dictionary is used as the independent variable passed to BaseSweep
+    in the same manner as the Sweep1D 'set_param'.
+    
+    Attributes
+    ---------
+    _p:
+        Dictionary used to pass parameters and their associated information.
+    n_steps:
+        Integer value of number of steps for each parameter to take, instead of offering step sizes in _p
+    bidirectional:
+        Set to True to run the sweep in both directions.
+    continuous:
+        Set to True to keep sweep running indefinitely.
+    *args:
+        Optional sweep arguments to be passed in BaseSweep.
+    **kwargs:
+        Optional keyword arguments to be passed in BaseSweep.
+    simul_params:
+        Used to store the parameters from the input '_p' dictionary.
+    set_params_dict:
+        Stores input parameter dictionary.
+    direction:
+        Tells sweep which direction to run; either 0 or 1.
+    is_ramping:
+        Flag to alert that the sweep is ramping a parameter to a staring value.
+    ramp_sweep:
+        Iterates parameters to their starting values before sweep begins.
+    runner:
+        Assigns the desired Runner Thread.
+    plotter:
+        Assigns the desired Plotter Thread.
+        
+    Methods
+    ---------
+    start(persist_data, ramp_to_start, ramp_multiplier)
+        Begins a BaseSweep, creates necessary measurement objects and threads.
+    stop()
+        Stops the BaseSweep.
+    kill()
+        Ends all threads and closes any active plots.
+    send_updates(no_sp)
+        Passed in this class.
+    step_param()
+        Iterates each parameter based on step size.
+    update_values()
+        Returns updated parameter-value pairs, default parameter is time.
+    ramp_to_zero(params=None)
+        Ramps value of all parameters to zero.
+    ramp_to(vals_dict, start_on_finish=False, persist=None, multiplier=1)
+        Begins ramping parameters to assigned starting values.
+    done_ramping(self, vals_dict, start_on_finish=False, pd=None)
+        Ensures that each parameter is at its start value and ends ramp.
+    flip_direction()
+        Changes the direction of the sweep.
+    """
 
-    def __init__(self, _p, bidirectional=False, continual=False, *args, **kwargs):
+    def __init__(self, _p, n_steps=None, bidirectional=False, continual=False, *args, **kwargs):
         if len(_p.keys()) < 1 or not all(isinstance(p, dict) for p in _p.values()):
             raise ValueError('Must pass at least one Parameter and the associated values as dictionaries.')
 
@@ -32,6 +91,19 @@ class SimulSweep(BaseSweep, QObject):
         QObject.__init__(self)
         BaseSweep.__init__(self, sp, *args, **kwargs)
 
+        if n_steps is not None:
+            for p, v in self.set_params_dict.items():
+                v['step'] = (v['stop'] - v['start'])/n_steps
+        else:
+            _n_steps = []
+            for key, p in _p.items():
+                _n_steps.append(int(abs(p['stop'] - p['start']) / abs(p['step'])))
+
+            if not all(steps == _n_steps[0] for steps in _n_steps):
+                raise ValueError('Parameters have a different number of steps for the sweep. The Parameters must have '
+                                 'the same number of steps to sweep them simultaneously.'
+                                 f'\nStep numbers: {_n_steps}')
+
         for p, v in self.set_params_dict.items():
             self.simul_params.append(p)
 
@@ -41,16 +113,7 @@ class SimulSweep(BaseSweep, QObject):
             else:
                 v['step'] = (-1) * abs(v['step'])
 
-            v['setpoint'] = p.get() - v['step']
-
-        n_steps = []
-        for key, p in _p.items():
-            n_steps.append(int(abs(p['stop'] - p['start']) / abs(p['step'])))
-
-        if not all(steps == n_steps[0] for steps in n_steps):
-            raise ValueError('Parameters have a different number of steps for the sweep. The Parameters must have the '
-                             'same number of steps to sweep them simultaneously.'
-                             f'\nStep numbers: {n_steps}')
+            v['setpoint'] = safe_get(p) - v['step']
 
         self.follow_param([p for p in self.simul_params if p is not self.set_param])
         self.persist_data = []
@@ -113,7 +176,7 @@ class SimulSweep(BaseSweep, QObject):
             # If we aren't at the end, keep going
             if abs(v['setpoint'] - v['stop']) - abs(v['step'] / 2) > abs(v['step']) * 1e-4:
                 v['setpoint'] = v['setpoint'] + v['step']
-                p.set(v['setpoint'])
+                safe_set(p, v['setpoint'])
                 rets.append((p, v['setpoint']))
 
             # If we want to go both ways, we flip the start and stop, and run again
@@ -168,7 +231,7 @@ class SimulSweep(BaseSweep, QObject):
 
         for i, p in enumerate(self._params):
             if p not in self.simul_params:
-                v = p.get()
+                v = safe_get(p)
                 data.append((p, v))
 
         if self.save_data and self.is_running:
@@ -201,15 +264,17 @@ class SimulSweep(BaseSweep, QObject):
             if p not in self.set_params_dict.keys():
                 print("Cannot ramp parameter not in our sweep.")
                 return
-            if abs(v - p.get()) <= self.set_params_dict[p]['step'] / 2:
+            
+            p_step = self.set_params_dict[p]['step']
+            if abs(v - safe_get(p)) - abs(p_step / 2) < abs(p_step) * 1e-4:
                 continue
 
             ramp_params_dict[p] = {}
-            ramp_params_dict[p]['start'] = p.get()
+            ramp_params_dict[p]['start'] = safe_get(p)
             ramp_params_dict[p]['stop'] = v
 
             p_steps = abs((ramp_params_dict[p]['stop'] - ramp_params_dict[p]['start']) /
-                          self.set_params_dict[p]['step'] * multiplier)
+                          p_step * multiplier)
             if p_steps > n_steps:
                 n_steps = math.ceil(p_steps)
 
@@ -221,8 +286,8 @@ class SimulSweep(BaseSweep, QObject):
         for p, v in ramp_params_dict.items():
             v['step'] = (v['stop'] - v['start']) / n_steps
 
-        self.ramp_sweep = SimulSweep(ramp_params_dict, inter_delay=self.inter_delay, plot_data=True, save_data=False,
-                                     complete_func=partial(self.done_ramping, vals_dict,
+        self.ramp_sweep = SimulSweep(ramp_params_dict, n_steps=n_steps, inter_delay=self.inter_delay, plot_data=True, save_data=False,
+                                     complete_func=partial(self.done_ramping, vals_dict, 
                                                            start_on_finish=start_on_finish, pd=persist))
         self.is_ramping = True
         self.is_running = False
@@ -232,11 +297,24 @@ class SimulSweep(BaseSweep, QObject):
     def done_ramping(self, vals_dict, start_on_finish=False, pd=None):
         self.is_ramping = False
         self.is_running = False
-        # Grab the beginning
-        # value = self.ramp_sweep.begin
+
+        # Check if we are at the value we expect, otherwise something went wrong with the ramp
+        for p, v in vals_dict.items():
+            p_step = self.set_params_dict[p]['step']
+            if abs(safe_get(p) - v) - abs(p_step / 2) > abs(p_step) * 1e-4:
+                print(f'Ramping failed (possible that the direction was changed while ramping). '
+                      f'Expected {p.label} final value: {v}. Actual value: {safe_get(p)}. '
+                      f'Stopping the sweep.')
+
+                if self.ramp_sweep is not None:
+                    self.ramp_sweep.kill()
+                    self.ramp_sweep = None
+
+                return
+
         print(f'Done ramping!')
         for p, v in vals_dict.items():
-            p.set(v)
+            safe_set(p, v)
             self.set_params_dict[p]['setpoint'] = v - self.set_params_dict[p]['step']
 
         if self.ramp_sweep is not None:

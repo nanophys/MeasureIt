@@ -7,20 +7,70 @@ import time
 
 class RunnerThread(QThread):
     """
-    Class to separate to a new thread the communications with the instruments.
+    Thread created to manage sweep data for saving and plotting.
+    
+    The sweeping object, Runner Thread, and Plotter Thread operate
+    independently to improve efficiency. The Runner Thread gathers the
+    data from the sweep, saves it to a database if desired, and passes
+    it to a Plotter thread for live-plotting.
+    
+    Attributes
+    ---------
+    sweep:
+        Defines the specific parent sweep (Sweep1D, Sweep2D, etc.).
+    plotter:
+        Enables a connection to a Plotter Thread.
+    datasaver:
+        Context manager to easily write data to a dataset.
+    db_set:
+        Monitors whether or not a database has been assigned.
+    kill_flag:
+        Flag to immediately end the sweep.
+    flush_flag:
+        Flushes any remaining data to database if sweep is stopped.
+    runner:
+        Runs measurement through QCoDeS.
+        
+    Methods
+    ---------
+    __del__()
+        A standard destructor.
+    add_plotter(plotter)
+        Connects to desired Plotter Thread to forward data for plotting.
+    _set_parent(sweep)
+        Sets the type of parent sweep if the runner is created independently.
+    run()
+        Iterates the sweep and sends data to the plotter.
     """
+    
     get_dataset = pyqtSignal(dict)
     send_data = pyqtSignal(list, int)
 
     def __init__(self, sweep):
         """
-        Initializes the object by taking in the parent sweep object, initializing the 
-        plotter object, and calling the QThread initialization.
+        Initializes the runner.
         
-        Arguments:
-            sweep - Object of type BaseSweep (or its children) that is controlling
-                    this thread
+        Takes in the parent sweep object, initializes the 
+        plotter object, and calls the QThread initialization.
+        
+        Parameters
+        ---------
+        sweep:
+            Defines the specific parent sweep (Sweep1D, Sweep2D, etc.).
+        plotter:
+            Enables a connection to a Plotter Thread.
+        datasaver:
+            Context manager to easily write data to a dataset.
+        db_set:
+            Monitors whether or not a database has been assigned.
+        kill_flag:
+            Flag to immediately end the sweep.
+        flush_flag:
+            Flushes any remaining data to database if sweep is stopped.
+        runner:
+            Runs measurement through QCoDeS.
         """
+        
         QThread.__init__(self)
 
         self.sweep = sweep
@@ -33,37 +83,43 @@ class RunnerThread(QThread):
         self.runner = None
 
     def __del__(self):
-        """
-        Standard destructor.
-        """
+        """ Standard destructor. """
+        
         self.wait()
 
     def add_plotter(self, plotter):
         """
-        Adds the PlotterThread object, so the Runner knows where to send the new
-        data for plotting.
+        Adds the PlotterThread object.
         
-        Arguments:
-            plotter - PlotterThread object, should be same plotter created by parent sweep
+        Parameters
+        ---------
+        plotter: 
+            Desired Plotter Thread object, created by the parent sweep.
         """
+        
         self.plotter = plotter
         self.send_data.connect(self.plotter.add_data)
 
     def _set_parent(self, sweep):
         """
-        Function to tell the runner who the parent is, if created independently.
+        Sets a parent sweep if the Runner Thread is created independently.
         
-        Arguments:
-            sweep - Object of type BaseSweep, that Runner will be taking data for
+        Parameters
+        ---------
+        sweep: 
+            Desired type of sweep for runner to gather data for.
         """
+        
         self.sweep = sweep
 
     def run(self):
         """
-        Function that is called when new thread is created. NOTE: start() is called
-        externally to start the thread, but run() defines the behavior of the thread.
-        Iterates the sweep, then hands the data to the plotter for live plotting.
+        Iterates the sweep and sends data to the plotter for live plotting.
+        
+        NOTE: start() is called externally to start the thread, but run() 
+        defines the behavior of the thread.
         """
+        
         # Check database status
         if self.sweep.save_data is True:
             self.runner = self.sweep.meas.run()
