@@ -635,4 +635,5 @@ class DaqAIChannel(InstrumentChannel):
         """
         Destructor, makes sure task is clean.
         """
+
         self.clear_task()
