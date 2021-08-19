@@ -1,9 +1,13 @@
 # base_sweep.py
 import importlib
-import time, json
+import time
+import json
+from functools import partial
 from PyQt5.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
+
 from qcodes.dataset.measurements import Measurement
 from qcodes import Station
+
 from src.runner_thread import RunnerThread
 from src.plotter_thread import Plotter
 from src.util import _autorange_srs, safe_get, safe_set
@@ -178,6 +182,7 @@ class BaseSweep(QObject):
         self.datasaver = datasaver
 
         # Set the function to call when we are finished
+        self.complete_func = complete_func
         if complete_func is None:
             complete_func = self.no_change
         self.completed.connect(complete_func)
@@ -530,7 +535,7 @@ class BaseSweep(QObject):
         if self.plotter is not None:
             self.plotter.plot_bin = pb
 
-    def set_complete_func(self, func):
+    def set_complete_func(self, func, *args, **kwargs):
         """
         Sets a function to be called whenever the sweep is finished.
         
@@ -538,11 +543,16 @@ class BaseSweep(QObject):
         
         Parameters
         ---------
-            func:
-                The function to be called upon completion of the sweep.
+        func:
+            The function to be called upon completion of the sweep.
+        *args:
+            Arbitrary arguments to be passed to the callback function
+        **kwargs:
+            Arbitrary keyword arguments to be passed to the callback function
         """
-        self.complete_func = func
-        self.completed.connect(func)
+
+        self.complete_func = partial(func, *args, **kwargs)
+        self.completed.connect(self.complete_func)
 
     @pyqtSlot()
     def no_change(self, *args, **kwargs):
