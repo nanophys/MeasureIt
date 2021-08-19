@@ -40,7 +40,7 @@ class SweepIPS(Sweep0D, QObject):
         return f"Sweeping IPS to {self.setpoint} T."
 
     def __repr__(self):
-        return f"SweepIPS({self.setpoint} T)"
+        return f"SweepIPS({self.setpoint} T, persistent_magnet={self.persistent_magnet})"
 
     def update_values(self):
         """
