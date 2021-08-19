@@ -1,15 +1,18 @@
 # sweep_queue.py
 import importlib
+import json
+import os
+import time
+from collections import deque
 from functools import partial
+
+import qcodes as qc
+from qcodes import initialise_or_create_database_at, Station
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 
 from src.base_sweep import BaseSweep
 from src.sweep0d import Sweep0D
 from src.sweep1d import Sweep1D
-from collections import deque
-import time, os, json
-from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
-import qcodes as qc
-from qcodes import initialise_or_create_database_at, Station
 
 
 class SweepQueue(QObject):
@@ -28,6 +31,8 @@ class SweepQueue(QObject):
         Double-ended queue used to store sweeps in desired order.
     current_sweep:
         The most recent sweep pulled from the queue.
+    current_action:
+        The most recent action, sweep or callable, pulled from the queue.
     database:
         Path used for saving the sweep data; able to store different databases
         for individual sweeps.
@@ -80,19 +85,6 @@ class SweepQueue(QObject):
         ---------
         inter_delay:
             The time (in seconds) taken between consecutive sweeps.
-        queue:
-            Double-ended queue used to store sweeps in desired order.
-        current_sweep:
-            The most recent sweep pulled from the queue.
-        database:
-            Path used for saving the sweep data; able to store different databases
-            for individual sweeps.
-        exp_name:
-            User-defined experiment name.
-        sample_name:
-            User-defined sample name.
-        rts:
-            Ramp to start flag. Defaults to true when sweep is started.
         """
 
         QObject.__init__(self)
@@ -212,14 +204,35 @@ class SweepQueue(QObject):
                       f"the 'append_handle' function.")
 
     def append_handle(self, fn_handle, *args, **kwargs):
-        def wrap(fn, *args, **kwargs):
-            fn(*args, **kwargs)
+        """
+        Adds an arbitrary function call to the queue.
+
+        Parameters
+        ---------
+        fn_handle:
+            Any callable object to be added to the queue.
+        *args:
+            Arguments to be passed to the function
+        **kwargs:
+            Keyword arguments to be passed to the function
+        """
+
+        # Wrapper around the function to ensure 'begin_next()' is called upon function completion
+        def wrap(fn, *w_args, **w_kwargs):
+            fn(*w_args, **w_kwargs)
             self.begin_next()
 
+        # Add the wrapped function to the queue
         self.queue.append(partial(wrap, fn_handle, *args, **kwargs))
 
     def delete(self, item):
-        """ Removes sweeps from the queue. """
+        """
+        Removes sweeps from the queue.
+
+        Parameters
+        ---------
+        item: object to be removed from the queue
+        """
         if isinstance(item, BaseSweep) or isinstance(item, DatabaseEntry):
             self.queue.remove(item)
         else:
@@ -229,7 +242,7 @@ class SweepQueue(QObject):
         """
         Replaces sweep at the given index with a new sweep.
 
-        Paramters
+        Parameters
         ---------
         index:
             Position of sweep to be replaced (int).
@@ -252,7 +265,7 @@ class SweepQueue(QObject):
         """
         Moves a sweep to a new position in the queue.
 
-        Paramters
+        Parameters
         ---------
         item:
             The name of the sweep to be moved.
@@ -269,7 +282,7 @@ class SweepQueue(QObject):
             if action is item:
                 index = i
 
-        new_pos = index+distance
+        new_pos = index + distance
         if index == -1:
             raise ValueError(f"Couldn't find {str(item)} in the queue.")
         elif new_pos < 0:
@@ -282,7 +295,13 @@ class SweepQueue(QObject):
         return new_pos
 
     def start(self, rts=True):
-        """ Begins running the first sweep in the queue. """
+        """
+        Begins running the first sweep in the queue.
+
+        Parameters
+        ---------
+        rts: Optional parameter controlling 'ramp_to_start' keyword of sweep
+        """
         # Check that there is something in the queue to run
         if len(self.queue) == 0:
             print("No sweeps loaded!")
@@ -298,7 +317,7 @@ class SweepQueue(QObject):
             elif isinstance(self.current_sweep, Sweep0D):
                 print(f"Starting 0D Sweep for {self.current_sweep.max_time} seconds.")
             self.newSweepSignal.emit(self.current_sweep)
-            self.current_sweep.start()
+            self.current_sweep.start(ramp_to_start=rts)
         elif isinstance(self.current_action, DatabaseEntry):
             self.current_action.start()
         elif callable(self.current_action):
@@ -313,21 +332,21 @@ class SweepQueue(QObject):
             self.current_sweep.stop()
         else:
             print("No sweep currently running, nothing to stop")
-    
+
     def resume(self):
         """ Resumes any paused sweeps. """
         if self.current_sweep is not None:
             self.current_sweep.resume()
         else:
             print("No current sweep, nothing to resume!")
-            
+
     def is_running(self):
         """ Flag to determine whether a sweep is currently running. """
         if self.current_sweep is not None:
             return self.current_sweep.is_running
         else:
             print("Sweep queue is not currently running")
-            
+
     @pyqtSlot()
     def begin_next(self):
         """
@@ -452,8 +471,42 @@ class SweepQueue(QObject):
 
 
 class DatabaseEntry(QObject):
+    """
+    Class for database saving configuration for use with SweepQueue
+
+    Attributes
+    ---------
+    db:
+        String with path to database file (.db)
+    exp:
+        Experiment name for the save data
+    samp:
+        Sample name for the save data
+    callback:
+        Function handle for callback function after 'start' completes
+
+    Methods
+    ---------
+    start()
+        Sets the target database to save with experiment name 'exp' and sample name 'samp'
+    set_callback(func)
+        Sets the callback function to 'func'
+    """
 
     def __init__(self, db='', exp='', samp='', callback=None):
+        """
+        Parameters
+        ---------
+        db:
+            Path to database (.db) file
+        exp:
+            Experiment name for saving
+        samp:
+            Sample name for saving
+        callback:
+            Optional argument for a callback function to call after 'start' is run
+        """
+
         super(DatabaseEntry, self).__init__()
         self.db = db
         self.exp = exp
@@ -467,10 +520,10 @@ class DatabaseEntry(QObject):
         return f'Save File: ({self.db}, {self.exp}, {self.samp})'
 
     @classmethod
-    def init_from_json(cls, fn, station=Station()):
+    def init_from_json(cls, fn):
         with open(fn) as json_file:
             data = json.load(json_file)
-            return DatabaseEntry.import_json(data, station)
+            return DatabaseEntry.import_json(data)
 
     def export_json(self, fn=None):
         json_dict = {}
@@ -489,7 +542,7 @@ class DatabaseEntry(QObject):
         return json_dict
 
     @classmethod
-    def import_json(cls, json_dict, station={'instruments': {}}):
+    def import_json(cls, json_dict):
         db = json_dict['attributes']['database']
         exp = json_dict['attributes']['experiment']
         sample = json_dict['attributes']['sample']
@@ -497,21 +550,27 @@ class DatabaseEntry(QObject):
         return DatabaseEntry(db, exp, sample)
 
     def start(self):
+        """
+        Sets the database to the values given at initialization, then calls the callback function
+        """
+
         initialise_or_create_database_at(self.db)
         qc.new_experiment(name=self.exp, sample_name=self.samp)
-        self.callback()
+        if self.callback is not None and callable(self.callback):
+            self.callback()
 
-    def set_complete_func(self, func):
-        self.callback = func
+    def set_complete_func(self, func, *args, **kwargs):
+        """
+        Sets the callback function to the given function
 
-    def stop(self):
-        pass
-    
-    def resume(self):
-        pass
-    
-    def is_running(self):
-        return True
-    
-    def kill(self):
-        pass
+        Parameters
+        ---------
+        func:
+            Function handle to call upon completion of database setting
+        *args:
+            Arbitrary arguments to pass to the callback function
+        **kwargs:
+            Arbitrary keyword arguments to pass to the callback function
+        """
+
+        self.callback = partial(func, *args, **kwargs)
