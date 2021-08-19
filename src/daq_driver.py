@@ -284,26 +284,26 @@ class DaqAOChannel(InstrumentChannel):
                             )
 
         # Create the Parameter for the units of gain
-        self.add_parameter('gain_units',
-                           set_cmd=self.set_gain_units,
-                           label=f'{self.my_name} Gain units',
-                           )
+        #self.add_parameter('gain_units',
+        #                   set_cmd=self.set_gain_units,
+        #                   label=f'{self.my_name} Gain units',
+        #                   )
 
         # Add a Parameter for the output impedance
-        self.add_parameter('impedance',
-                           get_cmd=self.get_load_impedance,
-                           get_parser=float,
-                           set_cmd=self.set_load_impedance,
-                           label=f'{self.my_name} Load Impedance',
-                           vals=vals.Numbers(0, 1000)
-                           )
+        #self.add_parameter('impedance',
+        #                   get_cmd=self.get_load_impedance,
+        #                   get_parser=float,
+        #                   set_cmd=self.set_load_impedance,
+        #                   label=f'{self.my_name} Load Impedance',
+        #                   vals=vals.Numbers(0, 1000)
+        #                   )
 
         # Add a Parameter for the value
-        self.add_parameter('value',
-                           get_cmd=self.get_value,
-                           set_cmd=self.set_value,
-                           label='Voltage * Factor'
-                           )
+        #self.add_parameter('value',
+        #                   get_cmd=self.get_value,
+        #                   set_cmd=self.set_value,
+        #                   label='Voltage * Factor'
+        #                   )
 
         # Add a Parameter for the voltage
         self.add_parameter('voltage',
@@ -521,33 +521,34 @@ class DaqAIChannel(InstrumentChannel):
         self.channel_handle = None
 
         # Create the Parameter for gain, with default unit 'V/V'
-        self.add_parameter('gain_factor',
-                            get_cmd=self.get_gain_factor,
-                            set_cmd=self.set_gain_factor,
-                            label=f'{self.my_name} gain',
-                            unit='V/V'
-                            )
+        #self.add_parameter('gain_factor',
+        #                    get_cmd=self.get_gain_factor,
+        #                    set_cmd=self.set_gain_factor,
+        #                    label=f'{self.my_name} gain',
+        #                    unit='V/V'
+        #                    )
 
         # Create the Parameter for the units of gain
-        self.add_parameter('gain_units',
-                           set_cmd=self.set_gain_units,
-                           label=f'{self.my_name} gain units',
-                           )
+        #self.add_parameter('gain_units',
+        #                   set_cmd=self.set_gain_units,
+        #                   label=f'{self.my_name} gain units',
+        #                   )
 
         # Create the Parameter for impedance
-        self.add_parameter('impedance',
-                           get_cmd=self.get_load_impedance,
-                           get_parser=float,
-                           set_cmd=self.set_load_impedance,
-                           label=f'{self.my_name} Load Impedance',
-                           vals=vals.Numbers(0, 1000)
-                           )
+        #self.add_parameter('impedance',
+        #                   get_cmd=self.get_load_impedance,
+        #                   get_parser=float,
+        #                   set_cmd=self.set_load_impedance,
+        #                   label=f'{self.my_name} Load Impedance',
+        #                   vals=vals.Numbers(0, 1000)
+        #                   )
 
         # Create the Parameter for value, which is the voltage * gain
-        self.add_parameter('value',
-                           get_cmd=self.get_value,
-                           label='Voltage * Factor')
-         # Create the Parameter for input voltage
+        #self.add_parameter('value',
+        #                   get_cmd=self.get_value,
+        #                   label='Voltage * Factor')
+
+        # Create the Parameter for input voltage
         self.add_parameter('voltage',
                            get_cmd=self.get_voltage,
                            get_parser=float,
