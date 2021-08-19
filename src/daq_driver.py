@@ -3,7 +3,6 @@
 from configparser import ConfigParser
 
 import nidaqmx
-import os
 import time
 from qcodes import (Instrument, validators as vals)
 from qcodes.instrument.channel import InstrumentChannel
