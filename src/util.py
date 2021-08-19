@@ -144,9 +144,11 @@ def save_to_csv(ds, fn=None, use_labels=True):
     ---------
     ds:
         The dataset to be saved.
-    fn:
-        The filepath to store the CSV data. If no filepath is given, it will automatically set it to the 'Origin Files'
-        subfolder and name it by the run_id, exp_name, and sample_name
+    fn=None:
+        The filepath to store the CSV data. If no filepath is given, it will automatically set it to a folder within
+        'Origin Files' with the database name and name the csv it by the run_id, exp_name, and sample_name.
+    use_labels=True:
+        Puts the parameter labels as the column names of the csv, as opposed to the parameter names.
     """
     
     def find_param_label(name):
@@ -176,7 +178,14 @@ def save_to_csv(ds, fn=None, use_labels=True):
     if fn is not None:
         export_ds.to_csv(fn)
     else:
-        fn = f'{os.environ["MeasureItHome"]}\\Origin Files\\{ds.run_id}_{ds.exp_name}_{ds.sample_name}.csv'
+        db_path = ds.path_to_db.split('\\')
+        db = db_path[len(db_path-1)].split('.')[0]
+
+        fp = f'{os.environ["MeasureItHome"]}\\Origin Files\\{db}\\'
+        if not os.path.isdir(fp):
+            os.mkdir(fp)
+
+        fn = f'{fp}{ds.run_id}_{ds.exp_name}_{ds.sample_name}.csv'
         export_ds.to_csv(fn)
 
 def set_magnet_ramp_ranges(magnet, ranges):
@@ -217,9 +226,9 @@ def set_experiment_sample_names(sweep, exp, samp):
     sweep._create_measurement()
 
 
-def init_database(db, exp, samp):
+def init_database(db, exp, samp, sweep=None):
     """
-    Initializes a new database and creates a new measurement if a sweep is set.
+    Initializes a new database with exp and sample names and creates a new measurement if a sweep is set.
     
     Parameters
     ---------
@@ -229,6 +238,8 @@ def init_database(db, exp, samp):
         The experiment name.
     sample:
         The sample name.
+    sweep=None:
+        Optional weep object for creating new runs for existing sweeps
     """
     if '.db' not in db:
         db = f'{db}.db'
@@ -239,6 +250,8 @@ def init_database(db, exp, samp):
         initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db)
     qc.new_experiment(exp, samp)
 
+    if sweep is not None:
+        sweep._create_measurement()
 
 def export_db_to_txt(db_fn, exp_name=None, sample_name=None):
     """ Prints all experiment and sample names to the console. """
