@@ -1,7 +1,5 @@
 # daq_driver.py
 
-from configparser import ConfigParser
-
 import nidaqmx
 import time
 from qcodes import (Instrument, validators as vals)
