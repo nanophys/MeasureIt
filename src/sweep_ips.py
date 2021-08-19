@@ -8,7 +8,7 @@ import time
 
 class SweepIPS(Sweep0D, QObject):
     """
-    Child of Sweep0D specialized for Oxford IPS Magnet Power Supply.
+    Child of Sweep0D specialized for Oxford IPS120 Magnet Power Supply.
     
     Attributes
     ---------

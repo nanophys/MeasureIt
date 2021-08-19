@@ -507,7 +507,7 @@ class DatabaseEntry(QObject):
             Optional argument for a callback function to call after 'start' is run
         """
 
-        super(DatabaseEntry, self).__init__()
+        QObject.__init__(self)
         self.db = db
         self.exp = exp
         self.samp = samp

@@ -183,7 +183,7 @@ class Sweep1D(BaseSweep, QObject):
             self.ramp_to(self.begin, start_on_finish=True, persist=persist_data, multiplier=ramp_multiplier)
         else:
             print(f"Sweeping {self.set_param.label} to {self.end} {self.set_param.unit}")
-            super().start(persist_data=persist_data)
+            BaseSweep.start(self, persist_data=persist_data)
 
     def stop(self):
         """ Stops running any currently active sweeps. """
@@ -207,31 +207,28 @@ class Sweep1D(BaseSweep, QObject):
         elif isinstance(self.instrument, OxfordInstruments_IPS120):
             self.instrument.activity(0)
 
-        super().stop()
+        BaseSweep.stop(self)
 
     def kill(self):
         """ Ends the threads spawned by the sweep and closes any active plots. """
         if self.is_ramping and self.ramp_sweep is not None:
             self.ramp_sweep.stop()
             self.ramp_sweep.kill()
-        super().kill()
+        BaseSweep.kill(self)
 
     def step_param(self):
         """
-        Iterates the parameter.
+        Iterates the parameter and checks for our stop condition.
         
         Returns
         ---------
-        Continues stepping until the end of the sweep is reached.
+        Data pair in form of (<set param>, <setpoint>), or None if we have reached the end of our sweep.
         """
         
         # The AMI Magnet sweeps very slowly, so we implement sweeps of it  differently
         # If we are sweeping the magnet, let's deal with it here
         if isinstance(self.instrument, AMI430) and 'field' in self.set_param.full_name:
             return self.step_AMI430()
-        # We also enable different functionality for the IPS120
-        elif isinstance(self.instrument, OxfordInstruments_IPS120) and 'field' in self.set_param.full_name:
-            return self.step_IPS120()
 
         # If we aren't at the end, keep going
         if abs(self.setpoint - self.end) - abs(self.step / 2) > abs(self.step) * 1e-4:
@@ -247,6 +244,7 @@ class Sweep1D(BaseSweep, QObject):
             return self.step_param()
         # If neither of the above are triggered, it means we are at the end of the sweep
         else:
+            print(f'Finished the sweep! {self.set_param.label} = {safe_get(self.set_param)} ({self.set_param.unit})')
             if self.save_data:
                 self.runner.flush_flag = True
             self.is_running = False
@@ -308,47 +306,6 @@ class Sweep1D(BaseSweep, QObject):
 
         # Return our data pair, just like any other sweep
         return [data_pair]
-
-    def step_IPS120(self):
-        """
-        Used to control sweeps of IPS120 Instrument. 
-        
-        The endpoint is determined prior to the sweep, and the current 
-        field is measured during ramping.
-        
-        Returns
-        ---------
-        The parameter-value pair that was measured.
-        """
-        
-        # Check if we have set the magnetic field yet
-        if self.magnet_initialized is False:
-            print("Checking the status of the magnet and switch heater.")
-            self.instrument.leave_persistent_mode()
-            time.sleep(1)
-
-            # Set the field setpoint
-            self.instrument.field_setpoint.set(self.end)
-            # Set us to go to setpoint
-            self.instrument.activity(1)
-            self.magnet_initialized = True
-
-        # Grab our data
-        data_pair = (self.set_param, self.set_param.get())
-        # Check our stop conditions- being at the end point
-        if self.instrument.mode2() == 'At rest':
-            self.is_running = False
-
-            # Set status to 'hold'
-            self.instrument.activity(0)
-            time.sleep(1)
-            self.magnet_initialized = False
-
-            if self.persistent_magnet is True:
-                self.instrument.set_persistent()
-
-        # Return our data pair, just like any other sweep
-        return data_pair
 
     def flip_direction(self):
         """ Flips the direction of the sweep, to do bidirectional sweeping. """
