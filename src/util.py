@@ -353,6 +353,11 @@ def _name_parser(_name):
     Parses an instrument name. Must not lead with a numeric character.
     """
     name = str(_name).strip()
+
+    if len(name) == 0:
+        raise ValueError('Invalid. Must provide an instrument name.')
+        return ''
+
     if any(c in name for c in string.whitespace):
         raise ValueError(f'Invalid name: {name}. No spaces allowed within instrument name.')
         return ''
