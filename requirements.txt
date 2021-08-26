@@ -1,3 +1,4 @@
 nidaqmx
 qcodes
 Pyqt5
+qcodes_contrib_drivers
