@@ -4,114 +4,114 @@ src package
 Submodules
 ----------
 
-src.base\_sweep module
+The ``BaseSweep`` Class
 ----------------------
 
-.. automodule:: src.base_sweep
+.. autoclass:: src.base_sweep.BaseSweep
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.gate\_leakage module
+The ``gate_leakage`` Class
 ------------------------
 
-.. automodule:: src.gate_leakage
+.. autoclass:: src.gate_leakage
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.heatmap\_thread module
+The ``heatmap_thread`` Class
 --------------------------
 
-.. automodule:: src.heatmap_thread
+.. autoclass:: src.heatmap_thread
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.plotter\_thread module
+The ``plotter_thread`` Class
 --------------------------
 
-.. automodule:: src.plotter_thread
+.. autoclass:: src.plotter_thread
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.runner\_thread module
+The ``runner_thread`` Class
 -------------------------
 
-.. automodule:: src.runner_thread
+.. autoclass:: src.runner_thread
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.safe\_ramp module
+The ``safe_ramp`` Class
 ---------------------
 
-.. automodule:: src.safe_ramp
+.. autoclass:: src.safe_ramp
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.simul\_sweep module
+The ``simul_sweep`` Class
 -----------------------
 
-.. automodule:: src.simul_sweep
+.. autoclass:: src.simul_sweep
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.sweep0d module
+The ``sweep0d`` Class
 ------------------
 
-.. automodule:: src.sweep0d
+.. autoclass:: src.sweep0d
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.sweep1d module
+The ``sweep1d`` Class
 ------------------
 
-.. automodule:: src.sweep1d
+.. autoclass:: src.sweep1d
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.sweep2d module
+The ``sweep2d`` Class
 ------------------
 
-.. automodule:: src.sweep2d
+.. autoclass:: src.sweep2d
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.sweep\_ips module
+The ``sweep_ips`` Class
 ---------------------
 
-.. automodule:: src.sweep_ips
+.. autoclass:: src.sweep_ips
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.sweep\_queue module
+The ``sweep_queue`` Class
 -----------------------
 
-.. automodule:: src.sweep_queue
+.. autoclass:: src.sweep_queue
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.tracking module
+The ``tracking`` Class
 -------------------
 
-.. automodule:: src.tracking
+.. autoclass:: src.tracking
    :members:
    :undoc-members:
    :show-inheritance:
 
-src.util module
+The ``util`` Class
 ---------------
 
-.. automodule:: src.util
+.. autoclass:: src.util
    :members:
    :undoc-members:
    :show-inheritance:

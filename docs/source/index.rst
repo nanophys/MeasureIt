@@ -12,6 +12,9 @@ Welcome to MeasureIt's documentation!
    intro
    src
 
+Developers
+==========
+
 
 Indices and tables
 ==================

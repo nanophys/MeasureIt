@@ -91,21 +91,21 @@
 <li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">src package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-base-sweep-module">src.base_sweep module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-gate-leakage-module">src.gate_leakage module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-heatmap-thread-module">src.heatmap_thread module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-plotter-thread-module">src.plotter_thread module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-runner-thread-module">src.runner_thread module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-safe-ramp-module">src.safe_ramp module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-simul-sweep-module">src.simul_sweep module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-sweep0d-module">src.sweep0d module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-sweep1d-module">src.sweep1d module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-sweep2d-module">src.sweep2d module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-sweep-ips-module">src.sweep_ips module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-sweep-queue-module">src.sweep_queue module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-tracking-module">src.tracking module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#src-util-module">src.util module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-contents">Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-basesweep-class">The <code class="docutils literal notranslate"><span class="pre">BaseSweep</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-gate-leakage-class">The <code class="docutils literal notranslate"><span class="pre">gate_leakage</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-heatmap-thread-class">The <code class="docutils literal notranslate"><span class="pre">heatmap_thread</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-plotter-thread-class">The <code class="docutils literal notranslate"><span class="pre">plotter_thread</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-runner-thread-class">The <code class="docutils literal notranslate"><span class="pre">runner_thread</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-safe-ramp-class">The <code class="docutils literal notranslate"><span class="pre">safe_ramp</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-simul-sweep-class">The <code class="docutils literal notranslate"><span class="pre">simul_sweep</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-sweep0d-class">The <code class="docutils literal notranslate"><span class="pre">sweep0d</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-sweep1d-class">The <code class="docutils literal notranslate"><span class="pre">sweep1d</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-sweep2d-class">The <code class="docutils literal notranslate"><span class="pre">sweep2d</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-sweep-ips-class">The <code class="docutils literal notranslate"><span class="pre">sweep_ips</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-sweep-queue-class">The <code class="docutils literal notranslate"><span class="pre">sweep_queue</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-tracking-class">The <code class="docutils literal notranslate"><span class="pre">tracking</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-util-class">The <code class="docutils literal notranslate"><span class="pre">util</span></code> Class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-src">Module contents</a></li>
 </ul>
 </li>
 </ul>
@@ -180,50 +180,541 @@
 <div class="section" id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="src-base-sweep-module">
-<h2>src.base_sweep module<a class="headerlink" href="#src-base-sweep-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-basesweep-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">BaseSweep</span></code> Class<a class="headerlink" href="#the-basesweep-class" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">src.base_sweep.</span></span><span class="sig-name descname"><span class="pre">BaseSweep</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">set_param</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inter_delay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_axis_time</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">datasaver</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot_bin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">complete_func</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">PyQt5.QtCore.QObject</span></code></p>
+<p>The parent class for the 0D, 1D and 2D sweep classes.</p>
+<p>The default independent variable for BaseSweep and Sweep0D Measurements is time.
+Creating an object in a sweep class results in data acquisition and plotting of
+all followed parameters individually measured against the independent variable.
+The measured data is transferred in real-time (through QObject slot and signal
+connections) from the Sweep classes to the Runner and Plotter Threads to organize,
+save, and live-plot the tracked parameters.</p>
+<dl class="simple">
+<dt>_params:</dt><dd><p>Defaults as blank list. Desired QCoDeS parameters should be added using
+follow_param method.</p>
+</dd>
+<dt>_srs:</dt><dd><p>Defaults as blank list. Used to incorporate lock-in amplifier with
+measurement.</p>
+</dd>
+<dt>set_param:</dt><dd><p>QCoDeS Parameter to be swept, defaults to None for 0D sweep.</p>
+</dd>
+<dt>inter_delay:</dt><dd><p>Time (in seconds) to wait between data points.</p>
+</dd>
+<dt>save_data:</dt><dd><p>Flag used to determine if the data should be saved or not.</p>
+</dd>
+<dt>plot_data:</dt><dd><p>Flag to determine whether or not to live-plot data</p>
+</dd>
+<dt>x_axis:</dt><dd><p>Defaults to 1 to set as time for 0D; defaults to 0 in 1D.</p>
+</dd>
+<dt>meas:</dt><dd><p>Measurement class from QCoDeS, used to register and follow desired
+parameters. Default is None until a measurement is created using
+the create_measurement method.</p>
+</dd>
+<dt>dataset:</dt><dd><p>Stores the data obtained during the measurement.</p>
+</dd>
+<dt>continuous:</dt><dd><p>No effect on Sweep0D. Defaults to False for Sweep1D.</p>
+</dd>
+<dt>plot_bin:</dt><dd><p>Defaults to 1. Used to plot data that has been sent to the
+data_queue list in the Plotter Thread.</p>
+</dd>
+<dt>is_running:</dt><dd><p>Flag to determine whether or not sweep is currently running.</p>
+</dd>
+<dt>t0:</dt><dd><p>Set to monotonic time when creating Runner Thread.</p>
+</dd>
+<dt>persist_data:</dt><dd><p>Always none except in Sweep2D, takes one set_param, allows sweeping of 2 parameters.</p>
+</dd>
+<dt>datasaver:</dt><dd><p>Initiated by Runner Thread to enable saving and export of data.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.follow_param">
+<span class="sig-name descname"><span class="pre">follow_param</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">p</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.follow_param" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds QCoDes parameters from imported drivers to be tracked.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.remove_param">
+<span class="sig-name descname"><span class="pre">remove_param</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">p</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.remove_param" title="Permalink to this definition">¶</a></dt>
+<dd><p>Removes parameters that have been assigned to be tracked.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.follow_srs">
+<span class="sig-name descname"><span class="pre">follow_srs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">l</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gain</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.follow_srs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds SRS lock-in amplifier to keep range consistent.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.create_measurement">
+<span class="sig-name descname"><span class="pre">create_measurement</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.create_measurement" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a QCoDeS Measurement Object</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.stop">
+<span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.stop" title="Permalink to this definition">¶</a></dt>
+<dd><p>Stops/pauses the sweep.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.kill">
+<span class="sig-name descname"><span class="pre">kill</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.kill" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ends all threads and closes any active plots.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.check_running">
+<span class="sig-name descname"><span class="pre">check_running</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.check_running" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the status of the sweep.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">persist_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ramp_to_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.start" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates QCoDeS Measurement, Runner and Plotter Threads, and begins sweep.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.resume">
+<span class="sig-name descname"><span class="pre">resume</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.resume" title="Permalink to this definition">¶</a></dt>
+<dd><p>Restarts the sweep using the start method.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.get_dataset">
+<span class="sig-name descname"><span class="pre">get_dataset</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.get_dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieves collected data.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.receive_dataset">
+<span class="sig-name descname"><span class="pre">receive_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ds_dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.receive_dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Slot to receive data in dictionary form, reemits received data.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.update_values">
+<span class="sig-name descname"><span class="pre">update_values</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.update_values" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns dictionary of updated [parameter:value] pairs, default parameter is time.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.send_updates">
+<span class="sig-name descname"><span class="pre">send_updates</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.send_updates" title="Permalink to this definition">¶</a></dt>
+<dd><p>Emits signal containing dictionary of parameter, setpoint, direction, and status.
+If running Sweep0D, will default to time at one second intervals.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.clear_plot">
+<span class="sig-name descname"><span class="pre">clear_plot</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.clear_plot" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clears any displayed plots.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.set_plot_bin">
+<span class="sig-name descname"><span class="pre">set_plot_bin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pb</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.set_plot_bin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sets value for the Plotter Thread plot bin.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.set_complete_func">
+<span class="sig-name descname"><span class="pre">set_complete_func</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.set_complete_func" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sets function to call when sweep is completed.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.no_change">
+<span class="sig-name descname"><span class="pre">no_change</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">*args</span></em>, <em class="sig-param"><span class="pre">\*\*kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.no_change" title="Permalink to this definition">¶</a></dt>
+<dd><p>Does nothing when sweep is completed.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.check_params_are_correct">
+<span class="sig-name descname"><span class="pre">check_params_are_correct</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.check_params_are_correct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compares the followed parameters to the previously created measurement parameters.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.export_json">
+<span class="sig-name descname"><span class="pre">export_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.export_json" title="Permalink to this definition">¶</a></dt>
+<dd><p>Saves all sweep information, attributes, and parameters of QCoDeS Station as
+JSON dictionary.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.import_json">
+<span class="sig-name descname"><span class="pre">import_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">station</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">Station()</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.import_json" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads previously saved experimental setup.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.add_break">
+<span class="sig-name descname"><span class="pre">add_break</span></span><a class="headerlink" href="#src.base_sweep.BaseSweep.add_break" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">check_params_are_correct</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id0" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compares the followed parameters to the measurement parameters.</p>
+<p>Pulls paramaters from object _params, compares list to parameters
+found in QCoDeS measurement dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><em>Boolean value for whether or not each followed parameter is a QCoDeS</em></p></li>
+<li><p><em>parameter associated with the measurement instrument.</em></p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">check_running</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id1" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the status of the sweep.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.close_plots">
+<span class="sig-name descname"><span class="pre">close_plots</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.close_plots" title="Permalink to this definition">¶</a></dt>
+<dd><p>Resets the plotter and closes all displayed plots.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.completed">
+<span class="sig-name descname"><span class="pre">completed</span></span><a class="headerlink" href="#src.base_sweep.BaseSweep.completed" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.dataset_signal">
+<span class="sig-name descname"><span class="pre">dataset_signal</span></span><a class="headerlink" href="#src.base_sweep.BaseSweep.dataset_signal" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">export_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id2" title="Permalink to this definition">¶</a></dt>
+<dd><p>Saves sweep attributes and parameters of QCoDeS Station as JSON dictionary.</p>
+<p>Called to save experimental setup to avoid repetitive setup of commonly
+used measurement instruments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>fn</strong> -- Represents optional filename to be opened. A copy of the station
+information will be saved in this file.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>Dictionary containing all current instruments, parameters, and sweep</em></p></li>
+<li><p><em>attributes.</em></p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">follow_param</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">p</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id3" title="Permalink to this definition">¶</a></dt>
+<dd><p>Saves parameters to be tracked, for both saving and plotting data.</p>
+<p>The parameters must be followed before '_create_measurement()' is called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>*p</strong> -- Variable number of arguments, each of which must be a QCoDeS Parameter
+that is desired to be followed.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">follow_srs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">l</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gain</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id4" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds an SRS lock-in to ensure that the range is kept correctly.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>l</strong> -- The lock-in instrument.</p></li>
+<li><p><strong>name</strong> -- The name of the instrument to be followed.</p></li>
+<li><p><strong>gain</strong> -- The current gain value.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">get_dataset</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id5" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the dataset object which contains the collected data.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id6">
+<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">import_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">json_dict</span></em>, <em class="sig-param"><span class="pre">station=&lt;qcodes.station.Station</span> <span class="pre">object&gt;</span></em><span class="sig-paren">)</span><a class="headerlink" href="#id6" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads previously exported Station setup.</p>
+<p>Reassigns all dictionary values exported as JSON to their appropriate
+objects.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.init_from_json">
+<em class="property"><span class="pre">classmethod</span> </em><span class="sig-name descname"><span class="pre">init_from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">station</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.init_from_json" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initializes QCoDeS station from previously saved setup.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id7">
+<span class="sig-name descname"><span class="pre">kill</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id7" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ends the threads spawned by the sweep and closes any active plots.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id8">
+<span class="sig-name descname"><span class="pre">no_change</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id8" title="Permalink to this definition">¶</a></dt>
+<dd><p>Passed when there is no function to be called on completion.</p>
+<p>Simply allows the sweep to end when 'complete_func' is set to None.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id9">
+<span class="sig-name descname"><span class="pre">receive_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ds_dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id9" title="Permalink to this definition">¶</a></dt>
+<dd><p>Connects the dataset of Runner Thread to the dataset object of the sweep.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>ds_dict</strong> -- Dataset dictionary passed between Runner Thread and sweep.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id10">
+<span class="sig-name descname"><span class="pre">remove_param</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">p</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id10" title="Permalink to this definition">¶</a></dt>
+<dd><p>Removes parameters that were previously followed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>arguments</strong> (<em>*p - Variable number of</em>) -- that is currently being tracked.</p></li>
+<li><p><strong>Parameter</strong> (<em>each of which must be a QCoDeS</em>) -- that is currently being tracked.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.reset_plot">
+<span class="sig-name descname"><span class="pre">reset_plot</span></span><a class="headerlink" href="#src.base_sweep.BaseSweep.reset_plot" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.reset_plots">
+<span class="sig-name descname"><span class="pre">reset_plots</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#src.base_sweep.BaseSweep.reset_plots" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clears the currently displayed plots.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id11">
+<span class="sig-name descname"><span class="pre">resume</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id11" title="Permalink to this definition">¶</a></dt>
+<dd><p>Restarts the sweep after it has been paused.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id12">
+<span class="sig-name descname"><span class="pre">send_updates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">no_sp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id12" title="Permalink to this definition">¶</a></dt>
+<dd><p>Emits the signal after dictionary values are updated by 'update_values'.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>no_sp</strong> -- Represents a 'no setpoints' boolean. Default is False, when true it
+sets the setpoint key to None in the updated dictionary.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id13">
+<span class="sig-name descname"><span class="pre">set_complete_func</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id13" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sets a function to be called whenever the sweep is finished.</p>
+<p>Connects to completed signal for Sweep0D, Sweep1D, and Sweep2D.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>func</strong> -- The function to be called upon completion of the sweep.</p></li>
+<li><p><strong>*args</strong> -- Arbitrary arguments to be passed to the callback function</p></li>
+<li><p><strong>**kwargs</strong> -- Arbitrary keyword arguments to be passed to the callback function</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id14">
+<span class="sig-name descname"><span class="pre">set_plot_bin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pb</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id14" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sets value for the Plotter Thread plot bin.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>pb</strong> -- Integer value which determines the amount of data to remain in
+Plotter's data_queue while sweeping. The data queue is only
+emptied completely when force is set to True in 'update_plots'.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id15">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">persist_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ramp_to_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id15" title="Permalink to this definition">¶</a></dt>
+<dd><p>Starts the sweep by creating and running the worker threads.</p>
+<p>Can be used to both start the program and unpause after calling 'stop()'.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>persist_data</strong> -- Optional argument which allows Sweep2D to sweep two paramters.</p></li>
+<li><p><strong>ramp_to_start</strong> -- Optional argument which gradually ramps each parameter to the starting
+point of its sweep. Default is true for Sweep1D and Sweep2D.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id16">
+<span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id16" title="Permalink to this definition">¶</a></dt>
+<dd><p>Stops/pauses the program from running by setting the is_running flag to false.</p>
+<p>The is_running flag is checked in every thread's loop to determine whether or
+not to continue running. When sweep is stopped, all data is updated a final time
+to ensure all completed measurements are stored.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.base_sweep.BaseSweep.update_signal">
+<span class="sig-name descname"><span class="pre">update_signal</span></span><a class="headerlink" href="#src.base_sweep.BaseSweep.update_signal" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id17">
+<span class="sig-name descname"><span class="pre">update_values</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id17" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called as Runner Thread loops to update parameter values.</p>
+<p>Verifies the data to be updated depending on type of sweep.
+Iterates through data point intervals, assigning collected values to
+their respective parameters. If data is to be saved, it happens here,
+and the updated data is emitted to all connected slots.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>A dictionary of tuples with the updated data. Each tuple is of the format
+(&lt;QCoDeS Parameter&gt;, measurement value). The tuples are passed in order of
+time, then set_param (if applicable), then all the followed params.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>data</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="src-gate-leakage-module">
-<h2>src.gate_leakage module<a class="headerlink" href="#src-gate-leakage-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-gate-leakage-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">gate_leakage</span></code> Class<a class="headerlink" href="#the-gate-leakage-class" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="src-heatmap-thread-module">
-<h2>src.heatmap_thread module<a class="headerlink" href="#src-heatmap-thread-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-heatmap-thread-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">heatmap_thread</span></code> Class<a class="headerlink" href="#the-heatmap-thread-class" title="Permalink to this headline">¶</a></h2>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.heatmap_thread">
+<span class="sig-prename descclassname"><span class="pre">src.</span></span><span class="sig-name descname"><span class="pre">heatmap_thread</span></span><a class="headerlink" href="#src.heatmap_thread" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of &lt;module 'src.heatmap_thread' from '/Users/caijiaqi/GitHub/MeasureIt/src/heatmap_thread.py'&gt;</p>
+</dd></dl>
+
 </div>
-<div class="section" id="src-plotter-thread-module">
-<h2>src.plotter_thread module<a class="headerlink" href="#src-plotter-thread-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-plotter-thread-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">plotter_thread</span></code> Class<a class="headerlink" href="#the-plotter-thread-class" title="Permalink to this headline">¶</a></h2>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.plotter_thread">
+<span class="sig-prename descclassname"><span class="pre">src.</span></span><span class="sig-name descname"><span class="pre">plotter_thread</span></span><a class="headerlink" href="#src.plotter_thread" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of &lt;module 'src.plotter_thread' from '/Users/caijiaqi/GitHub/MeasureIt/src/plotter_thread.py'&gt;</p>
+</dd></dl>
+
 </div>
-<div class="section" id="src-runner-thread-module">
-<h2>src.runner_thread module<a class="headerlink" href="#src-runner-thread-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-runner-thread-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">runner_thread</span></code> Class<a class="headerlink" href="#the-runner-thread-class" title="Permalink to this headline">¶</a></h2>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.runner_thread">
+<span class="sig-prename descclassname"><span class="pre">src.</span></span><span class="sig-name descname"><span class="pre">runner_thread</span></span><a class="headerlink" href="#src.runner_thread" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of &lt;module 'src.runner_thread' from '/Users/caijiaqi/GitHub/MeasureIt/src/runner_thread.py'&gt;</p>
+</dd></dl>
+
 </div>
-<div class="section" id="src-safe-ramp-module">
-<h2>src.safe_ramp module<a class="headerlink" href="#src-safe-ramp-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-safe-ramp-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">safe_ramp</span></code> Class<a class="headerlink" href="#the-safe-ramp-class" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="src-simul-sweep-module">
-<h2>src.simul_sweep module<a class="headerlink" href="#src-simul-sweep-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-simul-sweep-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">simul_sweep</span></code> Class<a class="headerlink" href="#the-simul-sweep-class" title="Permalink to this headline">¶</a></h2>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.simul_sweep">
+<span class="sig-prename descclassname"><span class="pre">src.</span></span><span class="sig-name descname"><span class="pre">simul_sweep</span></span><a class="headerlink" href="#src.simul_sweep" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of &lt;module 'src.simul_sweep' from '/Users/caijiaqi/GitHub/MeasureIt/src/simul_sweep.py'&gt;</p>
+</dd></dl>
+
 </div>
-<div class="section" id="src-sweep0d-module">
-<h2>src.sweep0d module<a class="headerlink" href="#src-sweep0d-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-sweep0d-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">sweep0d</span></code> Class<a class="headerlink" href="#the-sweep0d-class" title="Permalink to this headline">¶</a></h2>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.sweep0d">
+<span class="sig-prename descclassname"><span class="pre">src.</span></span><span class="sig-name descname"><span class="pre">sweep0d</span></span><a class="headerlink" href="#src.sweep0d" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of &lt;module 'src.sweep0d' from '/Users/caijiaqi/GitHub/MeasureIt/src/sweep0d.py'&gt;</p>
+</dd></dl>
+
 </div>
-<div class="section" id="src-sweep1d-module">
-<h2>src.sweep1d module<a class="headerlink" href="#src-sweep1d-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-sweep1d-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">sweep1d</span></code> Class<a class="headerlink" href="#the-sweep1d-class" title="Permalink to this headline">¶</a></h2>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.sweep1d">
+<span class="sig-prename descclassname"><span class="pre">src.</span></span><span class="sig-name descname"><span class="pre">sweep1d</span></span><a class="headerlink" href="#src.sweep1d" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of &lt;module 'src.sweep1d' from '/Users/caijiaqi/GitHub/MeasureIt/src/sweep1d.py'&gt;</p>
+</dd></dl>
+
 </div>
-<div class="section" id="src-sweep2d-module">
-<h2>src.sweep2d module<a class="headerlink" href="#src-sweep2d-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-sweep2d-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">sweep2d</span></code> Class<a class="headerlink" href="#the-sweep2d-class" title="Permalink to this headline">¶</a></h2>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.sweep2d">
+<span class="sig-prename descclassname"><span class="pre">src.</span></span><span class="sig-name descname"><span class="pre">sweep2d</span></span><a class="headerlink" href="#src.sweep2d" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of &lt;module 'src.sweep2d' from '/Users/caijiaqi/GitHub/MeasureIt/src/sweep2d.py'&gt;</p>
+</dd></dl>
+
 </div>
-<div class="section" id="src-sweep-ips-module">
-<h2>src.sweep_ips module<a class="headerlink" href="#src-sweep-ips-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-sweep-ips-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">sweep_ips</span></code> Class<a class="headerlink" href="#the-sweep-ips-class" title="Permalink to this headline">¶</a></h2>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.sweep_ips">
+<span class="sig-prename descclassname"><span class="pre">src.</span></span><span class="sig-name descname"><span class="pre">sweep_ips</span></span><a class="headerlink" href="#src.sweep_ips" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of &lt;module 'src.sweep_ips' from '/Users/caijiaqi/GitHub/MeasureIt/src/sweep_ips.py'&gt;</p>
+</dd></dl>
+
 </div>
-<div class="section" id="src-sweep-queue-module">
-<h2>src.sweep_queue module<a class="headerlink" href="#src-sweep-queue-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-sweep-queue-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">sweep_queue</span></code> Class<a class="headerlink" href="#the-sweep-queue-class" title="Permalink to this headline">¶</a></h2>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.sweep_queue">
+<span class="sig-prename descclassname"><span class="pre">src.</span></span><span class="sig-name descname"><span class="pre">sweep_queue</span></span><a class="headerlink" href="#src.sweep_queue" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of &lt;module 'src.sweep_queue' from '/Users/caijiaqi/GitHub/MeasureIt/src/sweep_queue.py'&gt;</p>
+</dd></dl>
+
 </div>
-<div class="section" id="src-tracking-module">
-<h2>src.tracking module<a class="headerlink" href="#src-tracking-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-tracking-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">tracking</span></code> Class<a class="headerlink" href="#the-tracking-class" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="src-util-module">
-<h2>src.util module<a class="headerlink" href="#src-util-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-util-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">util</span></code> Class<a class="headerlink" href="#the-util-class" title="Permalink to this headline">¶</a></h2>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="src.util">
+<span class="sig-prename descclassname"><span class="pre">src.</span></span><span class="sig-name descname"><span class="pre">util</span></span><a class="headerlink" href="#src.util" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of &lt;module 'src.util' from '/Users/caijiaqi/GitHub/MeasureIt/src/util.py'&gt;</p>
+</dd></dl>
+
 </div>
-<div class="section" id="module-contents">
-<h2>Module contents<a class="headerlink" href="#module-contents" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-src">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-src" title="Permalink to this headline">¶</a></h2>
 </div>
 </div>
 
