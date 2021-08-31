@@ -4,3 +4,4 @@ __pycache__/
 JC_819.ipynb
 .DS_Store
 Databases/datasaver.ipynb
+docs/source/_build/
