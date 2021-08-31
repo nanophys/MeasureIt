@@ -6,3 +6,6 @@ JC_819.ipynb
 Databases/datasaver.ipynb
 docs/source/_build/
 .vscode/settings.json
+*.pyc
+*.pyc
+*.pyc
