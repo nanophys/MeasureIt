@@ -7,7 +7,7 @@ Measurement software based on [QCoDeS](https://qcodes.github.io/), developed in 
 To build the documentation, first install requirements(if GUI has already successfully run, only `sphinx` and `sphinx-rtd-theme` are needed):
 
 ```bash
-pip install requirements_doc.txt
+pip install -r requirements_doc.txt
 ```
 
 The documentation is located directory `docs/source`. A `makefile` or `make.bat` is set up for quick building:
