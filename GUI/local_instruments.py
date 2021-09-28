@@ -1,4 +1,4 @@
-from src.daq_driver import Daq
+from drivers.daq_driver import Daq
 from qcodes.instrument_drivers.Lakeshore.Model_372 import Model_372
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes.instrument_drivers.stanford_research.SR860 import SR860

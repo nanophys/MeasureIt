@@ -3,6 +3,7 @@ import importlib
 import json
 import os
 import time
+import types
 from collections import deque
 from functools import partial
 
@@ -202,6 +203,34 @@ class SweepQueue(QObject):
             else:
                 print(f"Invalid object: {str(sweep)}.\nIf this is a function handle or other callable, add it with "
                       f"the 'append_handle' function.")
+
+    def __iadd__(self, item):
+        """
+        Overload += to replace append and append_handle.
+        Function and parameters should be packed as a tuple(func, arg).
+        Database entry and sweep should be pacted as a tuple(db_entry, sweep)
+
+        Paramters
+        ---------
+        item:
+            The object to be added to the sweep_queue. It can be a sweep object, function handle,
+            or a tuple for function (func_handle, argument) or database entry (db_entry,sweep).
+        """
+        if isinstance(item, tuple):
+            item, *args = item
+            # Unpack the tuple.
+            if isinstance(item, types.FunctionType):
+                self.append_handle(item, *args)
+            else:
+                self.append(item, *args)
+                # Support db_entry when doing this.
+        else:
+            # proceed.
+            if isinstance(item, types.FunctionType):
+                self.append_handle(item)
+            else:
+                self.append(item)
+        return self
 
     def append_handle(self, fn_handle, *args, **kwargs):
         """

@@ -1,7 +1,7 @@
 from functools import partial
 
 from PyQt5 import QtWidgets, QtCore, QtGui
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, pyqtSlot
 from PyQt5.QtWidgets import QTableWidgetItem, QMessageBox, QFileDialog, \
     QPushButton, QCheckBox, QHeaderView, QLineEdit, QListWidgetItem, QAction
 from PyQt5.QtGui import QTextCursor
@@ -16,7 +16,6 @@ from queue import Queue
 
 sys.path.append(os.environ['MeasureItHome'])
 import src
-from src.daq_driver import Daq, DaqAOChannel, DaqAIChannel
 from src.util import _value_parser, _name_parser, save_to_csv, safe_set, safe_get, ParameterException
 from src.base_sweep import BaseSweep
 from src.sweep0d import Sweep0D
