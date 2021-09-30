@@ -202,12 +202,12 @@ class Sweep1D(BaseSweep, QObject):
             # self.is_ramping=False
             # print(f"Stopped the ramp, the current setpoint  is {self.setpoint} {self.set_param.unit}")
 
+        BaseSweep.stop(self)
+
         if isinstance(self.instrument, AMI430):
             safe_set(self.instrument.ramping_state, 'holding')
         elif isinstance(self.instrument, OxfordInstruments_IPS120):
             safe_set(self.instrument.activity, 0)
-
-        BaseSweep.stop(self)
 
     def kill(self):
         """ Ends the threads spawned by the sweep and closes any active plots. """
