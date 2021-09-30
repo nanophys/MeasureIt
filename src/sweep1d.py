@@ -271,11 +271,8 @@ class Sweep1D(BaseSweep, QObject):
             self.instrument.set_field(self.end, block=False)
             self.magnet_initialized = True
             time.sleep(self.inter_delay)
-            try:
-                while safe_get(self.instrument.ramping_state) != 'ramping':
-                    time.sleep(self.inter_delay)
-            except Exception as e:
-                print(e)
+
+            while safe_get(self.instrument.ramping_state) != 'ramping':
                 time.sleep(self.inter_delay)
 
         # Grab our data
