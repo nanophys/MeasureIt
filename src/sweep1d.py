@@ -203,9 +203,9 @@ class Sweep1D(BaseSweep, QObject):
             # print(f"Stopped the ramp, the current setpoint  is {self.setpoint} {self.set_param.unit}")
 
         if isinstance(self.instrument, AMI430):
-            self.set_param.set(safe_get(self.set_param))
+            safe_set(self.instrument.ramping_state, 'holding')
         elif isinstance(self.instrument, OxfordInstruments_IPS120):
-            self.instrument.activity(0)
+            safe_set(self.instrument.activity, 0)
 
         BaseSweep.stop(self)
 
@@ -272,28 +272,19 @@ class Sweep1D(BaseSweep, QObject):
             self.magnet_initialized = True
             time.sleep(self.inter_delay)
             try:
-                while self.instrument.ramping_state.get() != 'ramping':
+                while safe_get(self.instrument.ramping_state) != 'ramping':
                     time.sleep(self.inter_delay)
             except Exception as e:
                 print(e)
                 time.sleep(self.inter_delay)
 
         # Grab our data
-        try:
-            dt = self.set_param.get()
-        except Exception as e:
-            print(e)
-            time.sleep(self.inter_delay)
-            dt = self.set_param.get()
-        try:
-            data_pair = (self.set_param, dt)
-            self.setpoint = dt
-        except:
-            print("got bad data, trying again")
-            return self.step_AMI430()
+        dt = safe_get(self.set_param)
+        data_pair = (self.set_param, dt)
+        self.setpoint = dt
 
         # Check our stop conditions- being at the end point
-        if self.instrument.ramping_state() == 'holding':
+        if safe_get(self.instrument.ramping_state) == 'holding':
             self.magnet_initialized = False
             if self.save_data:
                 self.runner.flush_flag = True

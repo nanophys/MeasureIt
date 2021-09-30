@@ -24,8 +24,9 @@ unit_dict = {
 
 
 class ParameterException(Exception):
-    def __init__(self, message):
+    def __init__(self, message, set=False):
         self.message = message
+        self.set = set
         super().__init__(self)
 
     def __str__(self):
@@ -56,7 +57,7 @@ def safe_set(p, value, last_try=False):
             return safe_set(p, value, last_try=True)
         else:
             print(f"Still couldn't set {p.name} to {value}. Giving up.", e)
-            raise ParameterException(f"Couldn't set {p.name} to {value}.")
+            raise ParameterException(f"Couldn't set {p.name} to {value}.", set=True)
     return ret
 
 
@@ -82,7 +83,7 @@ def safe_get(p, last_try=False):
             return safe_get(p, last_try=True)
         else:
             print(f"Still couldn't get {p.name}. Giving up.", e)
-            raise ParameterException(f'Could not get {p.name}.')
+            raise ParameterException(f'Could not get {p.name}.', set=False)
     return ret
 
 

@@ -143,11 +143,7 @@ class RunnerThread(QThread):
                 try:
                     data = self.sweep.update_values()
                 except ParameterException as e:
-                    self.sweep.is_running = False
-                    if e.set is True:
-                        print(f"Could not set {e.p.label} to {e.sp}.", e.message)
-                    else:
-                        print(f"Could not get {e.p.label}.", e.message)
+                    self.sweep.stop()
                     continue
 
                 # Check if we've hit the end- update_values will return None
