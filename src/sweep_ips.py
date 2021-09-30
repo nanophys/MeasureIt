@@ -119,4 +119,4 @@ class SweepIPS(Sweep0D, QObject):
 
         BaseSweep.stop(self)
         safe_set(self.instrument.activity, 0)
-
+        self.initialized = False

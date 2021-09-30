@@ -206,8 +206,10 @@ class Sweep1D(BaseSweep, QObject):
 
         if isinstance(self.instrument, AMI430):
             safe_set(self.instrument.ramping_state, 'holding')
+            self.magnet_initialized = False
         elif isinstance(self.instrument, OxfordInstruments_IPS120):
             safe_set(self.instrument.activity, 0)
+            self.magnet_initialized = False
 
     def kill(self):
         """ Ends the threads spawned by the sweep and closes any active plots. """
