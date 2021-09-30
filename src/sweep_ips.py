@@ -1,7 +1,8 @@
 # sweep_ips.py
 
+from src.base_sweep import BaseSweep
 from src.sweep0d import Sweep0D
-from src.util import _autorange_srs, safe_get
+from src.util import _autorange_srs, safe_get, safe_set
 from PyQt5.QtCore import QObject
 import time
 
@@ -112,3 +113,10 @@ class SweepIPS(Sweep0D, QObject):
 
         # print(data)
         return data
+
+    def stop(self):
+        """ Stops running any currently active sweeps. """
+
+        BaseSweep.stop(self)
+        safe_set(self.instrument.activity, 0)
+
