@@ -384,7 +384,6 @@ class Sweep2D(BaseSweep, QObject):
         """ Ends all threads and closes any active plots. """
         
         self.in_sweep.kill()
-        BaseSweep.kill(self)
 
         # Gently shut down the heatmap
         if self.heatmap_plotter is not None:

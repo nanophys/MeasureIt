@@ -10,7 +10,7 @@ from qcodes import Station
 
 from src.runner_thread import RunnerThread
 from src.plotter_thread import Plotter
-from src.util import _autorange_srs, safe_get, safe_set
+from src.util import _autorange_srs, safe_get
 
 
 class BaseSweep(QObject):
