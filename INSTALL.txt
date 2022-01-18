@@ -4,8 +4,8 @@
     1) (RECOMMENDED) run the following to install a non-editable version
       - conda update -n base -c defaults conda
       - conda create --name qcodes
-      - conda install qcodes
       - conda activate qcodes
+      - conda install qcodes
     2) Run the following to install an editable version of QCoDeS
       - Download QCoDeS repository 'git clone https://github.com/QCoDeS/Qcodes.git' (will download QCoDeS repository at current location)
       - From Anaconda Prompt, move into QCoDeS repository, and run:
