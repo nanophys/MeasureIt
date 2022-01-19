@@ -151,10 +151,10 @@ class Sweep1D(BaseSweep, QObject):
         self.magnet_initialized = False
 
     def __str__(self):
-        return f"1D Sweep of {self.set_param} from {self.begin} to {self.end}, with step size {self.step}."
+        return f"1D Sweep of {self.set_param.label} from {self.begin} to {self.end}, with step size {self.step}."
 
     def __repr__(self):
-        return f"Sweep1D({self.set_param}, {self.begin}, {self.end}, {self.step})"
+        return f"Sweep1D({self.set_param.label}, {self.begin}, {self.end}, {self.step})"
 
     def start(self, persist_data=None, ramp_to_start=True, ramp_multiplier=1):
         """
@@ -216,6 +216,7 @@ class Sweep1D(BaseSweep, QObject):
         if self.is_ramping and self.ramp_sweep is not None:
             self.ramp_sweep.stop()
             self.ramp_sweep.kill()
+        self.stop()
         BaseSweep.kill(self)
 
     def step_param(self):
