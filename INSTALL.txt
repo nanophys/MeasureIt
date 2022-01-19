@@ -6,7 +6,7 @@
 - To install QCoDeS, either:
     1) (RECOMMENDED) run the following to install a non-editable version
       - conda update -n base -c defaults conda
-      - conda create --name qcodes
+      - conda create --name qcodes python=3.9
       - conda activate qcodes
       - conda install -c conda-forge qcodes
     2) Run the following to install an editable version of QCoDeS
