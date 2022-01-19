@@ -1,5 +1,8 @@
 - Download Anaconda3 https://www.anaconda.com/download/
 - Download Git https://git-scm.com/download/win
+- Download and install the NI DAQmx drivers at 'http://www.ni.com/en-us/support/downloads/drivers/download/unpackaged.ni-daqmx.291872.html'
+- Download and install the NI VISA package at 'http://www.ni.com/download/ni-visa-18.5/7973/en/'
+
 - To install QCoDeS, either:
     1) (RECOMMENDED) run the following to install a non-editable version
       - conda update -n base -c defaults conda
@@ -13,11 +16,9 @@
       - conda env create -f environment.yml
       - conda activate qcodes
       - pip install qcodes
-    After running either of the above, install the rest of the necessary packages
-      - conda config --add channels conda-forge 
-      - conda install nidaqmx-python jupyterlab conda-build
-      - Download and install the NI DAQmx drivers at 'http://www.ni.com/en-us/support/downloads/drivers/download/unpackaged.ni-daqmx.291872.html'
-      - Download and install the NI VISA package at 'http://www.ni.com/download/ni-visa-18.5/7973/en/'
+After installing QCoDeS, install the rest of the packages
+- conda config --add channels conda-forge 
+- conda install nidaqmx-python jupyterlab conda-build
 - Download this repository 'git clone https://github.com/nanophys/MeasureIt.git'
 - Set 'MeasureItHome' to base folder in the MeasureIt repository as an environment variable in your Windows system.
 - From Anaconda Prompt, move into MeasureIt repository, and run:
