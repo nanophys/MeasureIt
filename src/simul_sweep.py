@@ -70,12 +70,12 @@ class SimulSweep(BaseSweep, QObject):
         Changes the direction of the sweep.
     """
 
-    def __init__(self, _p, n_steps=None, bidirectional=False, continual=False, *args, **kwargs):
+    def __init__(self, _p, n_steps=None, bidirectional=False, continual=False, back_multiplier=1, *args, **kwargs):
         if len(_p.keys()) < 1 or not all(isinstance(p, dict) for p in _p.values()):
             raise ValueError('Must pass at least one Parameter and the associated values as dictionaries.')
 
         self.simul_params = []
-        self.set_params_dict = _p
+        self.set_params_dict = _p.deepcopy()
         self.bidirectional = bidirectional
         self.continuous = continual
         self.direction = 0
@@ -83,6 +83,7 @@ class SimulSweep(BaseSweep, QObject):
         self.ramp_sweep = None
         self.runner = None
         self.plotter = None
+        self.back_multiplier = back_multiplier
 
         # Take the first parameter, and set it as the normal Sweep1D set param
         sp = list(_p.keys())[0]
@@ -117,6 +118,23 @@ class SimulSweep(BaseSweep, QObject):
 
         self.follow_param([p for p in self.simul_params if p is not self.set_param])
         self.persist_data = []
+
+    def __str__(self):
+        p_desc = ''
+        n_params = len(self.simul_params)
+
+        for n, p, v in enumerate(self.set_params_dict.items()):
+            if n < n_params-2:
+                p_desc += f"{p.label} from {v['start']} to {v['stop']}, with step {v['step']}, "
+            elif n == n_params-2:
+                p_desc += f"{p.label} from {v['start']} to {v['stop']}, with step {v['step']}, and "
+            elif n == n_params-1:
+                p_desc += f"{p.label} from {v['start']} to {v['stop']}, with step {v['step']}."
+
+        return f"SimulSweep of {p_desc}"
+
+    def __repr__(self):
+        return f"SimulSweep({[(p.label, v['start'], v['stop'], v['step']) for p, v in self.set_params_dict.items()]})"
 
     def start(self, persist_data=None, ramp_to_start=True, ramp_multiplier=1):
         """
@@ -331,15 +349,24 @@ class SimulSweep(BaseSweep, QObject):
         # If backwards, go forwards, and vice versa
         if self.direction:
             self.direction = 0
+            for p, v in self.set_params_dict.items():
+                temp = v['start']
+                v['start'] = v['stop']
+                v['stop'] = temp
+                v['step'] = -1 * v['step'] / self.back_multiplier
+                v['setpoint'] -= v['step']
         else:
             self.direction = 1
+            for p, v in self.set_params_dict.items():
+                temp = v['start']
+                v['start'] = v['stop']
+                v['stop'] = temp
+                v['step'] = -1 * v['step'] * self.back_multiplier
+                v['setpoint'] -= v['step']
 
         if self.plot_data is True and self.plotter is not None:
             self.plotter.add_break(self.direction)
 
-        for p, v in self.set_params_dict.items():
-            temp = v['start']
-            v['start'] = v['stop']
-            v['stop'] = temp
-            v['step'] = -1 * v['step']
-            v['setpoint'] -= v['step']
+
+
+
