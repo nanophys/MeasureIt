@@ -96,9 +96,8 @@ class Sweep1D(BaseSweep, QObject):
         Resets Sweep1D, optional argument to change sweep details.
     """
 
-    def __init__(self, set_param, start, stop, step, bidirectional=False, runner=None, plotter=None, datasaver=None,
-                 inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=0, parent=None,
-                 continual=False, plot_bin=1, back_multiplier=1, persistent_magnet=False,err=0.01):
+    def __init__(self, set_param, start, stop, step, bidirectional=False, continual=False,
+                 x_axis_time=0, persistent_magnet=False, err=1e-2, *args, **kwargs):
         """
         Initializes the sweep.
         
@@ -114,20 +113,15 @@ class Sweep1D(BaseSweep, QObject):
             The value that the sweep will end at.
         step:
             The step spacing for each measurement.
-        complete_func:
-            An optional function to be called when the sweep is finished.
         x_axis_time:
             Determines if followed parameters are plotted against time(1) or 'set_param'(0).
         err:
-            If the real end value of a sweep is deviated from step*err of the desired value,
-            the sweep will be stopped. 
+            Tolerance for considering rounding errors when determining when the sweep has finished.
         """
 
         # Initialize the BaseSweep
         QObject.__init__(self)
-        BaseSweep.__init__(self, set_param=set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data,
-                           x_axis_time=x_axis_time, datasaver=datasaver, plot_bin=plot_bin, parent=parent,
-                           complete_func=complete_func)
+        BaseSweep.__init__(self, set_param=set_param, x_axis_time=x_axis_time, *args, **kwargs)
 
         self.begin = start
         self.end = stop
@@ -143,14 +137,12 @@ class Sweep1D(BaseSweep, QObject):
         self.bidirectional = bidirectional
         self.continuous = continual
         self.direction = 0
-        self.back_multiplier = back_multiplier
         self.is_ramping = False
         self.ramp_sweep = None
-        self.runner = runner
-        self.plotter = plotter
         self.persistent_magnet = persistent_magnet
         self.instrument = self.set_param.instrument
         self.err = err
+
         self.magnet_initialized = False
 
     def __str__(self):
@@ -208,7 +200,7 @@ class Sweep1D(BaseSweep, QObject):
         BaseSweep.stop(self)
 
         if isinstance(self.instrument, AMI430):
-            safe_set(self.instrument.ramping_state, 'holding')
+            self.instrument.pause()
             self.magnet_initialized = False
         elif isinstance(self.instrument, OxfordInstruments_IPS120):
             safe_set(self.instrument.activity, 0)
@@ -450,6 +442,31 @@ class Sweep1D(BaseSweep, QObject):
         # Reset our plots
         self.plotter = None
         self.runner = None
+
+    def estimate_time(self, verbose=True):
+        t_est = 0
+
+        if isinstance(self.instrument, AMI430):
+            rate = safe_get(self.instrument.ramp_rate)
+            if safe_get(self.instrument.ramp_rate_units) == 0:
+                t_est = abs((self.end - self.begin) / rate)
+            else:
+                t_est = abs((self.end - self.begin) * 60 / rate)
+        else:
+            t_est = abs((self.begin - self.end) / self.step) * self.inter_delay
+
+            if self.continuous is True:
+                print(f'No estimated time for {repr(self)} to run.')
+                return 0
+            elif self.bidirectional is True:
+                t_est *= 2
+
+        hours = int(t_est / 3600)
+        minutes = int((t_est % 3600) / 60)
+        seconds = t_est % 60
+        if verbose is True:
+            print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+        return t_est
 
     def __del__(self):
         """
