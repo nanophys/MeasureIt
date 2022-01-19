@@ -83,8 +83,7 @@ class Sweep2D(BaseSweep, QObject):
     add_heatmap_lines = pyqtSignal(list)
     clear_heatmap_plot = pyqtSignal()
 
-    def __init__(self, in_params, out_params, inter_delay=0.1, outer_delay=1, save_data=True, plot_data=True,
-                 complete_func=None, update_func=None, plot_bin=1, runner=None, plotter=None, back_multiplier=1):
+    def __init__(self, in_params, out_params, outer_delay=1, update_func=None, *args, **kwargs):
         """
         Initializes the sweep.
         
@@ -155,13 +154,12 @@ class Sweep2D(BaseSweep, QObject):
 
         # Initialize the BaseSweep
         QObject.__init__(self)
-        BaseSweep.__init__(self, set_param=self.set_param, inter_delay=inter_delay, save_data=save_data,
-                           plot_data=plot_data, plot_bin=plot_bin, complete_func=complete_func)
+        BaseSweep.__init__(self, set_param=self.set_param, *args, **kwargs)
 
         # Create the inner sweep object
         self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
                                 inter_delay=self.inter_delay, save_data=self.save_data, x_axis_time=0,
-                                plot_data=self.plot_data, back_multiplier=back_multiplier)
+                                plot_data=self.plot_data, back_multiplier=self.back_multiplier)
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
         self.in_sweep.follow_param(self.set_param)
@@ -169,9 +167,6 @@ class Sweep2D(BaseSweep, QObject):
         # is done, call that function automatically
         self.in_sweep.set_complete_func(self.update_values)
 
-        self.runner = runner
-        self.plotter = plotter
-        self.direction = 0
         self.outer_delay = outer_delay
 
         # Flags for ramping
@@ -491,3 +486,18 @@ class Sweep2D(BaseSweep, QObject):
 
         if start_on_finish:
             self.start(ramp_to_start=False)
+
+    def estimate_time(self, verbose=True):
+        in_time = self.in_sweep.estimate_time()
+        n_lines = abs((self.out_start-self.out_stop)/self.out_step)+1
+        out_time = self.outer_delay * self.out_step
+
+        t_est = in_time*n_lines + out_time
+
+        hours = int(t_est / 3600)
+        minutes = int((t_est % 3600) / 60)
+        seconds = t_est % 60
+        if verbose is True:
+            print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+        return t_est
+
