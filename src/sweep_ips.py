@@ -120,3 +120,16 @@ class SweepIPS(Sweep0D, QObject):
         BaseSweep.stop(self)
         safe_set(self.instrument.activity, 0)
         self.initialized = False
+
+    def estimate_time(self, verbose=True):
+        rate = safe_get(self.magnet.sweeprate_field)
+        B_range = abs(safe_get(self.magnet.field) - self.setpoint)
+
+        t_est = B_range * 60 / rate
+
+        hours = int(t_est / 3600)
+        minutes = int((t_est % 3600) / 60)
+        seconds = t_est % 60
+        if verbose is True:
+            print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+        return t_est
