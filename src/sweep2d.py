@@ -186,6 +186,14 @@ class Sweep2D(BaseSweep, QObject):
         # Initialize our heatmap plotting thread
         self.heatmap_plotter = None
 
+    def __str__(self):
+        return f"2D Sweep of {self.set_param.label} from {self.out_start} to {self.out_stop} with step {self.out_step}," \
+               f"while sweeping {self.in_param.label} from {self.in_start} to {self.in_stop} with step {self.in_step}."
+
+    def __repr__(self):
+        return f"Sweep2D([{self.set_param.label}, {self.out_start}, {self.out_stop}, {self.out_step}], " \
+               f"[{self.in_param.label}, {self.in_start}, {self.in_stop}, {self.in_step}])"
+
     def follow_param(self, *p):
         """
         Saves parameters to be tracked, for both saving and plotting data.
