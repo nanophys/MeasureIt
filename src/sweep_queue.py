@@ -5,6 +5,7 @@ import os
 import time
 import types
 from collections import deque
+from collections.abc import Iterable
 from functools import partial
 
 import qcodes as qc
@@ -188,7 +189,7 @@ class SweepQueue(QObject):
         """
 
         for sweep in s:
-            if isinstance(sweep, list):
+            if isinstance(sweep, Iterable):
                 for l in sweep:
                     # Set the finished signal to call the begin_next() function here
                     l.set_complete_func(self.begin_next)
@@ -458,6 +459,20 @@ class SweepQueue(QObject):
             self.sample_name = samples
         else:
             print("Database info loaded incorrectly!")
+
+    def estimate_time(self, verbose=True):
+        t_est = 0
+        for s in self.deque:
+            if isinstance(s, BaseSweep):
+                t_est += s.estimate_time(verbose=False)
+
+        hours = int(t_est / 3600)
+        minutes = int((t_est % 3600) / 60)
+        seconds = t_est % 60
+
+        print(f'Estimated time for the SweepQueue to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+
+        return t_est
 
     def set_database(self):
         """
