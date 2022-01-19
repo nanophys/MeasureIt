@@ -974,8 +974,8 @@ def main():
     if os.path.isfile(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json'):
         qc.config.update_config(os.environ['MeasureItHome'] + '\\cfg\\')
 
+    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
     app = QtWidgets.QApplication(sys.argv)
-    app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
     app.setStyle('WindowsVista')
 
     window = UImain()
