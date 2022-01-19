@@ -114,8 +114,8 @@ class BaseSweep(QObject):
     add_break = pyqtSignal(int)
     completed = pyqtSignal()
 
-    def __init__(self, set_param=None, inter_delay=0.01, save_data=True, plot_data=True, x_axis_time=1,
-                 datasaver=None, parent=None, plot_bin=1, complete_func=None):
+    def __init__(self, set_param=None, inter_delay=0.1, save_data=True, plot_data=True, x_axis_time=1,
+                 datasaver=None, complete_func=None, plot_bin=1, back_multiplier=1):
         """
         Initializer for both classes, called by BaseSweep.__init__() in Sweep0D and Sweep1D classes.
         
@@ -169,6 +169,8 @@ class BaseSweep(QObject):
         self.save_data = save_data
         self.plot_data = plot_data
         self.x_axis = x_axis_time
+        self.back_multiplier = back_multiplier
+        self.direction = 0
         self.meas = None
         self.dataset = None
 
@@ -757,6 +759,9 @@ class BaseSweep(QObject):
             sweep.follow_param(param)
 
         return sweep
+
+    def estimate_time(self, verbose=True):
+        return 0
 
     def __del__(self):
         """ Deletes all child threads and closes all figures. """
