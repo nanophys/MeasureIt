@@ -84,7 +84,8 @@ class RunnerThread(QThread):
 
     def __del__(self):
         """ Standard destructor. """
-        
+
+        self.exit_datasaver()
         self.wait()
 
     def add_plotter(self, plotter):
@@ -168,5 +169,9 @@ class RunnerThread(QThread):
                 self.flush_flag = False
             # print('at end of kill flag loop')
 
-        if self.runner is not None:
-            self.runner.__exit__(None, None, None)
+    def exit_datasaver(self):
+        if self.datasaver is not None:
+            self.datasaver.__exit__(None, None, None)
+            self.datasaver = None
+
+
