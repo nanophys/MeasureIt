@@ -323,6 +323,7 @@ class BaseSweep(QObject):
         if self.runner is not None:
             self.runner.flush_flag = True
             self.runner.kill_flag = True
+            self.runner.quit()
             if not self.runner.wait(1000):
                 self.runner.terminate()
                 print('forced runner to terminate')
@@ -330,7 +331,7 @@ class BaseSweep(QObject):
             self.send_updates()
         # Gently shut down the plotter
         if self.plotter is not None:
-            self.plotter_thread.exit()
+            self.plotter_thread.quit()
             if not self.plotter_thread.wait(1000):
                 self.plotter_thread.terminate()
                 print('forced plotter to terminate')
@@ -378,7 +379,7 @@ class BaseSweep(QObject):
             self.plotter_thread = QThread()
             self.plotter.moveToThread(self.plotter_thread)
             self.plotter.create_figs()
-            #self.plotter_thread.started.connect(self.plotter.run)
+
             self.add_break.connect(self.plotter.add_break)
             self.reset_plot.connect(self.plotter.reset)
 
@@ -517,7 +518,7 @@ class BaseSweep(QObject):
 
     def close_plots(self):
         """ Resets the plotter and closes all displayed plots. """
-        
+
         if self.plotter is not None:
             self.plotter.clear()
 
