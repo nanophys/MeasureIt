@@ -100,6 +100,7 @@ class Sweep0D(BaseSweep, QObject):
             if self.save_data:
                 self.runner.datasaver.flush_data_to_database()
             self.is_running = False
+            self.runner.kill_flag = True
             print(f"Done with the sweep, t={t} s")
             self.completed.emit()
 
