@@ -211,7 +211,7 @@ class Sweep1D(BaseSweep, QObject):
         if self.is_ramping and self.ramp_sweep is not None:
             self.ramp_sweep.stop()
             self.ramp_sweep.kill()
-        self.stop()
+
         BaseSweep.kill(self)
 
     def step_param(self):
@@ -248,8 +248,7 @@ class Sweep1D(BaseSweep, QObject):
             self.is_running = False
             self.flip_direction()
             self.completed.emit()
-            if self.parent is None:
-                self.runner.kill_flag = True
+
             return None
 
     def step_AMI430(self):
