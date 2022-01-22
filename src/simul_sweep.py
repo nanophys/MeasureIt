@@ -75,7 +75,7 @@ class SimulSweep(BaseSweep, QObject):
             raise ValueError('Must pass at least one Parameter and the associated values as dictionaries.')
 
         self.simul_params = []
-        self.set_params_dict = _p.deepcopy()
+        self.set_params_dict = _p.copy()
         self.bidirectional = bidirectional
         self.continuous = continual
         self.direction = 0
