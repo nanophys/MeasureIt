@@ -18,7 +18,7 @@
       - pip install qcodes
 After installing QCoDeS, install the rest of the packages
 - conda config --add channels conda-forge 
-- conda install nidaqmx-python jupyterlab conda-build
+- conda install nidaqmx-python jupyterlab conda-build pyqt
 - Download this repository 'git clone https://github.com/nanophys/MeasureIt.git'
 - Set 'MeasureItHome' to base folder in the MeasureIt repository as an environment variable in your Windows system.
 - From Anaconda Prompt, move into MeasureIt repository, and run:
