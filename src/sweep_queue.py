@@ -460,11 +460,11 @@ class SweepQueue(QObject):
         else:
             print("Database info loaded incorrectly!")
 
-    def estimate_time(self, verbose=True):
+    def estimate_time(self, verbose=False):
         t_est = 0
-        for s in self.deque:
+        for s in self.queue:
             if isinstance(s, BaseSweep):
-                t_est += s.estimate_time(verbose=False)
+                t_est += s.estimate_time(verbose=verbose)
 
         hours = int(t_est / 3600)
         minutes = int((t_est % 3600) / 60)
