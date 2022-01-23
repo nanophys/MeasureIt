@@ -1,4 +1,4 @@
-nidaqmx
+nidaqmx-python
 qcodes
-Pyqt5
+pyqt
 qcodes_contrib_drivers
