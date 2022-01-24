@@ -44,9 +44,11 @@ TO UPDATE:
 - To update QCodes_contrib_drivers, open the terminal, move into the Qcodes_contrib_drivers base directory and run:
     - git pull
 - To update a non-editable installation of QCoDeS from Anaconda Prompt:
+    - conda update -n base -c defaults conda  (not strictly required but is best practice)
     - conda activate qcodes
     - conda update qcodes
-- To update an editable installation of QCoDeS: from Anaconda Prompt, move into QCoDeS repository, and run:
+- To update an editable installation of QCoDeS: from Anaconda Prompt, move into QCoDeS repository, and run:v
+    - conda update -n base -c defaults conda  (not strictly required but is best practice)
     - git pull
     - conda activate qcodes
     - conda env update --file environment.yml
