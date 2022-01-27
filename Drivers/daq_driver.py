@@ -44,10 +44,10 @@ class Daq(Instrument):
         start_time = time.time()
         # Initialize the DAQ system
         super().__init__(name)
-        system = nidaqmx.system.System.local()
+        self.system = nidaqmx.system.System.local()
         self._address = address
         try:
-            self.device = system.devices[self._address]
+            self.device = self.system.devices[self._address]
             # Grab the number of AO, AI channels
             self.ao_num = len(self.device.ao_physical_chans.channel_names)
             self.ai_num = len(self.device.ai_physical_chans.channel_names)
@@ -91,8 +91,15 @@ class Daq(Instrument):
             self.close()
             raise e
 
-        print(f"Connected to: NI DAQ {self.device.product_type} ({self._address}) in {(time.time() - start_time):.2f}s")
-        self.log.info(f"Connected to instrument: {self._address}")
+        self.connect_message()
+
+    def get_idn(self):
+        vendor = 'National Instruments'
+        model = f'DAQ {self.device.product_type}'
+        serial = self.device.dev_serial_num
+        firmware = '.'.join([str(x) for x in self.system.driver_version])
+
+        return dict(zip(('vendor', 'model', 'serial', 'firmware'), [vendor, model, serial, firmware]))
 
     def get_ao_num(self):
         """
