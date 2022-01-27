@@ -3,6 +3,7 @@ import time
 
 from qcodes import VisaInstrument
 from qcodes.utils.validators import Strings, Enum
+from qcodes.utils.delaykeyboardinterrupt import DelayedKeyboardInterrupt
 
 
 class Ametek_7230(VisaInstrument):
@@ -93,7 +94,7 @@ class Ametek_7230(VisaInstrument):
         'EXT ANALOG': 2
     }
 
-    def __init__(self, name: str, address: str, terminator='\n\x00', *args, **kwargs):
+    def __init__(self, name: str, address: str, terminator='\r', *args, **kwargs):
         VisaInstrument.__init__(self, name, address, terminator=terminator, **kwargs)
 
         self.add_parameter('X',
@@ -146,6 +147,32 @@ class Ametek_7230(VisaInstrument):
                            set_cmd='SEN {}',
                            val_mapping=self.SENSITIVITY)
 
-        con_msg = f"Connected to: Ametek {self.ask('ID')} (firmware:{self.ask('VER')}) in {time.time() - self._t0}"
-        print(con_msg)
-        self.log.info(f"Connected to instrument: {}")
+        self.connect_message()
+
+    def get_idn(self):
+        """
+        Support for generic VISA '*IDN?' query.
+
+        Returns:
+            A dict containing vendor, model, serial, and firmware.
+        """
+        vendor = 'Ametek'
+        model = self.ask('ID')
+        serial = self.ask('NAME').strip()
+        firmware = self.ask('VER')
+
+        return dict(zip(('vendor', 'model', 'serial', 'firmware'), [vendor, model, serial, firmware]))
+
+    def write_raw(self, cmd: str):
+        """
+        Low-level interface to ``visa_handle.ask``.
+
+        Args:
+            cmd: The command to send to the instrument.
+
+        We overwrite the default implementation of ``write_raw`` because the instrument sends back an empty response
+        after a write, so we need to grab that to prevent a backlog in the buffer.
+        """
+        with DelayedKeyboardInterrupt():
+            self.visa_log.debug(f"Writing: {cmd}")
+            self.visa_handle.query(cmd)
