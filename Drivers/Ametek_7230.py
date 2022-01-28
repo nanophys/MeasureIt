@@ -88,11 +88,6 @@ class Ametek_7230(VisaInstrument):
         '84 dB': 14,
         '90 dB': 15
     }
-    REFERENCE_SOURCE: ClassVar[Dict[str, int]] = {
-        'INT': 0,
-        'EXT TTL': 1,
-        'EXT ANALOG': 2
-    }
 
     def __init__(self, name: str, address: str, terminator='\r', *args, **kwargs):
         VisaInstrument.__init__(self, name, address, terminator=terminator, **kwargs)
@@ -101,25 +96,29 @@ class Ametek_7230(VisaInstrument):
                            label='X',
                            docstring='X component of input signal',
                            get_parser=float,
-                           get_cmd='X.')
+                           get_cmd='X.',
+                           unit='V')
 
         self.add_parameter('Y',
                            label='Y',
                            docstring='Y component of input signal',
                            get_parser=float,
-                           get_cmd='Y.')
+                           get_cmd='Y.',
+                           unit='V')
 
         self.add_parameter('P',
                            label='Phase',
                            docstring='Phase of input signal',
                            get_parser=float,
-                           get_cmd='PHA.')
+                           get_cmd='PHA.',
+                           unit='deg')
 
         self.add_parameter('R',
                            label='R',
                            docstring='Magnitude of input signal',
                            get_parser=float,
-                           get_cmd='MAG.')
+                           get_cmd='MAG.',
+                           unit='V')
 
         self.add_parameter('time_constant',
                            label='time constant',
@@ -133,12 +132,17 @@ class Ametek_7230(VisaInstrument):
                            docstring='Reference channel source control',
                            get_cmd='IE',
                            set_cmd='IE {}',
-                           val_mapping=self.REFERENCE_SOURCE)
+                           val_mapping={
+                               'INT': 0,
+                               'EXT TTL': 1,
+                               'EXT ANALOG': 2
+                           })
 
         self.add_parameter('frequency',
                            label='frequency',
                            docstring='Reference frequency for the lock-in amplifier',
-                           get_cmd='FRQ.')
+                           get_cmd='FRQ.',
+                           unit='Hz')
 
         self.add_parameter('sensitivity',
                            label='sensitivity',
@@ -146,6 +150,64 @@ class Ametek_7230(VisaInstrument):
                            get_cmd='SEN',
                            set_cmd='SEN {}',
                            val_mapping=self.SENSITIVITY)
+
+        self.add_parameter('ac_gain',
+                           label='ac gain',
+                           get_cmd='ACGAIN',
+                           set_cmd='ACGAIN {}',
+                           val_mapping=self.AC_GAIN)
+
+        self.add_parameter('i_mode',
+                           label='i_mode',
+                           docstring='Current/voltage mode input selector',
+                           get_cmd='IMODE',
+                           set_cmd='IMODE {}',
+                           val_mapping={
+                               'Off': 0,
+                               'High bandwidth': 1,
+                               'Low noise': 2
+                           })
+
+        self.add_parameter('v_mode',
+                           label='v_mode',
+                           docstring='Voltage input configuration',
+                           get_cmd='VMODE',
+                           set_cmd='VMODE {}',
+                           val_mapping={
+                               'Grounded': 0,
+                               'A': 1,
+                               'B': 2,
+                               'A-B': 3
+                           })
+
+        self.add_parameter('coupling',
+                           label='coupling',
+                           get_cmd='FET',
+                           set_cmd='FET {}',
+                           val_mapping={
+                               'AC': 0,
+                               'DC': 1
+                           })
+
+        self.add_parameter('shield',
+                           label='shield',
+                           get_cmd='FLOAT',
+                           set_cmd='FLOAT {}',
+                           val_mapping={
+                               'ground': 0,
+                               'float': 1
+                           })
+
+        self.add_parameter('FET',
+                           label='FET',
+                           get_cmd='FET',
+                           set_cmd='FET {}',
+                           val_mapping={
+                               'bipolar': 0,
+                               'FET': 1
+                           })
+
+        self.add_function('autosensitivity', call_cmd='AS')
 
         self.connect_message()
 
