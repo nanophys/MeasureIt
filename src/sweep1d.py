@@ -6,6 +6,7 @@ from src.util import safe_set, safe_get
 from PyQt5.QtCore import QObject, pyqtSlot
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes_contrib_drivers.drivers.Oxford.IPS120 import OxfordInstruments_IPS120
+from Drivers.Cryomagnetics.M4G import M4G
 from functools import partial
 
 
@@ -173,7 +174,7 @@ class Sweep1D(BaseSweep, QObject):
             return
 
         if ramp_to_start is True and not isinstance(self.instrument, OxfordInstruments_IPS120) and not isinstance(
-                self.instrument, AMI430):
+                self.instrument, AMI430) and not isinstance(self.instrument, M4G):
             print(f"Ramping to our starting setpoint value of {self.begin} {self.set_param.unit}")
             self.ramp_to(self.begin, start_on_finish=True, persist=persist_data, multiplier=ramp_multiplier)
         else:
@@ -205,6 +206,8 @@ class Sweep1D(BaseSweep, QObject):
         elif isinstance(self.instrument, OxfordInstruments_IPS120):
             safe_set(self.instrument.activity, 0)
             self.magnet_initialized = False
+        elif isinstance(self.instrument, M4G):
+            self.instrument.write('SWEEP PAUSE')
 
     def kill(self):
         """ Ends the threads spawned by the sweep and closes any active plots. """
@@ -227,6 +230,8 @@ class Sweep1D(BaseSweep, QObject):
         # If we are sweeping the magnet, let's deal with it here
         if isinstance(self.instrument, AMI430) and 'field' in self.set_param.full_name:
             return self.step_AMI430()
+        elif isinstance(self.instrument, M4G) and 'field' in self.set_param.full_name:
+            return self.step_M4G()
 
         # If we aren't at the end, keep going
         if abs(self.setpoint - self.end) - abs(self.step / 2) > abs(self.step) * self.err:
@@ -292,6 +297,58 @@ class Sweep1D(BaseSweep, QObject):
         # Return our data pair, just like any other sweep
         return [data_pair]
 
+    def step_M4G(self):
+        """
+        Function to deal with sweeps of Cryomagnetics M4G Magnet Supply. Instead of setting intermediate points, we set the endpoint at the
+        beginning, then ask it for the current field while it is ramping.
+        """
+        
+        # Check if we have set the magnetic field yet
+        if self.magnet_initialized is False:
+            print("Checking the remote connection to the magnet supply.")
+            self.instrument.is_remote()
+            time.sleep(1)
+            
+            # Start the field sweep
+            self.instrument.field(self.end)
+            self.magnet_initialized = True
+        else:
+            self.instrument.field(self.end)
+
+        # Grab our data
+        try:
+            dt = self.set_param.get()
+        except Exception as e:
+            print(e)
+            time.sleep(self.inter_delay)
+            dt = self.set_param.get()
+        try:
+            data_pair = (self.set_param, dt)
+            self.setpoint = dt
+        except:
+            print("got bad data, trying again")
+            return self.step_M4G()
+        # Check our stop conditions- being at the end point
+        if abs(self.instrument.field()-self.end) <= 0.001: #Check to see if field is within 1 mT of final value
+            time.sleep(0.2)
+            if abs(self.instrument.field()-self.end) <= 0.001: #Wait for a little bit, then check again, if true then we are done with the sweep
+                print(f"Done with the sweep, {self.set_param.label} = {self.set_param.get()} T")
+                
+                if self.continuous:
+                    self.flip_direction()
+                    return self.step_M4G()
+                elif self.bidirectional and self.direction == 0:
+                    self.flip_direction()
+                    return self.step_M4G()
+                else:
+                    if self.parent is None:
+                        self.runner.kill_flag = True
+                    self.magnet_initialized = False
+                    self.is_running = False
+                    self.completed.emit()
+                    
+        return [data_pair]
+    
     def flip_direction(self):
         """ Flips the direction of the sweep, to do bidirectional sweeping. """
         # If backwards, go forwards, and vice versa
@@ -451,6 +508,8 @@ class Sweep1D(BaseSweep, QObject):
                 t_est = abs((self.end - self.begin) / rate)
             else:
                 t_est = abs((self.end - self.begin) * 60 / rate)
+        elif isinstance(self.instrument, M4G):
+            t_est += 0
         else:
             t_est = abs((self.begin - self.end) / self.step) * self.inter_delay
 
