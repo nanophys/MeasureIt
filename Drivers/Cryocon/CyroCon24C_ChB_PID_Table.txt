@@ -1,0 +1,12 @@
+PID Table for Yankowitz Lab VTI - CryoCon 24 Controller - ChA
+Setpoint (K), P (), I (s), D (1/s), "Heater range (0: low, 1: high)"
+0, 0, 0, 0, 0
+2, 0.05,3,0,0
+8,0.2,4,0,0
+15,1,5,0,0
+25,5,8,0,0
+40,10,10,0,1
+80,20,20,0,1
+100,20,30,5,1
+150,20,30,10,1
+325,20,30,10,1

@@ -1,0 +1,12 @@
+PID Table for Yankowitz Lab VTI - CryoCon 24 Controller - ChA - 25 Ohm Load Resistor
+Setpoint (K), P (), I (s), D (1/s), "Heater range (0: low, 1: mid, 2: high)"
+0, 0, 0, 0, 0
+2, 0.05,3,0,0
+8,0.2,4,0,0
+15,3,3,0,1
+25,5,8,0,1
+40,15,15,0,2
+80,20,20,2,2
+100,20,30,5,2
+150,20,30,10,2
+325,20,30,10,2
