@@ -335,7 +335,7 @@ def _value_parser(value):
     # regex testing stripped value as valid factor string
     # must be exactly a number followed by (space optional) single valid factor char 
     # f = femto p = pico u = micro m = milli k = kilo M = Mega G = Giga
-    regex = re.compile(r"^([-]?[\d]*.?[\d]+[\s]?)([fpnumkMG]?)$")
+    regex = re.compile(r"^([-+]?[\d]*\.?[\d]*[\s]?)([fpnumkMG]?)$")
 
     parsedVal = regex.search(value)
     if not parsedVal:
