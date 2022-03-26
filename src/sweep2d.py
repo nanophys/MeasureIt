@@ -488,7 +488,7 @@ class Sweep2D(BaseSweep, QObject):
             self.start(ramp_to_start=False)
 
     def estimate_time(self, verbose=True):
-        in_time = self.in_sweep.estimate_time()
+        in_time = self.in_sweep.estimate_time(verbose=False)
         n_lines = abs((self.out_start-self.out_stop)/self.out_step)+1
         out_time = self.outer_delay * self.out_step
 
