@@ -159,7 +159,7 @@ class Sweep2D(BaseSweep, QObject):
         # Create the inner sweep object
         self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
                                 inter_delay=self.inter_delay, save_data=self.save_data, x_axis_time=0,
-                                plot_data=self.plot_data, back_multiplier=self.back_multiplier)
+                                plot_data=self.plot_data, back_multiplier=self.back_multiplier, plot_bin=self.plot_bin)
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
         self.in_sweep.follow_param(self.set_param)
