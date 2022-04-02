@@ -35,7 +35,7 @@ class Sweep1D(BaseSweep, QObject):
         Assigns the Runner Thread.
     plotter:
         Assigns the Plotter Thread.
-    datasaver: 
+    datasaver:
         Initiated by Runner Thread to enable saving and export of data.
     inter_delay: 
         Time (in seconds) to wait between data points.
@@ -52,12 +52,9 @@ class Sweep1D(BaseSweep, QObject):
     continual:
         Causes sweep to continuously run back and forth between start and stop points.
     plot_bin: 
-        Defaults to 1. Used to plot data that has been sent to the 
-        data_queue list in the Plotter Thread.
+        Sets the number of data points taken between updates of the plot. Defaults to 1.
     back_multiplier:
         Factor to scale the step size after flipping directions.
-    persistent_magnet:
-        Optional argument for IPS120 measurements.
     setpoint:
         The first parameter value where a measurement is obtained after starting.
     direction:
@@ -98,7 +95,7 @@ class Sweep1D(BaseSweep, QObject):
     """
 
     def __init__(self, set_param, start, stop, step, bidirectional=False, continual=False,
-                 x_axis_time=0, persistent_magnet=False, err=1e-2, *args, **kwargs):
+                 x_axis_time=0, err=1e-2, *args, **kwargs):
         """
         Initializes the sweep.
         
@@ -140,7 +137,6 @@ class Sweep1D(BaseSweep, QObject):
         self.direction = 0
         self.is_ramping = False
         self.ramp_sweep = None
-        self.persistent_magnet = persistent_magnet
         self.instrument = self.set_param.instrument
         self.err = err
 
@@ -211,6 +207,7 @@ class Sweep1D(BaseSweep, QObject):
 
     def kill(self):
         """ Ends the threads spawned by the sweep and closes any active plots. """
+
         if self.is_ramping and self.ramp_sweep is not None:
             self.ramp_sweep.stop()
             self.ramp_sweep.kill()
@@ -351,6 +348,7 @@ class Sweep1D(BaseSweep, QObject):
     
     def flip_direction(self):
         """ Flips the direction of the sweep, to do bidirectional sweeping. """
+
         # If backwards, go forwards, and vice versa
         if self.direction:
             self.direction = 0
@@ -500,6 +498,19 @@ class Sweep1D(BaseSweep, QObject):
         self.runner = None
 
     def estimate_time(self, verbose=True):
+        """
+        Returns an estimate of the amount of time the sweep will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
+
         t_est = 0
 
         if isinstance(self.instrument, AMI430):

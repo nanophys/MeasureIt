@@ -122,6 +122,19 @@ class SweepIPS(Sweep0D, QObject):
         self.initialized = False
 
     def estimate_time(self, verbose=True):
+        """
+        Returns an estimate of the amount of time the sweep will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
+
         rate = safe_get(self.magnet.sweeprate_field)
         B_range = abs(safe_get(self.magnet.field) - self.setpoint)
 

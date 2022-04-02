@@ -130,6 +130,19 @@ class Sweep0D(BaseSweep, QObject):
         return data
 
     def estimate_time(self, verbose=True):
+        """
+        Returns an estimate of the amount of time the sweep will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
+
         if self.max_time is not None:
             hours = int(self.max_time / 3600)
             minutes = int((self.max_time % 3600) / 60)

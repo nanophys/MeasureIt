@@ -367,6 +367,18 @@ class SimulSweep(BaseSweep, QObject):
             self.plotter.add_break(self.direction)
 
     def estimate_time(self, verbose=True):
+        """
+        Returns an estimate of the amount of time the sweep will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
         t_est = self.n_steps * self.inter_delay
 
         hours = int(t_est / 3600)

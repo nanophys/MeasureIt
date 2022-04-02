@@ -111,17 +111,10 @@ class Sweep2D(BaseSweep, QObject):
         update_func:
             Sets a function to be executed upon completion of the inner sweep.
         plot_bin: 
-            Defaults to 1. Controls amount of data stored in the data_queue list 
-            in the Plotter Thread.
-        runner:
-            Assigns the Runner Thread.
-        plotter:
-            Assigns the Plotter Thread.
+            Defaults to 1. Sets the number of data points to gather before
+            refreshing the plot.
         back_multiplier:
             Factor to scale the step size after flipping directions.
-        heatmap_plotter:
-            Uses color to represent values of a third parameter plotted against
-            two sweeping parameters.
         """
         
         # Ensure that the inputs were passed (at least somewhat) correctly
@@ -182,8 +175,9 @@ class Sweep2D(BaseSweep, QObject):
         self.heatmap_plotter = None
 
     def __str__(self):
-        return f"2D Sweep of {self.set_param.label} from {self.out_start} to {self.out_stop} with step {self.out_step}," \
-               f"while sweeping {self.in_param.label} from {self.in_start} to {self.in_stop} with step {self.in_step}."
+        return f"2D Sweep of {self.set_param.label} from {self.out_start} to {self.out_stop} with step " \
+               f"{self.out_step}, while sweeping {self.in_param.label} from {self.in_start} to {self.in_stop} with " \
+               f"step {self.in_step}."
 
     def __repr__(self):
         return f"Sweep2D([{self.set_param.label}, {self.out_start}, {self.out_stop}, {self.out_step}], " \
@@ -333,17 +327,12 @@ class Sweep2D(BaseSweep, QObject):
             # Stop the function from running any further, as we don't want to check anything else
             return
 
-        # print("trying to update heatmap")
         # Update our heatmap!
         lines = self.in_sweep.plotter.axes[1].get_lines()
         self.add_heatmap_lines.emit(lines)
 
         # Check our update condition
         self.update_rule(self.in_sweep, lines)
-        #        self.in_sweep.ramp_to(self.in_sweep.begin, start_on_finish=False)
-
-        #        while self.in_sweep.is_ramping == True:
-        #            time.sleep(0.5)
 
         # If we aren't at the end, keep going
         if abs(self.out_setpoint - self.out_stop) - abs(self.out_step / 2) > abs(self.out_step) * 1e-4:
@@ -488,6 +477,18 @@ class Sweep2D(BaseSweep, QObject):
             self.start(ramp_to_start=False)
 
     def estimate_time(self, verbose=True):
+        """
+        Returns an estimate of the amount of time the sweep will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
         in_time = self.in_sweep.estimate_time(verbose=False)
         n_lines = abs((self.out_start-self.out_stop)/self.out_step)+1
         out_time = self.outer_delay * self.out_step

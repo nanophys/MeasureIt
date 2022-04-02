@@ -146,8 +146,7 @@ class BaseSweep(QObject):
         continuous: 
             No effect on Sweep0D. Defaults to False for Sweep1D.
         plot_bin: 
-            Defaults to 1. Used to plot data that has been sent to the 
-            data_queue list in the Plotter Thread.
+            Sets the number of data points taken between updates of the plot. Defaults to 1.
         is_running: 
             Flag to determine whether or not sweep is currently running.
         t0: 
@@ -762,6 +761,19 @@ class BaseSweep(QObject):
         return sweep
 
     def estimate_time(self, verbose=True):
+        """
+        Returns an estimate of the amount of time the sweep will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
+
         return 0
 
     def __del__(self):
