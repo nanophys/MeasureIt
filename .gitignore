@@ -8,4 +8,5 @@ docs/source/_build/
 *.pyc
 *.ipynb
 !examples/*.ipynb
+!examples/content/*.ipynb
 !tests/*.ipynb
