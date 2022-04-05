@@ -528,13 +528,14 @@ class Sweep1D(BaseSweep, QObject):
                 print(f'No estimated time for {repr(self)} to run.')
                 return 0
             elif self.bidirectional is True:
-                t_est *= 2
+                t_est *= (1+1./self.back_multiplier)
 
         hours = int(t_est / 3600)
         minutes = int((t_est % 3600) / 60)
         seconds = t_est % 60
         if verbose is True:
             print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+
         return t_est
 
     def __del__(self):
