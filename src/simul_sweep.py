@@ -122,7 +122,8 @@ class SimulSweep(BaseSweep, QObject):
         p_desc = ''
         n_params = len(self.simul_params)
 
-        for n, p, v in enumerate(self.set_params_dict.items()):
+        for n, item in enumerate(self.set_params_dict.items()):
+            p,v = item
             if n < n_params-2:
                 p_desc += f"{p.label} from {v['start']} to {v['stop']}, with step {v['step']}, "
             elif n == n_params-2:
