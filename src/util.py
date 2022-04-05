@@ -9,7 +9,7 @@ import qcodes as qc
 import pandas as pd
 from qcodes import initialise_or_create_database_at, Station
 from qcodes.dataset.data_export import get_data_by_id
-
+from pathlib import Path
 unit_dict = {
     'f': 10 ** -15,
     'p': 10 ** -12,
@@ -101,8 +101,8 @@ def connect_to_station(config_file=None):
     A loaded or new QCoDeS station for conducting experiments.
     """
     
-    if os.path.isfile(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json'):
-        qc.config.update_config(os.environ['MeasureItHome'] + '\\cfg\\')
+    if os.path.isfile(str(Path(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json'))):
+        qc.config.update_config(str(Path(os.environ['MeasureItHome'] + '\\cfg\\')))
     station = Station()
     try:
         station.load_config_file(config_file)
@@ -245,10 +245,10 @@ def init_database(db, exp, samp, sweep=None):
     if '.db' not in db:
         db = f'{db}.db'
         
-    if f'{os.environ["MeasureItHome"]}\\Databases\\' in db:
+    if str(Path(f'{os.environ["MeasureItHome"]}/Databases/')) in db:
         initialise_or_create_database_at(db)
     else:
-        initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db)
+        initialise_or_create_database_at(str(Path(os.environ['MeasureItHome'] + '/Databases/' + db)))
     qc.new_experiment(exp, samp)
 
     if sweep is not None:
