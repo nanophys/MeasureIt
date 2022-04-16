@@ -174,15 +174,10 @@ class Sweep2D(BaseSweep, QObject):
         # Initialize our heatmap plotting thread
         self.heatmap_plotter = None
         
-        in_forward_N = np.abs((self.in_start-self.in_stop)/self.in_step)
-        out_forward_N = np.abs((self.out_start-self.out_stop)/self.out_step)
-        self.estimate_time = in_forward_N*out_forward_N*self.inter_delay*(1+1/self.back_multiplier)+out_forward_N*self.outer_delay
-        
     def __str__(self):
         return f"2D Sweep of {self.set_param.label} from {self.out_start} to {self.out_stop} with step " \
                f"{self.out_step}, while sweeping {self.in_param.label} from {self.in_start} to {self.in_stop} with " \
-               f"step {self.in_step}." \
-               f'Sweep time estimate ~ {self.estimate_time} s'
+               f"step {self.in_step}."
 
     def __repr__(self):
         return f"Sweep2D([{self.set_param.label}, {self.out_start}, {self.out_stop}, {self.out_step}], " \
