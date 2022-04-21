@@ -348,7 +348,6 @@ class Sweep2D(BaseSweep, QObject):
         else:
             self.is_running = False
             print(f"Done with the sweep, {self.set_param.label}={self.out_setpoint}")
-            self.in_sweep.kill()
             self.completed.emit()
 
     def get_param_setpoint(self):
