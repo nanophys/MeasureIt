@@ -75,21 +75,20 @@ class SimulSweep(BaseSweep, QObject):
             raise ValueError('Must pass at least one Parameter and the associated values as dictionaries.')
 
         self.simul_params = []
-        self.set_params_dict = _p
+        self.set_params_dict = _p.copy()
         self.bidirectional = bidirectional
         self.continuous = continual
         self.direction = 0
+        self.n_steps = n_steps
         self.is_ramping = False
         self.ramp_sweep = None
-        self.runner = None
-        self.plotter = None
 
         # Take the first parameter, and set it as the normal Sweep1D set param
         sp = list(_p.keys())[0]
         # Force time to be on the x axis
         kwargs['x_axis_time'] = 1
         QObject.__init__(self)
-        BaseSweep.__init__(self, sp, *args, **kwargs)
+        BaseSweep.__init__(self, set_param=sp, *args, **kwargs)
 
         if n_steps is not None:
             for p, v in self.set_params_dict.items():
@@ -103,6 +102,7 @@ class SimulSweep(BaseSweep, QObject):
                 raise ValueError('Parameters have a different number of steps for the sweep. The Parameters must have '
                                  'the same number of steps to sweep them simultaneously.'
                                  f'\nStep numbers: {_n_steps}')
+            self.n_steps = _n_steps[0]
 
         for p, v in self.set_params_dict.items():
             self.simul_params.append(p)
@@ -117,6 +117,24 @@ class SimulSweep(BaseSweep, QObject):
 
         self.follow_param([p for p in self.simul_params if p is not self.set_param])
         self.persist_data = []
+
+    def __str__(self):
+        p_desc = ''
+        n_params = len(self.simul_params)
+
+        for n, item in enumerate(self.set_params_dict.items()):
+            p,v = item
+            if n < n_params-2:
+                p_desc += f"{p.label} from {v['start']} to {v['stop']}, with step {v['step']}, "
+            elif n == n_params-2:
+                p_desc += f"{p.label} from {v['start']} to {v['stop']}, with step {v['step']}, and "
+            elif n == n_params-1:
+                p_desc += f"{p.label} from {v['start']} to {v['stop']}, with step {v['step']}."
+
+        return f"SimulSweep of {p_desc}"
+
+    def __repr__(self):
+        return f"SimulSweep({[(p.label, v['start'], v['stop'], v['step']) for p, v in self.set_params_dict.items()]})"
 
     def start(self, persist_data=None, ramp_to_start=True, ramp_multiplier=1):
         """
@@ -331,15 +349,44 @@ class SimulSweep(BaseSweep, QObject):
         # If backwards, go forwards, and vice versa
         if self.direction:
             self.direction = 0
+            for p, v in self.set_params_dict.items():
+                temp = v['start']
+                v['start'] = v['stop']
+                v['stop'] = temp
+                v['step'] = -1 * v['step'] / self.back_multiplier
+                v['setpoint'] -= v['step']
         else:
             self.direction = 1
+            for p, v in self.set_params_dict.items():
+                temp = v['start']
+                v['start'] = v['stop']
+                v['stop'] = temp
+                v['step'] = -1 * v['step'] * self.back_multiplier
+                v['setpoint'] -= v['step']
 
         if self.plot_data is True and self.plotter is not None:
             self.plotter.add_break(self.direction)
 
-        for p, v in self.set_params_dict.items():
-            temp = v['start']
-            v['start'] = v['stop']
-            v['stop'] = temp
-            v['step'] = -1 * v['step']
-            v['setpoint'] -= v['step']
+    def estimate_time(self, verbose=True):
+        """
+        Returns an estimate of the amount of time the sweep will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
+        t_est = self.n_steps * self.inter_delay
+
+        hours = int(t_est / 3600)
+        minutes = int((t_est % 3600) / 60)
+        seconds = t_est % 60
+        if verbose is True:
+            print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+        return t_est
+
+

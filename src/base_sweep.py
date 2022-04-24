@@ -114,8 +114,8 @@ class BaseSweep(QObject):
     add_break = pyqtSignal(int)
     completed = pyqtSignal()
 
-    def __init__(self, set_param=None, inter_delay=0.01, save_data=True, plot_data=True, x_axis_time=1,
-                 datasaver=None, parent=None, plot_bin=1, complete_func=None):
+    def __init__(self, set_param=None, inter_delay=0.1, save_data=True, plot_data=True, x_axis_time=1,
+                 datasaver=None, complete_func=None, plot_bin=1, back_multiplier=1):
         """
         Initializer for both classes, called by BaseSweep.__init__() in Sweep0D and Sweep1D classes.
         
@@ -146,8 +146,7 @@ class BaseSweep(QObject):
         continuous: 
             No effect on Sweep0D. Defaults to False for Sweep1D.
         plot_bin: 
-            Defaults to 1. Used to plot data that has been sent to the 
-            data_queue list in the Plotter Thread.
+            Sets the number of data points taken between updates of the plot. Defaults to 1.
         is_running: 
             Flag to determine whether or not sweep is currently running.
         t0: 
@@ -169,6 +168,8 @@ class BaseSweep(QObject):
         self.save_data = save_data
         self.plot_data = plot_data
         self.x_axis = x_axis_time
+        self.back_multiplier = back_multiplier
+        self.direction = 0
         self.meas = None
         self.dataset = None
 
@@ -321,6 +322,7 @@ class BaseSweep(QObject):
         if self.runner is not None:
             self.runner.flush_flag = True
             self.runner.kill_flag = True
+            self.runner.quit()
             if not self.runner.wait(1000):
                 self.runner.terminate()
                 print('forced runner to terminate')
@@ -328,7 +330,7 @@ class BaseSweep(QObject):
             self.send_updates()
         # Gently shut down the plotter
         if self.plotter is not None:
-            self.plotter_thread.exit()
+            self.plotter_thread.quit()
             if not self.plotter_thread.wait(1000):
                 self.plotter_thread.terminate()
                 print('forced plotter to terminate')
@@ -376,7 +378,7 @@ class BaseSweep(QObject):
             self.plotter_thread = QThread()
             self.plotter.moveToThread(self.plotter_thread)
             self.plotter.create_figs()
-            #self.plotter_thread.started.connect(self.plotter.run)
+
             self.add_break.connect(self.plotter.add_break)
             self.reset_plot.connect(self.plotter.reset)
 
@@ -515,7 +517,7 @@ class BaseSweep(QObject):
 
     def close_plots(self):
         """ Resets the plotter and closes all displayed plots. """
-        
+
         if self.plotter is not None:
             self.plotter.clear()
 
@@ -757,6 +759,22 @@ class BaseSweep(QObject):
             sweep.follow_param(param)
 
         return sweep
+
+    def estimate_time(self, verbose=True):
+        """
+        Returns an estimate of the amount of time the sweep will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
+
+        return 0
 
     def __del__(self):
         """ Deletes all child threads and closes all figures. """

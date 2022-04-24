@@ -316,7 +316,8 @@ class Plotter(QObject):
 
     def clear(self):
         """ Resets the plots and closes the figure window. """
-        
-        self.reset()
-        matplotlib.pyplot.close(self.fig)
-        self.figs_set = False
+        if self.figs_set is True:
+            self.reset()
+            self.figs_set = False
+            matplotlib.pyplot.close(self.fig)
+

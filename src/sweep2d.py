@@ -7,7 +7,7 @@ from src.base_sweep import BaseSweep
 from src.sweep1d import Sweep1D
 from src.heatmap_thread import Heatmap
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
-
+import numpy as np
 
 class Sweep2D(BaseSweep, QObject):
     """
@@ -83,8 +83,7 @@ class Sweep2D(BaseSweep, QObject):
     add_heatmap_lines = pyqtSignal(list)
     clear_heatmap_plot = pyqtSignal()
 
-    def __init__(self, in_params, out_params, inter_delay=0.1, outer_delay=1, save_data=True, plot_data=True,
-                 complete_func=None, update_func=None, plot_bin=1, runner=None, plotter=None, back_multiplier=1):
+    def __init__(self, in_params, out_params, outer_delay=1, update_func=None, *args, **kwargs):
         """
         Initializes the sweep.
         
@@ -112,17 +111,10 @@ class Sweep2D(BaseSweep, QObject):
         update_func:
             Sets a function to be executed upon completion of the inner sweep.
         plot_bin: 
-            Defaults to 1. Controls amount of data stored in the data_queue list 
-            in the Plotter Thread.
-        runner:
-            Assigns the Runner Thread.
-        plotter:
-            Assigns the Plotter Thread.
+            Defaults to 1. Sets the number of data points to gather before
+            refreshing the plot.
         back_multiplier:
             Factor to scale the step size after flipping directions.
-        heatmap_plotter:
-            Uses color to represent values of a third parameter plotted against
-            two sweeping parameters.
         """
         
         # Ensure that the inputs were passed (at least somewhat) correctly
@@ -155,13 +147,12 @@ class Sweep2D(BaseSweep, QObject):
 
         # Initialize the BaseSweep
         QObject.__init__(self)
-        BaseSweep.__init__(self, set_param=self.set_param, inter_delay=inter_delay, save_data=save_data,
-                           plot_data=plot_data, plot_bin=plot_bin, complete_func=complete_func)
+        BaseSweep.__init__(self, set_param=self.set_param, *args, **kwargs)
 
         # Create the inner sweep object
         self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
                                 inter_delay=self.inter_delay, save_data=self.save_data, x_axis_time=0,
-                                plot_data=self.plot_data, back_multiplier=back_multiplier)
+                                plot_data=self.plot_data, back_multiplier=self.back_multiplier, plot_bin=self.plot_bin)
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
         self.in_sweep.follow_param(self.set_param)
@@ -169,9 +160,6 @@ class Sweep2D(BaseSweep, QObject):
         # is done, call that function automatically
         self.in_sweep.set_complete_func(self.update_values)
 
-        self.runner = runner
-        self.plotter = plotter
-        self.direction = 0
         self.outer_delay = outer_delay
 
         # Flags for ramping
@@ -185,6 +173,15 @@ class Sweep2D(BaseSweep, QObject):
 
         # Initialize our heatmap plotting thread
         self.heatmap_plotter = None
+        
+    def __str__(self):
+        return f"2D Sweep of {self.set_param.label} from {self.out_start} to {self.out_stop} with step " \
+               f"{self.out_step}, while sweeping {self.in_param.label} from {self.in_start} to {self.in_stop} with " \
+               f"step {self.in_step}."
+
+    def __repr__(self):
+        return f"Sweep2D([{self.set_param.label}, {self.out_start}, {self.out_stop}, {self.out_step}], " \
+               f"[{self.in_param.label}, {self.in_start}, {self.in_stop}, {self.in_step}])"
 
     def follow_param(self, *p):
         """
@@ -330,17 +327,12 @@ class Sweep2D(BaseSweep, QObject):
             # Stop the function from running any further, as we don't want to check anything else
             return
 
-        # print("trying to update heatmap")
         # Update our heatmap!
         lines = self.in_sweep.plotter.axes[1].get_lines()
         self.add_heatmap_lines.emit(lines)
 
         # Check our update condition
         self.update_rule(self.in_sweep, lines)
-        #        self.in_sweep.ramp_to(self.in_sweep.begin, start_on_finish=False)
-
-        #        while self.in_sweep.is_ramping == True:
-        #            time.sleep(0.5)
 
         # If we aren't at the end, keep going
         if abs(self.out_setpoint - self.out_stop) - abs(self.out_step / 2) > abs(self.out_step) * 1e-4:
@@ -356,7 +348,6 @@ class Sweep2D(BaseSweep, QObject):
         else:
             self.is_running = False
             print(f"Done with the sweep, {self.set_param.label}={self.out_setpoint}")
-            self.in_sweep.kill()
             self.completed.emit()
 
     def get_param_setpoint(self):
@@ -483,3 +474,30 @@ class Sweep2D(BaseSweep, QObject):
 
         if start_on_finish:
             self.start(ramp_to_start=False)
+
+    def estimate_time(self, verbose=True):
+        """
+        Returns an estimate of the amount of time the sweep will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
+        in_time = self.in_sweep.estimate_time(verbose=False)
+        n_lines = abs((self.out_start-self.out_stop)/self.out_step)+1
+        out_time = self.outer_delay * self.out_step
+
+        t_est = in_time*n_lines + out_time
+
+        hours = int(t_est / 3600)
+        minutes = int((t_est % 3600) / 60)
+        seconds = t_est % 60
+        if verbose is True:
+            print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+        return t_est
+

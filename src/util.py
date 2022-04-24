@@ -9,7 +9,7 @@ import qcodes as qc
 import pandas as pd
 from qcodes import initialise_or_create_database_at, Station
 from qcodes.dataset.data_export import get_data_by_id
-
+from pathlib import Path
 unit_dict = {
     'f': 10 ** -15,
     'p': 10 ** -12,
@@ -24,8 +24,9 @@ unit_dict = {
 
 
 class ParameterException(Exception):
-    def __init__(self, message):
+    def __init__(self, message, set=False):
         self.message = message
+        self.set = set
         super().__init__(self)
 
     def __str__(self):
@@ -56,7 +57,7 @@ def safe_set(p, value, last_try=False):
             return safe_set(p, value, last_try=True)
         else:
             print(f"Still couldn't set {p.name} to {value}. Giving up.", e)
-            raise ParameterException(f"Couldn't set {p.name} to {value}.")
+            raise ParameterException(f"Couldn't set {p.name} to {value}.", set=True)
     return ret
 
 
@@ -82,7 +83,7 @@ def safe_get(p, last_try=False):
             return safe_get(p, last_try=True)
         else:
             print(f"Still couldn't get {p.name}. Giving up.", e)
-            raise ParameterException(f'Could not get {p.name}.')
+            raise ParameterException(f'Could not get {p.name}.', set=False)
     return ret
 
 
@@ -100,8 +101,8 @@ def connect_to_station(config_file=None):
     A loaded or new QCoDeS station for conducting experiments.
     """
     
-    if os.path.isfile(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json'):
-        qc.config.update_config(os.environ['MeasureItHome'] + '\\cfg\\')
+    if os.path.isfile(str(Path(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json'))):
+        qc.config.update_config(str(Path(os.environ['MeasureItHome'] + '\\cfg\\')))
     station = Station()
     try:
         station.load_config_file(config_file)
@@ -244,10 +245,10 @@ def init_database(db, exp, samp, sweep=None):
     if '.db' not in db:
         db = f'{db}.db'
         
-    if f'{os.environ["MeasureItHome"]}\\Databases\\' in db:
+    if str(Path(f'{os.environ["MeasureItHome"]}/Databases/')) in db:
         initialise_or_create_database_at(db)
     else:
-        initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db)
+        initialise_or_create_database_at(str(Path(os.environ['MeasureItHome'] + '/Databases/' + db)))
     qc.new_experiment(exp, samp)
 
     if sweep is not None:
@@ -334,7 +335,7 @@ def _value_parser(value):
     # regex testing stripped value as valid factor string
     # must be exactly a number followed by (space optional) single valid factor char 
     # f = femto p = pico u = micro m = milli k = kilo M = Mega G = Giga
-    regex = re.compile(r"^([-]?[\d]*.?[\d]+[\s]?)([fpnumkMG]?)$")
+    regex = re.compile(r"^([-+]?[\d]*\.?[\d]*[\s]?)([fpnumkMG]?)$")
 
     parsedVal = regex.search(value)
     if not parsedVal:

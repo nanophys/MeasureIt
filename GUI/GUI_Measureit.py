@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import QTableWidgetItem, QMessageBox, QFileDialog, \
 from PyQt5.QtGui import QTextCursor
 import sys, os
 from datetime import datetime
-import yaml
+from ruamel.yaml import YAML
 import matplotlib
 from mainwindow_ui import Ui_MeasureIt
 from GUI_Dialogs import *
@@ -249,6 +249,7 @@ class UImain(QtWidgets.QMainWindow):
             # Could also save parameter information here
 
         with open(filename, 'w') as file:
+            yaml = YAML()
             yaml.dump(snap, file)
             if set_as_default:
                 qc.config['station']['default_file'] = filename
@@ -974,8 +975,8 @@ def main():
     if os.path.isfile(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json'):
         qc.config.update_config(os.environ['MeasureItHome'] + '\\cfg\\')
 
+    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
     app = QtWidgets.QApplication(sys.argv)
-    app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
     app.setStyle('WindowsVista')
 
     window = UImain()

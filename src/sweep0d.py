@@ -53,8 +53,6 @@ class Sweep0D(BaseSweep, QObject):
         QObject.__init__(self)
         BaseSweep.__init__(self, set_param=None, *args, **kwargs)
 
-        # Direction variable, not used here, but kept to maintain consistency with Sweep1D.
-        self.direction = 0
         # Amount of time to run
         self.max_time = max_time
 
@@ -102,6 +100,7 @@ class Sweep0D(BaseSweep, QObject):
             if self.save_data:
                 self.runner.datasaver.flush_data_to_database()
             self.is_running = False
+            self.runner.kill_flag = True
             print(f"Done with the sweep, t={t} s")
             self.completed.emit()
 
@@ -129,3 +128,30 @@ class Sweep0D(BaseSweep, QObject):
 
         # print(data)
         return data
+
+    def estimate_time(self, verbose=True):
+        """
+        Returns an estimate of the amount of time the sweep will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
+
+        if self.max_time is not None:
+            hours = int(self.max_time / 3600)
+            minutes = int((self.max_time % 3600) / 60)
+            seconds = self.max_time % 60
+            if verbose is True:
+                print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+
+            return self.max_time
+        else:
+            if verbose is True:
+                print(f'No estimated time for {repr(self)} to run.')
+            return 0

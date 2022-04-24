@@ -1,3 +1,4 @@
+# pylint: disable=trailing-whitespace
 # sweep1d.py
 
 import time
@@ -5,19 +6,16 @@ from src.base_sweep import BaseSweep
 from src.util import safe_set, safe_get
 from PyQt5.QtCore import QObject, pyqtSlot
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
-from qcodes_contrib_drivers.drivers.Oxford.IPS120 import OxfordInstruments_IPS120
-from Drivers.Cryomagnetics.M4G import M4G
+from qcodes.instrument_drivers.tektronix.Keithley_2450 import Keithley2450
 from functools import partial
 
 
-class Sweep1D(BaseSweep, QObject):
+class Sweep1D_listening(BaseSweep, QObject):
     """
-    Class extending BaseSweep to sweep one independent parameter.
-    
-    The independent parameter defaults to time until a new parameter is 
-    assigned to 'set_param'. Sweep1D will sweep this parameter to its stop
-    value (and back) while measuring any changes in the followed parameters.
-    The data will be live-plotted and saved to a database if desired.
+    Class extending BaseSweep to sweep one independent parameter. 
+    This is to set K2450 to a setpoint
+    and then listen K2450.sourse.get_latest() to check 
+    if it reaches the setpoint. This is for charging a capacitor. 
     
     Attributes
     ---------
@@ -35,7 +33,7 @@ class Sweep1D(BaseSweep, QObject):
         Assigns the Runner Thread.
     plotter:
         Assigns the Plotter Thread.
-    datasaver:
+    datasaver: 
         Initiated by Runner Thread to enable saving and export of data.
     inter_delay: 
         Time (in seconds) to wait between data points.
@@ -52,7 +50,8 @@ class Sweep1D(BaseSweep, QObject):
     continual:
         Causes sweep to continuously run back and forth between start and stop points.
     plot_bin: 
-        Sets the number of data points taken between updates of the plot. Defaults to 1.
+        Defaults to 1. Used to plot data that has been sent to the 
+        data_queue list in the Plotter Thread.
     back_multiplier:
         Factor to scale the step size after flipping directions.
     setpoint:
@@ -76,10 +75,8 @@ class Sweep1D(BaseSweep, QObject):
         Ends the threads spawned by the sweep and closes any active plots.
     step_param()
         Iterates the parameter.
-    step_AMI430()
-        Used to control sweeps of AMI430 Instrument. 
-    step_IPS120()
-        Used to control sweeps of IPS120 Instrument. 
+    step_K2450()
+        Used to control sweeps of K2450 Instrument. 
     flip_direction()
         Flips the direction of the sweep, to do bidirectional sweeping.
     ramp_to(value, start_on_finish=False, persist=None, multiplier=1)
@@ -94,32 +91,38 @@ class Sweep1D(BaseSweep, QObject):
         Resets Sweep1D, optional argument to change sweep details.
     """
 
-    def __init__(self, set_param, start, stop, step, bidirectional=False, continual=False,
-                 x_axis_time=0, err=1e-2, *args, **kwargs):
+    def __init__(self, set_param, start, stop, step, bidirectional=False, runner=None, plotter=None, datasaver=None,
+                 inter_delay=0.01, save_data=True, plot_data=True, complete_func=None, x_axis_time=0, parent=None,
+                 continual=False, plot_bin=1, back_multiplier=1):
         """
         Initializes the sweep.
         
-        There are 6 additional parameters not included in the BaseSweep initialization.
+        There are 5 additional parameters not included in the BaseSweep initialization.
         
         Parameters
         ---------
         set param:
-            The independent parameter to be swept.
+            The independent parameter to be swept. Only K2450 object is support. 
         start:
             The value that the sweep will begin from.
         stop:
             The value that the sweep will end at.
         step:
             The step spacing for each measurement.
+        complete_func:
+            An optional function to be called when the sweep is finished.
         x_axis_time:
             Determines if followed parameters are plotted against time(1) or 'set_param'(0).
-        err:
-            Tolerance for considering rounding errors when determining when the sweep has finished.
         """
 
         # Initialize the BaseSweep
         QObject.__init__(self)
-        BaseSweep.__init__(self, set_param=set_param, x_axis_time=x_axis_time, *args, **kwargs)
+        if isinstance(set_param, Keithley2450):
+            BaseSweep.__init__(self, set_param=set_param, inter_delay=inter_delay, save_data=save_data, plot_data=plot_data,
+                           x_axis_time=x_axis_time, datasaver=datasaver, plot_bin=plot_bin, parent=parent,
+                           complete_func=complete_func,err = 0.001)
+        else:
+            raise ValueError('A K2450 instance is needed')
 
         self.begin = start
         self.end = stop
@@ -135,18 +138,19 @@ class Sweep1D(BaseSweep, QObject):
         self.bidirectional = bidirectional
         self.continuous = continual
         self.direction = 0
+        self.back_multiplier = back_multiplier
         self.is_ramping = False
         self.ramp_sweep = None
+        self.runner = runner
+        self.plotter = plotter
         self.instrument = self.set_param.instrument
         self.err = err
 
-        self.magnet_initialized = False
-
     def __str__(self):
-        return f"1D Sweep of {self.set_param.label} from {self.begin} to {self.end}, with step size {self.step}."
+        return f"1D Sweep of {self.set_param} from {self.begin} to {self.end}, with step size {self.step}."
 
     def __repr__(self):
-        return f"Sweep1D({self.set_param.label}, {self.begin}, {self.end}, {self.step})"
+        return f"Sweep1D({self.set_param}, {self.begin}, {self.end}, {self.step})"
 
     def start(self, persist_data=None, ramp_to_start=True, ramp_multiplier=1):
         """
@@ -169,13 +173,8 @@ class Sweep1D(BaseSweep, QObject):
             print(f"Sweep is already running.")
             return
 
-        if ramp_to_start is True and not isinstance(self.instrument, OxfordInstruments_IPS120) and not isinstance(
-                self.instrument, AMI430) and not isinstance(self.instrument, M4G):
-            print(f"Ramping to our starting setpoint value of {self.begin} {self.set_param.unit}")
-            self.ramp_to(self.begin, start_on_finish=True, persist=persist_data, multiplier=ramp_multiplier)
-        else:
-            print(f"Sweeping {self.set_param.label} to {self.end} {self.set_param.unit}")
-            BaseSweep.start(self, persist_data=persist_data)
+        print(f"Sweeping {self.set_param.label} to {self.end} {self.set_param.unit}")
+        BaseSweep.start(self, persist_data=persist_data)
 
     def stop(self):
         """ Stops running any currently active sweeps. """
@@ -193,25 +192,15 @@ class Sweep1D(BaseSweep, QObject):
             # self.ramp_sweep = None
             # self.is_ramping=False
             # print(f"Stopped the ramp, the current setpoint  is {self.setpoint} {self.set_param.unit}")
+        self.set_param.set(safe_get(self.set_param))
 
         BaseSweep.stop(self)
 
-        if isinstance(self.instrument, AMI430):
-            self.instrument.pause()
-            self.magnet_initialized = False
-        elif isinstance(self.instrument, OxfordInstruments_IPS120):
-            safe_set(self.instrument.activity, 0)
-            self.magnet_initialized = False
-        elif isinstance(self.instrument, M4G):
-            self.instrument.write('SWEEP PAUSE')
-
     def kill(self):
         """ Ends the threads spawned by the sweep and closes any active plots. """
-
         if self.is_ramping and self.ramp_sweep is not None:
             self.ramp_sweep.stop()
             self.ramp_sweep.kill()
-
         BaseSweep.kill(self)
 
     def step_param(self):
@@ -225,37 +214,36 @@ class Sweep1D(BaseSweep, QObject):
         
         # The AMI Magnet sweeps very slowly, so we implement sweeps of it  differently
         # If we are sweeping the magnet, let's deal with it here
-        if isinstance(self.instrument, AMI430) and 'field' in self.set_param.full_name:
-            return self.step_AMI430()
-        elif isinstance(self.instrument, M4G) and 'field' in self.set_param.full_name:
-            return self.step_M4G()
+        
+        return self.step_K2450()
 
-        # If we aren't at the end, keep going
-        if abs(self.setpoint - self.end) - abs(self.step / 2) > abs(self.step) * self.err:
-            self.setpoint = self.setpoint + self.step
-            safe_set(self.set_param, self.setpoint)
-            return [(self.set_param, self.setpoint)]
-        # If we want to go both ways, we flip the start and stop, and run again
-        elif self.continuous:
-            self.flip_direction()
-            return self.step_param()
-        elif self.bidirectional and self.direction == 0:
-            self.flip_direction()
-            return self.step_param()
-        # If neither of the above are triggered, it means we are at the end of the sweep
-        else:
-            print(f'Finished the sweep! {self.set_param.label} = {safe_get(self.set_param)} ({self.set_param.unit})')
-            if self.save_data:
-                self.runner.flush_flag = True
-            self.is_running = False
-            self.flip_direction()
-            self.completed.emit()
+        # # If we aren't at the end, keep going
+        # if abs(self.setpoint - self.end) - abs(self.step / 2) > abs(self.step) * 1e-4:
+        #     self.setpoint = self.setpoint + self.step
+        #     safe_set(self.set_param, self.setpoint)
+        #     return [(self.set_param, self.setpoint)]
+        # # If we want to go both ways, we flip the start and stop, and run again
+        # elif self.continuous:
+        #     self.flip_direction()
+        #     return self.step_param()
+        # elif self.bidirectional and self.direction == 0:
+        #     self.flip_direction()
+        #     return self.step_param()
+        # # If neither of the above are triggered, it means we are at the end of the sweep
+        # else:
+        #     print(f'Finished the sweep! {self.set_param.label} = {safe_get(self.set_param)} ({self.set_param.unit})')
+        #     if self.save_data:
+        #         self.runner.flush_flag = True
+        #     self.is_running = False
+        #     self.flip_direction()
+        #     self.completed.emit()
+        #     if self.parent is None:
+        #         self.runner.kill_flag = True
+        #     return None
 
-            return None
-
-    def step_AMI430(self):
+    def step_K2450(self):
         """
-        Used to control sweeps of AMI430 Instrument. 
+        Used to control sweeps of K2450 Instrument. 
         
         The endpoint is determined prior to the sweep, and the current 
         field is measured during ramping.
@@ -264,54 +252,6 @@ class Sweep1D(BaseSweep, QObject):
         ---------
         The parameter-value pair that was measured.
         """
-        
-        # Check if we have set the magnetic field yet
-        if self.magnet_initialized is False:
-            self.instrument.set_field(self.end, block=False)
-            self.magnet_initialized = True
-            time.sleep(self.inter_delay)
-
-            while safe_get(self.instrument.ramping_state) != 'ramping':
-                time.sleep(self.inter_delay)
-
-        # Grab our data
-        dt = safe_get(self.set_param)
-        data_pair = (self.set_param, dt)
-        self.setpoint = dt
-
-        # Check our stop conditions- being at the end point
-        if safe_get(self.instrument.ramping_state) == 'holding':
-            self.magnet_initialized = False
-            if self.save_data:
-                self.runner.flush_flag = True
-            self.is_running = False
-            print(f"Done with the sweep, {self.set_param.label}={self.set_param.get()}")
-            self.flip_direction()
-            self.completed.emit()
-            if self.parent is None:
-                self.runner.kill_flag = True
-
-        # Return our data pair, just like any other sweep
-        return [data_pair]
-
-    def step_M4G(self):
-        """
-        Function to deal with sweeps of Cryomagnetics M4G Magnet Supply. Instead of setting intermediate points, we set the endpoint at the
-        beginning, then ask it for the current field while it is ramping.
-        """
-        
-        # Check if we have set the magnetic field yet
-        if self.magnet_initialized is False:
-            print("Checking the remote connection to the magnet supply.")
-            self.instrument.is_remote()
-            time.sleep(1)
-            
-            # Start the field sweep
-            self.instrument.field(self.end)
-            self.magnet_initialized = True
-        else:
-            self.instrument.field(self.end)
-
         # Grab our data
         try:
             dt = self.set_param.get()
@@ -324,31 +264,24 @@ class Sweep1D(BaseSweep, QObject):
             self.setpoint = dt
         except:
             print("got bad data, trying again")
-            return self.step_M4G()
+            return self.step_K2450()
+
         # Check our stop conditions- being at the end point
-        if abs(self.instrument.field()-self.end) <= 0.001: #Check to see if field is within 1 mT of final value
-            time.sleep(0.2)
-            if abs(self.instrument.field()-self.end) <= 0.001: #Wait for a little bit, then check again, if true then we are done with the sweep
-                print(f"Done with the sweep, {self.set_param.label} = {self.set_param.get()} T")
-                
-                if self.continuous:
-                    self.flip_direction()
-                    return self.step_M4G()
-                elif self.bidirectional and self.direction == 0:
-                    self.flip_direction()
-                    return self.step_M4G()
-                else:
-                    if self.parent is None:
-                        self.runner.kill_flag = True
-                    self.magnet_initialized = False
-                    self.is_running = False
-                    self.completed.emit()
-                    
+        if (self.set_param.get_latest()-self.end) < self.err:
+            if self.save_data:
+                self.runner.flush_flag = True
+            self.is_running = False
+            print(f"Done with the sweep, {self.set_param.label}={self.set_param.get()}")
+            self.flip_direction()
+            self.completed.emit()
+            if self.parent is None:
+                self.runner.kill_flag = True
+
+        # Return our data pair, just like any other sweep
         return [data_pair]
-    
+
     def flip_direction(self):
         """ Flips the direction of the sweep, to do bidirectional sweeping. """
-
         # If backwards, go forwards, and vice versa
         if self.direction:
             self.direction = 0
@@ -368,7 +301,7 @@ class Sweep1D(BaseSweep, QObject):
         if self.plot_data is True and self.plotter is not None:
             self.add_break.emit(self.direction)
 
-    def ramp_to(self, value, start_on_finish=False, persist=None, multiplier=1):
+    def ramp_to(self, value, start_on_finish=False, multiplier=1):
         """
         Ramps the set_param to a given value, at a rate dictated by the multiplier.
         
@@ -443,7 +376,7 @@ class Sweep1D(BaseSweep, QObject):
         # value = self.ramp_sweep.begin
 
         # Check if we are at the value we expect, otherwise something went wrong with the ramp
-        if abs(safe_get(self.set_param) - value) - abs(self.step/2) > abs(self.step) * 1e-4:
+        if abs(safe_get(self.set_param) - value) - abs(self.step/2) > abs(self.step) * 1e-2:
             print(f'Ramping failed (possible that the direction was changed while ramping). '
                   f'Expected {self.set_param.label} final value: {value}. Actual value: {safe_get(self.set_param)}. '
                   f'Stopping the sweep.')
@@ -496,47 +429,6 @@ class Sweep1D(BaseSweep, QObject):
         # Reset our plots
         self.plotter = None
         self.runner = None
-
-    def estimate_time(self, verbose=True):
-        """
-        Returns an estimate of the amount of time the sweep will take to complete.
-
-        Parameters
-        ----------
-        verbose:
-            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
-
-        Returns
-        -------
-        Time estimate for the sweep, in seconds
-        """
-
-        t_est = 0
-
-        if isinstance(self.instrument, AMI430):
-            rate = safe_get(self.instrument.ramp_rate)
-            if safe_get(self.instrument.ramp_rate_units) == 0:
-                t_est = abs((self.end - self.begin) / rate)
-            else:
-                t_est = abs((self.end - self.begin) * 60 / rate)
-        elif isinstance(self.instrument, M4G):
-            t_est += 0
-        else:
-            t_est = abs((self.begin - self.end) / self.step) * self.inter_delay
-
-            if self.continuous is True:
-                print(f'No estimated time for {repr(self)} to run.')
-                return 0
-            elif self.bidirectional is True:
-                t_est *= (1+1./self.back_multiplier)
-
-        hours = int(t_est / 3600)
-        minutes = int((t_est % 3600) / 60)
-        seconds = t_est % 60
-        if verbose is True:
-            print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
-
-        return t_est
 
     def __del__(self):
         """

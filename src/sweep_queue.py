@@ -5,6 +5,7 @@ import os
 import time
 import types
 from collections import deque
+from collections.abc import Iterable
 from functools import partial
 
 import qcodes as qc
@@ -188,7 +189,7 @@ class SweepQueue(QObject):
         """
 
         for sweep in s:
-            if isinstance(sweep, list):
+            if isinstance(sweep, Iterable):
                 for l in sweep:
                     # Set the finished signal to call the begin_next() function here
                     l.set_complete_func(self.begin_next)
@@ -216,6 +217,7 @@ class SweepQueue(QObject):
             The object to be added to the sweep_queue. It can be a sweep object, function handle,
             or a tuple for function (func_handle, argument) or database entry (db_entry,sweep).
         """
+
         if isinstance(item, tuple):
             item, *args = item
             # Unpack the tuple.
@@ -262,6 +264,7 @@ class SweepQueue(QObject):
         ---------
         item: object to be removed from the queue
         """
+
         if isinstance(item, BaseSweep) or isinstance(item, DatabaseEntry):
             self.queue.remove(item)
         else:
@@ -331,6 +334,7 @@ class SweepQueue(QObject):
         ---------
         rts: Optional parameter controlling 'ramp_to_start' keyword of sweep
         """
+
         # Check that there is something in the queue to run
         if len(self.queue) == 0:
             print("No sweeps loaded!")
@@ -357,6 +361,7 @@ class SweepQueue(QObject):
 
     def stop(self):
         """ Stops/pauses any running sweeps. """
+
         if self.current_sweep is not None:
             self.current_sweep.stop()
         else:
@@ -364,6 +369,7 @@ class SweepQueue(QObject):
 
     def resume(self):
         """ Resumes any paused sweeps. """
+
         if self.current_sweep is not None:
             self.current_sweep.resume()
         else:
@@ -371,6 +377,7 @@ class SweepQueue(QObject):
 
     def is_running(self):
         """ Flag to determine whether a sweep is currently running. """
+
         if self.current_sweep is not None:
             return self.current_sweep.is_running
         else:
@@ -458,6 +465,34 @@ class SweepQueue(QObject):
             self.sample_name = samples
         else:
             print("Database info loaded incorrectly!")
+
+    def estimate_time(self, verbose=False):
+        """
+        Returns an estimate of the amount of time the sweep queue will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether there will be a printout of the time estimate for each sweep in the queue,
+            in the form of hh:mm:ss (default False)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
+
+        t_est = 0
+        for s in self.queue:
+            if isinstance(s, BaseSweep):
+                t_est += s.estimate_time(verbose=verbose)
+
+        hours = int(t_est / 3600)
+        minutes = int((t_est % 3600) / 60)
+        seconds = t_est % 60
+
+        print(f'Estimated time for the SweepQueue to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+
+        return t_est
 
     def set_database(self):
         """

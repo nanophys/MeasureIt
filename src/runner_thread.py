@@ -84,7 +84,7 @@ class RunnerThread(QThread):
 
     def __del__(self):
         """ Standard destructor. """
-        
+
         self.wait()
 
     def add_plotter(self, plotter):
@@ -143,11 +143,7 @@ class RunnerThread(QThread):
                 try:
                     data = self.sweep.update_values()
                 except ParameterException as e:
-                    self.sweep.is_running = False
-                    if e.set is True:
-                        print(f"Could not set {e.p.label} to {e.sp}.", e.message)
-                    else:
-                        print(f"Could not get {e.p.label}.", e.message)
+                    self.sweep.stop()
                     continue
 
                 # Check if we've hit the end- update_values will return None
@@ -172,5 +168,14 @@ class RunnerThread(QThread):
                 self.flush_flag = False
             # print('at end of kill flag loop')
 
-        if self.runner is not None:
+        self.exit_datasaver()
+
+    def exit_datasaver(self):
+        if self.datasaver is not None:
+            if self.sweep.save_data is True:
+                self.datasaver.flush_data_to_database()
+
             self.runner.__exit__(None, None, None)
+            self.datasaver = None
+
+

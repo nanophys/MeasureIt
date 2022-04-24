@@ -1,7 +1,8 @@
 # sweep_ips.py
 
+from src.base_sweep import BaseSweep
 from src.sweep0d import Sweep0D
-from src.util import _autorange_srs
+from src.util import _autorange_srs, safe_get, safe_set
 from PyQt5.QtCore import QObject
 import time
 
@@ -102,7 +103,7 @@ class SweepIPS(Sweep0D, QObject):
 
         for i, p in enumerate(self._params):
             if p is not persist_param:
-                v = p.get()
+                v = safe_get(p)
                 data.append((p, v))
 
         if self.save_data and self.is_running:
@@ -112,3 +113,36 @@ class SweepIPS(Sweep0D, QObject):
 
         # print(data)
         return data
+
+    def stop(self):
+        """ Stops running any currently active sweeps. """
+
+        BaseSweep.stop(self)
+        safe_set(self.instrument.activity, 0)
+        self.initialized = False
+
+    def estimate_time(self, verbose=True):
+        """
+        Returns an estimate of the amount of time the sweep will take to complete.
+
+        Parameters
+        ----------
+        verbose:
+            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
+
+        Returns
+        -------
+        Time estimate for the sweep, in seconds
+        """
+
+        rate = safe_get(self.magnet.sweeprate_field)
+        B_range = abs(safe_get(self.magnet.field) - self.setpoint)
+
+        t_est = B_range * 60 / rate
+
+        hours = int(t_est / 3600)
+        minutes = int((t_est % 3600) / 60)
+        seconds = t_est % 60
+        if verbose is True:
+            print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+        return t_est
