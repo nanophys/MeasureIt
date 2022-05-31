@@ -419,7 +419,10 @@ class Sweep2D(BaseSweep, QObject):
                                   inter_delay=self.inter_delay,
                                   complete_func=partial(self.done_ramping, start_on_finish),
                                   save_data=False, plot_data=True)
-
+        for p in self._params:
+            if p is not self.set_param:
+                self.ramp_sweep.follow_param(p)
+        
         self.is_running = False
         self.outer_ramp = True
         self.ramp_sweep.start(ramp_to_start=False)
@@ -443,6 +446,7 @@ class Sweep2D(BaseSweep, QObject):
         # Create a new sweep to ramp our outer parameter to zero
         zero_sweep = Sweep1D(self.set_param, self.set_param.get(), 0, self.step, inter_delay=self.inter_delay,
                              complete_func=self.done_ramping)
+        zero_sweep.follow_param(self._params)
         self.is_running = True
         self.outer_ramp = True
         zero_sweep.start()
