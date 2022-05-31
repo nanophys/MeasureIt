@@ -141,8 +141,11 @@ class Heatmap(QObject):
         """
         
         self.lines_to_add.append(lines)
-        self.update_heatmap()
-
+        try:
+            self.update_heatmap()
+        except Exception as e:
+            print("Failed to update the heatmap: ", e)
+            
     def add_to_plot(self, line):
         """
         Plots forward Line2D objects from lines dictionary ('add_lines').
@@ -207,7 +210,6 @@ class Heatmap(QObject):
         #    if sleep_time > 0:
         #        time.sleep(sleep_time)
 
-    @pyqtSlot()
     def clear(self):
         """ Closes all active figures. """
         plt.close(self.heat_fig)

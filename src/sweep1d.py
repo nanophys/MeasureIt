@@ -403,7 +403,8 @@ class Sweep1D(BaseSweep, QObject):
                                   inter_delay=self.inter_delay,
                                   complete_func=partial(self.done_ramping, value, start_on_finish, persist),
                                   save_data=False, plot_data=self.plot_data)
-
+        self.ramp_sweep.follow_param(self._params)
+        
         self.is_running = False
         self.is_ramping = True
         self.ramp_sweep.start(ramp_to_start=False)
