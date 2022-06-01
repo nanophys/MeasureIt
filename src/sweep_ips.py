@@ -58,7 +58,7 @@ class SweepIPS(Sweep0D, QObject):
         """
         
         if not self.initialized:
-            print("Checking the status of the magnet and switch heater.")
+            self.print_main.emit("Checking the status of the magnet and switch heater.")
             self.magnet.leave_persistent_mode()
             time.sleep(1)
 
@@ -79,14 +79,14 @@ class SweepIPS(Sweep0D, QObject):
             self.is_running = False
             if self.save_data:
                 self.runner.datasaver.flush_data_to_database()
-            print(f"Done with the sweep, B={self.magnet.field.get():.2f} T, t={t:.2f} s.")
+            self.print_main.emit(f"Done with the sweep, B={self.magnet.field.get():.2f} (T), t={t:.2f} (s).")
 
             # Set status to 'hold'
             self.magnet.activity(0)
             time.sleep(1)
             self.magnet_initialized = False
 
-            print("Done with the sweep!")
+            self.print_main.emit("Done with the sweep!")
 
             if self.persistent_magnet is True:
                 self.magnet.set_persistent()
@@ -111,7 +111,6 @@ class SweepIPS(Sweep0D, QObject):
 
         self.send_updates()
 
-        # print(data)
         return data
 
     def stop(self):
@@ -144,5 +143,5 @@ class SweepIPS(Sweep0D, QObject):
         minutes = int((t_est % 3600) / 60)
         seconds = t_est % 60
         if verbose is True:
-            print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+            self.print_main.emit(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
         return t_est

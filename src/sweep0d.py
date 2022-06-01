@@ -73,7 +73,7 @@ class Sweep0D(BaseSweep, QObject):
         The function is defined so that it will not cause an error if called.
         """
         
-        print("Can't flip the direction, as we are not sweeping a parameter.")
+        self.print_main.emit("Can't flip the direction, as we are not sweeping a parameter.")
         return
 
     def update_values(self):
@@ -101,7 +101,7 @@ class Sweep0D(BaseSweep, QObject):
                 self.runner.datasaver.flush_data_to_database()
             self.is_running = False
             self.runner.kill_flag = True
-            print(f"Done with the sweep, t={t} s")
+            self.print_main.emit(f"Done with the sweep, t={t} (s)")
             self.completed.emit()
 
             return None
@@ -126,7 +126,6 @@ class Sweep0D(BaseSweep, QObject):
 
         self.send_updates()
 
-        # print(data)
         return data
 
     def estimate_time(self, verbose=True):
@@ -148,10 +147,10 @@ class Sweep0D(BaseSweep, QObject):
             minutes = int((self.max_time % 3600) / 60)
             seconds = self.max_time % 60
             if verbose is True:
-                print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+                self.print_main.emit(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
 
             return self.max_time
         else:
             if verbose is True:
-                print(f'No estimated time for {repr(self)} to run.')
+                self.print_main.emit(f'No estimated time for {repr(self)} to run.')
             return 0

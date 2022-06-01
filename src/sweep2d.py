@@ -254,10 +254,10 @@ class Sweep2D(BaseSweep, QObject):
         """
 
         if self.is_running:
-            print("Can't start the sweep, we're already running!")
+            self.print_main.emit("Can't start the sweep, we're already running!")
             return
         elif self.outer_ramp:
-            print("Can't start the sweep, we're currently ramping the outer sweep parameter!")
+            self.print_main.emit("Can't start the sweep, we're currently ramping the outer sweep parameter!")
             return
 
         if self.meas is None:
@@ -266,7 +266,7 @@ class Sweep2D(BaseSweep, QObject):
         if ramp_to_start:
             self.ramp_to(self.out_setpoint, start_on_finish=True)
         else:
-            print(
+            self.print_main.emit(
                 f'Starting the 2D Sweep. Ramping {self.set_param.label} to {self.out_stop} {self.set_param.unit}, '
                 f'while sweeping {self.in_param.label} between {self.in_start} {self.in_param.unit} and {self.in_stop} '
                 f'{self.in_param.unit}')
@@ -321,7 +321,7 @@ class Sweep2D(BaseSweep, QObject):
             if not self.outer_ramp:
                 self.is_running = False
                 self.inner_sweep.is_running = False
-                print("Done ramping both parameters to zero")
+                self.print_main.emit("Done ramping both parameters to zero")
             # Stop the function from running any further, as we don't want to check anything else
             return
 
@@ -336,7 +336,7 @@ class Sweep2D(BaseSweep, QObject):
         if abs(self.out_setpoint - self.out_stop) - abs(self.out_step / 2) > abs(self.out_step) * 1e-4:
             self.out_setpoint = self.out_setpoint + self.out_step
             time.sleep(self.outer_delay)
-            print(f"Setting {self.set_param.label} to {self.out_setpoint} {self.set_param.unit}")
+            self.print_main.emit(f"Setting {self.set_param.label} to {self.out_setpoint} ({self.set_param.unit})")
             self.set_param.set(self.out_setpoint)
             time.sleep(self.outer_delay)
             # Reset our plots
@@ -345,7 +345,8 @@ class Sweep2D(BaseSweep, QObject):
         # If neither of the above are triggered, it means we are at the end of the sweep
         else:
             self.is_running = False
-            print(f"Done with the sweep, {self.set_param.label}={self.out_setpoint}")
+            self.print_main.emit(f"Done with the sweep, {self.set_param.label}={self.out_setpoint} "
+                                 f"({self.set_param.unit})")
             self.completed.emit()
 
     def get_param_setpoint(self):
@@ -380,7 +381,7 @@ class Sweep2D(BaseSweep, QObject):
             self.heatmap_thread.quit()
             if not self.heatmap_thread.wait(1000):
                 self.heatmap_thread.terminate()
-                print('forced heatmap to terminate')
+                self.print_main.emit('forced heatmap to terminate')
             self.heatmap_plotter = None
 
     def ramp_to(self, value, start_on_finish=False, multiplier=1):
@@ -399,16 +400,16 @@ class Sweep2D(BaseSweep, QObject):
 
         # Ensure we aren't currently running
         if self.outer_ramp:
-            print(f"Currently ramping. Finish current ramp before starting another.")
+            self.print_main.emit(f"Currently ramping. Finish current ramp before starting another.")
             return
         if self.is_running:
-            print(f"Already running. Stop the sweep before ramping.")
+            self.print_main.emit(f"Already running. Stop the sweep before ramping.")
             return
 
         # Check if we are already at the value
         curr_value = self.set_param.get()
         if abs(value - curr_value) <= self.out_step / 2:
-            # print(f"Already within {self.step} of the desired ramp value. Current value: {curr_value},
+            # self.print_main.emit(f"Already within {self.step} of the desired ramp value. Current value: {curr_value},
             # ramp setpoint: {value}.\nSetting our setpoint directly to the ramp value.")
             self.set_param.set(value)
             self.done_ramping(start_on_finish=True)
@@ -427,12 +428,12 @@ class Sweep2D(BaseSweep, QObject):
         self.outer_ramp = True
         self.ramp_sweep.start(ramp_to_start=False)
 
-        print(f'Ramping {self.set_param.label} to {value} . . . ')
+        self.print_main.emit(f'Ramping {self.set_param.label} to {value} . . . ')
 
     def ramp_to_zero(self):
         """Ramps the set_param to 0, at the same rate as already specified. """
 
-        print("Ramping both parameters to 0.")
+        self.print_main.emit("Ramping both parameters to 0.")
         # Ramp our inner sweep parameter to zero
         self.inner_ramp = True
         self.in_sweep.ramp_to(0)
@@ -472,7 +473,7 @@ class Sweep2D(BaseSweep, QObject):
 
         # If so, tell the system we are done
         self.is_running = False
-        print("Done ramping!")
+        self.print_main.emit("Done ramping!")
 
         if start_on_finish:
             self.start(ramp_to_start=False)
@@ -500,5 +501,5 @@ class Sweep2D(BaseSweep, QObject):
         minutes = int((t_est % 3600) / 60)
         seconds = t_est % 60
         if verbose is True:
-            print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+            self.print_main.emit(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
         return t_est

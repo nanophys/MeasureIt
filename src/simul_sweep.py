@@ -123,7 +123,7 @@ class SimulSweep(BaseSweep, QObject):
         n_params = len(self.simul_params)
 
         for n, item in enumerate(self.set_params_dict.items()):
-            p,v = item
+            p, v = item
             if n < n_params-2:
                 p_desc += f"{p.label} from {v['start']} to {v['stop']}, with step {v['step']}, "
             elif n == n_params-2:
@@ -141,25 +141,25 @@ class SimulSweep(BaseSweep, QObject):
         Starts the sweep. Runs from the BaseSweep start() function.
         """
         if self.is_ramping is True:
-            print(f"Still ramping. Wait until ramp is done to start the sweep.")
+            self.print_main.emit(f"Still ramping. Wait until ramp is done to start the sweep.")
             return
         if self.is_running is True:
-            print(f"Sweep is already running.")
+            self.print_main.emit(f"Sweep is already running.")
             return
 
         if ramp_to_start is True:
-            print(f"Ramping to our starting setpoints.")
+            self.print_main.emit(f"Ramping to our starting setpoints.")
             vals_dict = {}
             for p in self.simul_params:
                 vals_dict[p] = self.set_params_dict[p]['start']
             self.ramp_to(vals_dict, start_on_finish=True, persist=persist_data, multiplier=ramp_multiplier)
         else:
-            print(f"Starting our sweep.")
+            self.print_main.emit(f"Starting our sweep.")
             super().start(persist_data=persist_data, ramp_to_start=False)
 
     def stop(self):
         if self.is_ramping and self.ramp_sweep is not None:
-            print(f"Stopping the ramp.")
+            self.print_main.emit(f"Stopping the ramp.")
             self.ramp_sweep.stop()
             self.ramp_sweep.kill()
 
@@ -212,9 +212,9 @@ class SimulSweep(BaseSweep, QObject):
             if self.save_data:
                 self.runner.datasaver.flush_data_to_database()
             self.is_running = False
-            print(f"Done with the sweep!")
+            self.print_main.emit(f"Done with the sweep!")
             for p, v in self.set_params_dict.items():
-                print(f"{p.label} = {v['setpoint']} {p.unit}")
+                self.print_main.emit(f"{p.label} = {v['setpoint']} ({p.unit})")
             self.flip_direction()
             self.completed.emit()
             if self.parent is None:
@@ -270,17 +270,17 @@ class SimulSweep(BaseSweep, QObject):
     def ramp_to(self, vals_dict, start_on_finish=False, persist=None, multiplier=1):
         # Ensure we aren't currently running
         if self.is_ramping:
-            print(f"Currently ramping. Finish current ramp before starting another.")
+            self.print_main.emit(f"Currently ramping. Finish current ramp before starting another.")
             return
         if self.is_running:
-            print(f"Already running. Stop the sweep before ramping.")
+            self.print_main.emit(f"Already running. Stop the sweep before ramping.")
             return
 
         ramp_params_dict = {}
         n_steps = 1
         for p, v in vals_dict.items():
             if p not in self.set_params_dict.keys():
-                print("Cannot ramp parameter not in our sweep.")
+                self.print_main.emit("Cannot ramp parameter not in our sweep.")
                 return
             
             p_step = self.set_params_dict[p]['step']
@@ -297,7 +297,7 @@ class SimulSweep(BaseSweep, QObject):
                 n_steps = math.ceil(p_steps)
 
         if len(ramp_params_dict.keys()) == 0:
-            print("Already at the values, no ramp needed.")
+            self.print_main.emit("Already at the values, no ramp needed.")
             self.done_ramping(vals_dict, start_on_finish=start_on_finish, pd=persist)
             return
 
@@ -320,7 +320,7 @@ class SimulSweep(BaseSweep, QObject):
         for p, v in vals_dict.items():
             p_step = self.set_params_dict[p]['step']
             if abs(safe_get(p) - v) - abs(p_step / 2) > abs(p_step) * 1e-4:
-                print(f'Ramping failed (possible that the direction was changed while ramping). '
+                self.print_main.emit(f'Ramping failed (possible that the direction was changed while ramping). '
                       f'Expected {p.label} final value: {v}. Actual value: {safe_get(p)}. '
                       f'Stopping the sweep.')
 
@@ -330,7 +330,7 @@ class SimulSweep(BaseSweep, QObject):
 
                 return
 
-        print(f'Done ramping!')
+        self.print_main.emit(f'Done ramping!')
         for p, v in vals_dict.items():
             safe_set(p, v)
             self.set_params_dict[p]['setpoint'] = v - self.set_params_dict[p]['step']
@@ -386,7 +386,7 @@ class SimulSweep(BaseSweep, QObject):
         minutes = int((t_est % 3600) / 60)
         seconds = t_est % 60
         if verbose is True:
-            print(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+            self.print_main.emit(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
         return t_est
 
 

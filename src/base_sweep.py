@@ -113,9 +113,10 @@ class BaseSweep(QObject):
     reset_plot = pyqtSignal()
     add_break = pyqtSignal(int)
     completed = pyqtSignal()
+    print_main = pyqtSignal(str)
 
     def __init__(self, set_param=None, inter_delay=0.1, save_data=True, plot_data=True, x_axis_time=1,
-                 datasaver=None, complete_func=None, plot_bin=1, back_multiplier=1):
+                 datasaver=None, complete_func=None, plot_bin=1, back_multiplier=1, suppress_output=False):
         """
         Initializer for both classes, called by BaseSweep.__init__() in Sweep0D and Sweep1D classes.
         
@@ -172,6 +173,7 @@ class BaseSweep(QObject):
         self.direction = 0
         self.meas = None
         self.dataset = None
+        self.suppress_output = suppress_output
 
         self.continuous = False
         self.plot_bin = plot_bin
@@ -187,6 +189,8 @@ class BaseSweep(QObject):
         if complete_func is None:
             complete_func = self.no_change
         self.completed.connect(complete_func)
+
+        self.print_main.connect(self.print_msg)
 
         self.plotter = None
         self.plotter_thread = None
@@ -212,7 +216,7 @@ class BaseSweep(QObject):
         """
         
         if self.is_running:
-            print("Cannot update the parameter list while the sweep is running.")
+            self.print_main.emit("Cannot update the parameter list while the sweep is running.")
 
         for param in p:
             if isinstance(param, list):
@@ -233,7 +237,7 @@ class BaseSweep(QObject):
         """
         
         if self.is_running:
-            print("Cannot update the parameter list while the sweep is running.")
+            self.print_main.emit("Cannot update the parameter list while the sweep is running.")
 
         for param in p:
             if isinstance(param, list):
@@ -256,7 +260,7 @@ class BaseSweep(QObject):
         """
         
         if self.is_running:
-            print("Cannot update the srs list while the sweep is running.")
+            self.print_main.emit("Cannot update the srs list while the sweep is running.")
 
         if (l, name, gain) not in self._srs:
             self._srs.append((l, name, gain))
@@ -308,7 +312,7 @@ class BaseSweep(QObject):
             self.runner.flush_flag = True
 
         if not self.is_running:
-            print("Sweep not currently running. Nothing to stop.")
+            self.print_main.emit("Sweep not currently running. Nothing to stop.")
         self.is_running = False
         self.send_updates()
 
@@ -322,10 +326,10 @@ class BaseSweep(QObject):
         if self.runner is not None:
             self.runner.flush_flag = True
             self.runner.kill_flag = True
-            self.runner.quit()
+            #self.runner.quit()
             if not self.runner.wait(1000):
                 self.runner.terminate()
-                print('forced runner to terminate')
+                self.print_main.emit('forced runner to terminate')
             self.runner = None
             self.send_updates()
         # Gently shut down the plotter
@@ -333,7 +337,7 @@ class BaseSweep(QObject):
             self.plotter_thread.quit()
             if not self.plotter_thread.wait(1000):
                 self.plotter_thread.terminate()
-                print('forced plotter to terminate')
+                self.print_main.emit('forced plotter to terminate')
             self.close_plots()
             self.plotter = None
 
@@ -358,7 +362,7 @@ class BaseSweep(QObject):
         """
 
         if self.is_running:
-            print("We are already running, can't start while running.")
+            self.print_main.emit("We are already running, can't start while running.")
             return
 
         # Check if we have a measurement object
@@ -369,7 +373,7 @@ class BaseSweep(QObject):
             self._create_measurement()
             if self.plotter is not None and self.plotter.figs_set is True:
                 self.plotter.clear()
-                # print("reset figs")
+                # self.print_main.emit("reset figs")
                 self.plotter.create_figs()
 
         # If we don't have a plotter yet want to plot, create it and the figures
@@ -402,7 +406,7 @@ class BaseSweep(QObject):
         if self.plot_data is True and self.plotter_thread.isRunning() is False:
             self.plotter_thread.start()
         elif self.plot_data is True and self.plotter.figs_set is False:
-            # print("somehow here")
+            # self.print_main.emit("somehow here")
             self.plotter.create_figs()
         if not self.runner.isRunning():
             self.runner.kill_flag = False
@@ -556,6 +560,20 @@ class BaseSweep(QObject):
         self.complete_func = partial(func, *args, **kwargs)
         self.completed.connect(self.complete_func)
 
+    @pyqtSlot(str)
+    def print_msg(self, msg):
+        """
+        Prints messages from the RunnerThread from the sweep, ensuring it is printed from the main thread
+
+        Parameters
+        ---------
+        msg:
+            The object to be printed
+        """
+
+        if self.suppress_output is False:
+            print(msg)
+
     @pyqtSlot()
     def no_change(self, *args, **kwargs):
         """
@@ -580,16 +598,16 @@ class BaseSweep(QObject):
         
         p_list = []
         meas_list = []
-        # print("our params list")
+        # self.print_main.emit("our params list")
         for p in self._params:
-            # print(str(p))
+            # self.print_main.emit(str(p))
             p_list.append(str(p))
         p_list.append("time")
         if self.set_param is not None:
             p_list.append(str(self.set_param))
-        # print("measurement param list")
+        # self.print_main.emit("measurement param list")
         for key, val in self.meas.parameters.items():
-            # print(str(key))
+            # self.print_main.emit(str(key))
             meas_list.append(key)
 
         return set(p_list) == set(meas_list)
