@@ -345,10 +345,11 @@ class SweepQueue(QObject):
         if isinstance(self.current_action, BaseSweep):
             self.current_sweep = self.current_action
             if isinstance(self.current_sweep, Sweep1D):
-                print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
-                      {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
+                print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
+                      f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
+                      f"({self.current_sweep.set_param.unit})")
             elif isinstance(self.current_sweep, Sweep0D):
-                print(f"Starting 0D Sweep for {self.current_sweep.max_time} seconds.")
+                print(f"Starting 0D Sweep for {self.current_sweep.max_time} (s).")
             self.newSweepSignal.emit(self.current_sweep)
             self.current_sweep.start(ramp_to_start=rts)
         elif isinstance(self.current_action, DatabaseEntry):
@@ -392,10 +393,11 @@ class SweepQueue(QObject):
         """
 
         if isinstance(self.current_action, Sweep1D):
-            print(f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
-                  {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
+            print(f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
+                  f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
+                  f"({self.current_sweep.set_param.unit})")
         elif isinstance(self.current_action, Sweep0D):
-            print(f"Finished 0D Sweep of {self.current_sweep.max_time} seconds.")
+            print(f"Finished 0D Sweep of {self.current_sweep.max_time} (s).")
 
         if isinstance(self.current_action, BaseSweep):
             self.current_sweep.kill()
@@ -406,8 +408,9 @@ class SweepQueue(QObject):
             if isinstance(self.current_action, BaseSweep):
                 self.current_sweep = self.current_action
                 if isinstance(self.current_sweep, Sweep1D):
-                    print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} \
-                          {self.current_sweep.set_param.unit} to {self.current_sweep.end} {self.current_sweep.set_param.unit}")
+                    print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
+                          f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
+                          f"({self.current_sweep.set_param.unit})")
                 elif isinstance(self.current_sweep, Sweep0D):
                     print(f"Starting 0D Sweep for {self.current_sweep.max_time} seconds.")
                 time.sleep(self.inter_delay)
