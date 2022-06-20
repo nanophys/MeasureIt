@@ -7,8 +7,8 @@ from qcodes.instrument.base import Instrument
 import qcodes.utils.validators as vals
 from MultiPyVu import MultiVuClient as mvc
 
-class DynacoolOpticool(Instrument):
-    """Qcodes drvier for QuantumDesign Dynacool Opticool. 
+class DynacoolBase(Instrument):
+    """Qcodes drvier for QuantumDesign Dynacool. 
 
     This drivier is to get and acquire important data from Opticool
     PPMS's code should be similar. 
@@ -26,16 +26,24 @@ class DynacoolOpticool(Instrument):
         self.field_ramp_method = self.client.field.approach_mode.linear
         self.rate_K_per_min = 1.0
         self.add_parameter('temperature',
-                        label = 'temperature',
-                        unit = 'K',
+                        label='temperature',
+                        unit='K',
                         get_cmd=self._get_temperature,
                         get_parser=float,
                         set_cmd=self._set_temperature)
+        self.add_parameter('temperature_state',
+                        label = 'Temperature tracking state',
+                        get_parser=str,
+                        get_cmd=self._get_temp_status)
         self.add_parameter('field',
                         label = 'Field',
                         unit = 'Oe',
                         get_cmd = self._get_field,
                         get_parser=float)
+        self.add_parameter('magnet_state',
+                        label = 'Magnet state',
+                        get_parser=str,
+                        get_cmd=self._get_field_status)    
     def ramp(self,target,rate):
         self._set_field(target,rate)
 
@@ -47,8 +55,6 @@ class DynacoolOpticool(Instrument):
         rate_K_per_min: 
         """
         self.client.set_temperature(set_point,self.rate_K_per_min,self.temp_ramp_method)
-
-
     def _get_temperature(self):
         temperature, status = self.client.get_temperature()
         return temperature
@@ -62,7 +68,9 @@ class DynacoolOpticool(Instrument):
     def _get_field(self):
         field, status = self.client.get_field()
         return field
-
+    def _get_field_status(self):
+        field, status = self.client.get_field()
+        return status
 
     def close(self) -> None:
         """
