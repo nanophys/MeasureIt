@@ -180,7 +180,7 @@ def save_to_csv(ds, fn=None, use_labels=True):
         export_ds.to_csv(fn)
     else:
         db_path = ds.path_to_db.split('\\')
-        db = db_path[len(db_path-1)].split('.')[0]
+        db = db_path[len(db_path)-1].split('.')[0]
 
         fp = f'{os.environ["MeasureItHome"]}\\Origin Files\\{db}\\'
         if not os.path.isdir(fp):
