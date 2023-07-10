@@ -1,21 +1,30 @@
 - Download Anaconda3 https://www.anaconda.com/download/
 - Download Git https://git-scm.com/download/win
-- Download and install the NI DAQmx drivers at 'http://www.ni.com/en-us/support/downloads/drivers/download/unpackaged.ni-daqmx.291872.html'
-- Download and install the NI VISA package at 'http://www.ni.com/download/ni-visa-18.5/7973/en/'
+- Download NI Package Manager (latest offline version): https://www.ni.com/en-us/support/downloads/software-products/download.package-manager.html#322516
+- Open NI Package Manager, and through there install these packages (wait for restart until you're done with all three installs):
+    - Latest NI VISA package
+    - Latest NI DAQmx package
+    - NI 488.2 v17.0 (any later versions will NOT run knockoff GPIB-USB adapters, and no additional functionality is gained by installing a newer version)
 
-- To install QCoDeS, either:
-    1) (RECOMMENDED) run the following to install a non-editable version
-      - conda update -n base -c defaults conda
-      - conda create --name qcodes python=3.9 (Python 3.10 breaks nidaqmx-python as of now)
+- Open Anaconda Prompt to install QCoDeS, and choose from one of the following installation options:
+    1) (RECOMMENDED) To install a non-editable version in the base anaconda environment:
+      - conda config --add channels conda-forge
+      - conda update conda
+      - conda install qcodes pip
+    2) To install run the following to install a non-editable version in a separate environment:
+      - conda config --add channels conda-forge
+      - conda update -n base conda
+      - conda create --name qcodes python=3.10
       - conda activate qcodes
-      - conda install -c conda-forge qcodes
-    2) Run the following to install an editable version of QCoDeS
+      - conda install -c conda-forge qcodes pip
+    3) Run the following to install an editable version of QCoDeS in a new environment:
       - Download QCoDeS repository 'git clone https://github.com/QCoDeS/Qcodes.git' (will download QCoDeS repository at current location)
       - From Anaconda Prompt, move into QCoDeS repository, and run:
-      - conda update -n base -c defaults conda
+      - conda config --add channels conda-forge
+      - conda update -n base conda
       - conda env create -f environment.yml
       - conda activate qcodes
-      - pip install qcodes
+      - conda install qcodes
 After installing QCoDeS, install the rest of the packages
 - conda config --add channels conda-forge 
 - conda install nidaqmx-python jupyterlab conda-build pyqt
@@ -25,10 +34,14 @@ After installing QCoDeS, install the rest of the packages
     - conda activate qcodes
     - python setup.py
 
-To install the contributor drivers (such as the Oxford IPS120):
-- Download repository, 'git clone https://github.com/QCoDeS/Qcodes_contrib_drivers.git'
-- Move into the repository directory, and run 'conda develop .'
-- You can now directly access the module by calling 'import qcodes_contrib_drivers' in python scripts
+To install the contributor drivers (such as the Oxford IPS120), in Anaconda Prompt either:
+1) (RECOMMENDED) Install an uneditable version
+  - conda install pip
+  - pip install qcodes_contrib_drivers
+2) Download an editable local version
+  - Download repository, 'git clone https://github.com/QCoDeS/Qcodes_contrib_drivers.git'
+  - Move into the repository directory, and run 'conda develop .'
+You can now directly access the module by calling 'import qcodes_contrib_drivers' in python scripts
 
 To create a desktop icon:
 - Add the following to PATH (under system's environment variables):
