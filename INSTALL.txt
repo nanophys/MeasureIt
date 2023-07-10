@@ -1,6 +1,6 @@
 - Download Anaconda3 https://www.anaconda.com/download/
 - Download Git https://git-scm.com/download/win
-- Download NI Package Manager (latest offline version): https://www.ni.com/en-us/support/downloads/software-products/download.package-manager.html#322516
+- Download NI Package Manager (latest offline version): https://www.ni.com/en-us/support/downloads/software-products/download.package-manager.html
 - Open NI Package Manager, and through there install these packages (wait for restart until you're done with all three installs):
     - Latest NI VISA package
     - Latest NI DAQmx package
@@ -10,13 +10,13 @@
     1) (RECOMMENDED) To install a non-editable version in the base anaconda environment:
       - conda config --add channels conda-forge
       - conda update conda
-      - conda install qcodes pip
+      - conda install qcodes
     2) To install run the following to install a non-editable version in a separate environment:
       - conda config --add channels conda-forge
       - conda update -n base conda
       - conda create --name qcodes python=3.10
       - conda activate qcodes
-      - conda install -c conda-forge qcodes pip
+      - conda install -c conda-forge qcodes
     3) Run the following to install an editable version of QCoDeS in a new environment:
       - Download QCoDeS repository 'git clone https://github.com/QCoDeS/Qcodes.git' (will download QCoDeS repository at current location)
       - From Anaconda Prompt, move into QCoDeS repository, and run:
@@ -26,12 +26,11 @@
       - conda activate qcodes
       - conda install qcodes
 After installing QCoDeS, install the rest of the packages
-- conda config --add channels conda-forge 
 - conda install nidaqmx-python jupyterlab conda-build pyqt
 - Download this repository 'git clone https://github.com/nanophys/MeasureIt.git'
 - Set 'MeasureItHome' to base folder in the MeasureIt repository as an environment variable in your Windows system.
 - From Anaconda Prompt, move into MeasureIt repository, and run:
-    - conda activate qcodes
+    - conda develop .
     - python setup.py
 
 To install the contributor drivers (such as the Oxford IPS120), in Anaconda Prompt either:
