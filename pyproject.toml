@@ -1,11 +1,11 @@
 [build-system]
-requires = ["steuptools"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where["."]
-include["./src/MeaureIt*"]
-exclude["./tests*", "./src/dep*",]
+where = ["."]
+include = ["./src/MeaureIt*"]
+exclude = ["./tests*", "./src/dep*",]
 
 [project]
 name = "MeasureItUW"
@@ -30,7 +30,6 @@ dependencies = [
     "sphinx",
     "sphinx_rtd_theme"
 ]
-dynamic = ["version"]
 
 [project.urls]
 Repository = "https://github.com/nanophys/MeasureIt"
