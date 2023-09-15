@@ -3,12 +3,11 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["./src/MeaureIt*"]
-exclude = ["./tests*", "./src/dep*",]
+where = ["src"]
+include = ["MeasureIt*"]
 
 [project]
-name = "MeasureItUW"
+name = "MeasureIt"
 version = "0.0.1"
 description = "Measurement code for condensed matter groups at UW based on QCoDeS."
 readme = {file = "README.md", content-type = "text/markdown"} 

@@ -2,8 +2,8 @@
 # sweep1d.py
 
 import time
-from src.base_sweep import BaseSweep
-from src.util import safe_set, safe_get
+from .base_sweep import BaseSweep
+from .util import safe_set, safe_get
 from PyQt5.QtCore import QObject, pyqtSlot
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes.instrument_drivers.tektronix.Keithley_2450 import Keithley2450

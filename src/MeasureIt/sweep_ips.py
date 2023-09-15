@@ -1,8 +1,8 @@
 # sweep_ips.py
 
-from src.base_sweep import BaseSweep
-from src.sweep0d import Sweep0D
-from src.util import _autorange_srs, safe_get, safe_set
+from .base_sweep import BaseSweep
+from .sweep0d import Sweep0D
+from .util import _autorange_srs, safe_get, safe_set
 from PyQt5.QtCore import QObject
 import time
 

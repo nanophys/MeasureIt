@@ -3,9 +3,9 @@
 import time
 from functools import partial
 
-from src.base_sweep import BaseSweep
-from src.sweep1d import Sweep1D
-from src.heatmap_thread import Heatmap
+from .base_sweep import BaseSweep
+from .sweep1d import Sweep1D
+from .heatmap_thread import Heatmap
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 

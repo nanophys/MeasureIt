@@ -1,5 +1,6 @@
 from os.path import dirname, basename, isfile, join
 import glob
+'''
 import os
 from qcodes import config
 
@@ -13,6 +14,7 @@ config.station.default_file = f"{os.environ['MeasureItHome']}\\cfg\\default.stat
 config.save_config(f"{os.environ['MeasureItHome']}\\cfg\\qcodesrc.json")
 config.save_schema(f"{os.environ['MeasureItHome']}\\cfg\\qcodesrc_schema.json")
 config.save_to_home()
+'''
 
 from .sweep0d import Sweep0D
 from .sweep1d import Sweep1D

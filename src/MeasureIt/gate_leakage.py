@@ -1,5 +1,5 @@
-from src.sweep1d import Sweep1D
-from src.util import _autorange_srs
+from .sweep1d import Sweep1D
+from .util import _autorange_srs
 import time
 import numpy as np
 from PyQt5.QtCore import QObject

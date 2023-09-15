@@ -5,8 +5,8 @@ from functools import partial
 
 from PyQt5.QtCore import pyqtSlot, QObject
 
-from src.base_sweep import BaseSweep
-from src.util import _autorange_srs, safe_set, safe_get
+from .base_sweep import BaseSweep
+from .util import _autorange_srs, safe_set, safe_get
 
 
 class SimulSweep(BaseSweep, QObject):

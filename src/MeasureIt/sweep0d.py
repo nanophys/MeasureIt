@@ -1,9 +1,9 @@
 # sweep0d.py
 
 import time
-from src.base_sweep import BaseSweep
+from .base_sweep import BaseSweep
 from PyQt5.QtCore import QObject
-from src.util import _autorange_srs
+from .util import _autorange_srs
 
 
 class Sweep0D(BaseSweep, QObject):

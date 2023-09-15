@@ -1,9 +1,0 @@
-LICENSE
-README.md
-pyproject.toml
-MeasureItUW.egg-info/PKG-INFO
-MeasureItUW.egg-info/SOURCES.txt
-MeasureItUW.egg-info/dependency_links.txt
-MeasureItUW.egg-info/requires.txt
-MeasureItUW.egg-info/top_level.txt
-tests/test_sweep.py

@@ -12,9 +12,9 @@ import qcodes as qc
 from qcodes import initialise_or_create_database_at, Station
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 
-from src.base_sweep import BaseSweep
-from src.sweep0d import Sweep0D
-from src.sweep1d import Sweep1D
+from .base_sweep import BaseSweep
+from .sweep0d import Sweep0D
+from .sweep1d import Sweep1D
 
 
 class SweepQueue(QObject):

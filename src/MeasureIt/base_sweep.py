@@ -8,9 +8,9 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 from qcodes.dataset.measurements import Measurement
 from qcodes import Station
 
-from src.runner_thread import RunnerThread
-from src.plotter_thread import Plotter
-from src.util import _autorange_srs, safe_get
+from .runner_thread import RunnerThread
+from .plotter_thread import Plotter
+from .util import _autorange_srs, safe_get
 
 
 class BaseSweep(QObject):
