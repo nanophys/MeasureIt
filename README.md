@@ -34,63 +34,115 @@ make
 
 This will build the pdf version of the documentation.
 
-## Installation
+## Installation & Updating
 
-- Download Anaconda3 https://www.anaconda.com/download/
-- Download Git https://git-scm.com/download/win
-- Download and install the NI DAQmx drivers at 'http://www.ni.com/en-us/support/downloads/drivers/download/unpackaged.ni-daqmx.291872.html'
-- Download and install the NI VISA package at 'http://www.ni.com/download/ni-visa-18.5/7973/en/'
+The following downloads are required/strongly recommended:
+- A version of Conda (see below)
+- Git 
+- NI DAQmx drivers: http://www.ni.com/en-us/support/downloads/drivers/download/unpackaged.ni-daqmx.291872.html
+- NI VISA package: http://www.ni.com/download/ni-visa-18.5/7973/en/
 
-- To install QCoDeS, either:
-    1) (RECOMMENDED) run the following to install a non-editable version
-      - conda update -n base -c defaults conda
-      - conda create --name qcodes python=3.9 (Python 3.10 breaks nidaqmx-python as of now)
-      - conda activate qcodes
-      - conda install -c conda-forge qcodes
-    2) Run the following to install an editable version of QCoDeS
-      - Download QCoDeS repository 'git clone https://github.com/QCoDeS/Qcodes.git' (will download QCoDeS repository at current location)
-      - From Anaconda Prompt, move into QCoDeS repository, and run:
-      - conda update -n base -c defaults conda
-      - conda env create -f environment.yml
-      - conda activate qcodes
-      - pip install qcodes
-After installing QCoDeS, install the rest of the packages
-- conda config --add channels conda-forge 
-- conda install nidaqmx-python jupyterlab conda-build pyqt
-- Download this repository 'git clone https://github.com/nanophys/MeasureIt.git'
-- Set 'MeasureItHome' to base folder in the MeasureIt repository as an environment variable in your Windows system.
-- From Anaconda Prompt, move into MeasureIt repository, and run:
-    - conda activate qcodes
-    - python setup.py
+It is useful to first create a conda environment to manage all the required 
+packages for this package to work. First, download some form of conda (either 
+full Anaconda or Miniconda):
 
-To install the contributor drivers (such as the Oxford IPS120):
-- Download repository, 'git clone https://github.com/QCoDeS/Qcodes_contrib_drivers.git'
-- Move into the repository directory, and run 'conda develop .'
-- You can now directly access the module by calling 'import qcodes_contrib_drivers' in python scripts
+Download Anaconda: https://www.anaconda.com/download/
+Download Miniconda: https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html
+
+Then, create a new environment. In this example, we've named the environment 
+"qcodes" and given it Python v3.9:
+
+```
+(base) $ conda update conda
+(base) $ conda create --name qcodes python=3.9
+```
+
+Activate the qcodes environment with
+
+```
+(base) $ conda activate qcodes
+```
+
+To install the MeasureIt package, begin by installing pip (>=23.1) to your environment:
+
+```
+(base) $ conda activate qcodes
+(qcodes) $ conda install pip
+```
+
+Since MeasureIt is still under construction and remains for UW Physics use, it
+has not been published to PyPI and cannot be installed by simply running a pip 
+install command yet. As such, we first need to download the package contents
+using git:
+
+Download Git: https://git-scm.com/download/win
+
+1) Navigate to https://github.com/nanophys/MeasureIt and clone the repository from the browser, or
+2) run `$ git clone https://github.com/nanophys/MeasureIt` while in the base directory of your machine.
+
+To begin, we want to use pip to install the developmental build of MeasureIt to
+the qcodes environment. Do this by navigating to the folder "MeasureIt" in your
+command line. This folder should contain a folder named "src" and a file named 
+"pyproject.toml". Next, run the following commands:
+
+```
+(base) $ conda activate qcodes
+(qcodes) $ python -m pip install --no-deps --editable . --config-settings editable_mode=strict
+```
+
+This will use pip to install the package as an importable package when using 
+your qcodes conda environment. The --no-deps flag prevents installation of the 
+dependencies, or packages which are required for running the MeasureIt package. 
+We want to be able to install these separately in the next step. The --editable 
+flag allows for your version to respond to changes to your version of MeasureIt, 
+which is helpful while it remains under development. The last flag is just a 
+random thing fom stackexchange to hopefully make it run better for VSCode. 
+Next, we want to install the necessary packages to our envirnment, which we do
+with an environment.yaml file to make sure that each computer using MeasureIt 
+runs with the same versions of packages. To do this, navigate again to the 
+"MeasureIt" folder which contains "environment.yaml" and run:
+
+```
+(base) $ conda activate qcodes
+(qcodes) $ conda env update --file environment.yaml
+(qcodes) $ python -m pip install --no-deps MultiPyVu==1.2.0
+```
+
+Most of tha packages are reasonable, but there is an issue with installing 
+MultiPyVu for OS other than Windows via pip, so until that issue can be fixed 
+this is the workaround.
+This process of updating your conda environment can also be made much faster 
+with Mamba (see https://mamba.readthedocs.io/en/latest/installation.html). 
 
 To create a desktop icon:
 - Add the following to PATH (under system's environment variables):
     - "%USERPROFILE%\anaconda3"
     - "%USERPROFILE%\anaconda3\Scripts"
     - "%USERPROFILE%\anaconda3\condabin"
-- Right-click 'MeasureIt.bat' in the repository, and change the second line to match the user's path to the repository
-- Right-click 'MeasureIt.bat' and click 'Create shortcut' and drag the new shortcut to the desktop
+- Right-click 'MeasureIt.bat' in the repository, and change the second line 
+to match the user's path to the repository
+- Right-click 'MeasureIt.bat' and click 'Create shortcut' and drag the new 
+shortcut to the desktop
 
-TO UPDATE:
-- To update MeasureIt, open the terminal, move into the MeasureIt base directory and run:
-    - git pull
-- To update QCodes_contrib_drivers, open the terminal, move into the Qcodes_contrib_drivers base directory and run:
-    - git pull
-- To update a non-editable installation of QCoDeS from Anaconda Prompt:
-    - conda update -n base -c defaults conda  (not strictly required but is best practice)
-    - conda activate qcodes
-    - conda update qcodes
-- To update an editable installation of QCoDeS: from Anaconda Prompt, move into QCoDeS repository, and run:
-    - conda update -n base -c defaults conda  (not strictly required but is best practice)
-    - git pull
-    - conda activate qcodes
-    - conda env update --file environment.yml
-    - conda develop .
+To update MeasureIt to the newest version on git, navigate to "MeasureIt" in 
+your command line and run:
+
+```
+$ git pull
+```
+
+To update required packages, navigate to "MeasureIt" in your command line and 
+run:
+
+```
+(qcodes) $ conda env update --file environment.yaml --prune
+(qcodes) $ python -m pip install --no-deps --editable . --config-settings editable_mode=strict
+(qcodes) $ python -m pip install --no-deps MultiPyVu==1.2.0
+```
+
+The --prune flag cuts installations not explicitly listed in environment.yaml, 
+which includes MeasureIt and MultiPyVu.
+
 
 ## External links
 
