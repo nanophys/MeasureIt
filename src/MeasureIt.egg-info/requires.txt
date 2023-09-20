@@ -4,3 +4,6 @@ Pyqt5
 qcodes_contrib_drivers
 sphinx
 sphinx_rtd_theme
+scipy
+zhinst
+matplotlib

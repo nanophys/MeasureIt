@@ -682,7 +682,7 @@ License:                     GNU GENERAL PUBLIC LICENSE
 Project-URL: Repository, https://github.com/nanophys/MeasureIt
 Project-URL: Documentation, https://measureituw.readthedocs.io/en/latest/?badge=latest
 Classifier: Programming Language :: Python
-Requires-Python: >=3.9
+Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: nidaqmx
@@ -691,6 +691,9 @@ Requires-Dist: Pyqt5
 Requires-Dist: qcodes_contrib_drivers
 Requires-Dist: sphinx
 Requires-Dist: sphinx_rtd_theme
+Requires-Dist: scipy
+Requires-Dist: zhinst
+Requires-Dist: matplotlib
 
 # MeasureIt [![Documentation Status](https://readthedocs.org/projects/measureituw/badge/?version=latest)](https://measureituw.readthedocs.io/en/latest/?badge=latest)
 

@@ -15,9 +15,9 @@ from qcodes.dataset.plotting import plot_dataset
 sys.path.append("..")
 import src
 from qcodes import load_by_run_spec
-from src.util import _value_parser, save_to_csv
-from src.sweep0d import Sweep0D
-from src.sweep1d import Sweep1D
+from MeasureIt.util import _value_parser, save_to_csv
+from MeasureIt.sweep0d import Sweep0D
+from MeasureIt.sweep1d import Sweep1D
 from local_instruments import LOCAL_INSTRUMENTS
 
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"

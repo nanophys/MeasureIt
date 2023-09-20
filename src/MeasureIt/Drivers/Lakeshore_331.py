@@ -1,5 +1,5 @@
 from qcodes import VisaInstrument, InstrumentChannel, ChannelList
-from qcodes.parameters.group_parameter import Group, GroupParameter
+from qcodes.instrument.group_parameter import Group, GroupParameter
 from qcodes.utils.validators import Enum
 
 

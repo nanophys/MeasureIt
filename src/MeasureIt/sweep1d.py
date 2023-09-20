@@ -6,7 +6,7 @@ from .util import safe_set, safe_get
 from PyQt5.QtCore import QObject, pyqtSlot
 from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes_contrib_drivers.drivers.Oxford.IPS120 import OxfordInstruments_IPS120
-from Drivers.Cryomagnetics.M4G import M4G
+from .Drivers.M4G import M4G
 from functools import partial
 
 

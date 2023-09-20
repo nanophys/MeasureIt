@@ -5,8 +5,11 @@ from qcodes.utils.validators import Numbers, Enum, Ints, Bool
 from time import sleep
 from scipy.interpolate import interp1d
 from numpy import loadtxt
+from os.path import dirname, abspath
 
 MAX_TEMP = 400 #K
+
+dir = dirname(abspath(__file__))
 
 class Cryocon_24(VisaInstrument):
     """
@@ -60,9 +63,9 @@ class Cryocon_24(VisaInstrument):
                           )
     
         if self.loop1_load() == 50:
-            self.PID_TABLE_chA = loadtxt('./Drivers/Cryocon/CyroCon24C_ChA_PID_Table_50Ohm.txt', skiprows = 2, delimiter = ',')
+            self.PID_TABLE_chA = loadtxt(dir + '/data/CyroCon24C_ChA_PID_Table_50Ohm.txt', skiprows = 2, delimiter = ',')
         elif self.loop1_load() == 25:
-            self.PID_TABLE_chA = loadtxt('./Drivers/Cryocon/CyroCon24C_ChA_PID_Table_25Ohm.txt', skiprows = 2, delimiter = ',')
+            self.PID_TABLE_chA = loadtxt(dir + '/data/CyroCon24C_ChA_PID_Table_25Ohm.txt', skiprows = 2, delimiter = ',')
             
             
         self.add_parameter('chA_units',
@@ -244,9 +247,9 @@ class Cryocon_24(VisaInstrument):
         # Set the PID table values depending on what the load is set to
         self._execute('loop 1:load {}'.format(load))
         if load == 50:
-            self.PID_TABLE_chA = loadtxt('./Drivers/Cryocon/CyroCon24C_ChA_PID_Table_50Ohm.txt', skiprows = 2, delimiter = ',')
+            self.PID_TABLE_chA = loadtxt(dir + '/data/CyroCon24C_ChA_PID_Table_50Ohm.txt', skiprows = 2, delimiter = ',')
         elif load == 25:
-            self.PID_TABLE_chA = loadtxt('./Drivers/Cryocon/CyroCon24C_ChA_PID_Table_25Ohm.txt', skiprows = 2, delimiter = ',')         
+            self.PID_TABLE_chA = loadtxt(dir + '/data/CyroCon24C_ChA_PID_Table_25Ohm.txt', skiprows = 2, delimiter = ',')         
     def _get_loop1_load(self):
         result = self._ask('loop 1:load?')
         return result
@@ -341,7 +344,7 @@ HEATER_RANGE_MAPPING_chA = {
     2 : 'high'
 }
 
-PID_TABLE_chB = loadtxt('./Drivers/Cryocon/CyroCon24C_ChB_PID_Table.txt', skiprows = 2, delimiter = ',')
+PID_TABLE_chB = loadtxt(dir + '/data/CyroCon24C_ChB_PID_Table.txt', skiprows = 2, delimiter = ',')
 HEATER_RANGE_MAPPING_chB = {
     0 : 'low',
     1 : 'high'

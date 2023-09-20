@@ -15,12 +15,12 @@ from handlers import WriteStream, OutputThread
 from queue import Queue
 
 sys.path.append(os.environ['MeasureItHome'])
-import src
-from src.util import _value_parser, _name_parser, save_to_csv, safe_set, safe_get, ParameterException
-from src.base_sweep import BaseSweep
-from src.sweep0d import Sweep0D
-from src.sweep1d import Sweep1D
-from src.sweep_queue import SweepQueue, DatabaseEntry
+import MeasureIt
+from MeasureIt.util import _value_parser, _name_parser, save_to_csv, safe_set, safe_get, ParameterException
+from MeasureIt.base_sweep import BaseSweep
+from MeasureIt.sweep0d import Sweep0D
+from MeasureIt.sweep1d import Sweep1D
+from MeasureIt.sweep_queue import SweepQueue, DatabaseEntry
 import qcodes as qc
 from qcodes import Station, Instrument, initialise_or_create_database_at
 from qcodes.dataset.experiment_container import experiments
