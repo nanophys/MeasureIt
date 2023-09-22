@@ -14,7 +14,7 @@ class LM510(IPInstrument):
                            get_cmd='PSET?',
                            set_cmd=f'PSET {{}}',
                            vals=vals.Numbers(0.15, 14.25),
-                           get_parser=lambda resp: resp.replace(' PSI\r\n', ''))
+                           get_parser=lambda resp: float(resp.replace(' PSI\r\n', '')))
 
         self.add_parameter('heater_limit',
                            label='Heater limit',
@@ -66,6 +66,6 @@ class LM510(IPInstrument):
         values = resp.split('  ')
 
         p_dict = {}
-        p_dict['pressure'] = values[0].split(' ')[0]
-        p_dict['heater_output'] = values[1].split(' ')[0]
+        p_dict['pressure'] = float(values[0].split(' ')[0])
+        p_dict['heater_output'] = float(values[1].split(' ')[0])
         return p_dict
