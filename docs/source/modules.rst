@@ -4,6 +4,6 @@ MeasureIt
 .. toctree::
    :maxdepth: 4
 
-   MeasureIt
-   MeasureIt.Drivers
-   MeasureIt.GUI
+   src/MeasureIt
+   src/MeasureIt/Drivers
+   src/MeasureIt/GUI
