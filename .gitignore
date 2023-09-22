@@ -10,3 +10,4 @@ docs/source/_build/
 !examples/*.ipynb
 !examples/content/*.ipynb
 !tests/*.ipynb
+build/
