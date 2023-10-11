@@ -189,7 +189,7 @@ class Plotter(QObject):
             self.setax.set_xlabel('Time (s)')
             self.setax.set_ylabel(f'{self.sweep.set_param.label} ({self.sweep.set_param.unit})')
             self.setaxline = self.setax.plot([], [])[0]
-            plt.grid(b=True, which='major', color='0.5', linestyle='-')
+            plt.grid(visible=True, which='major', color='0.5', linestyle='-')
 
         # Create the following params plots
         for i, p in enumerate(self.sweep._params):
@@ -214,7 +214,7 @@ class Plotter(QObject):
             self.axes[i].add_line(forward_line)
             self.axes[i].add_line(backward_line)
             self.axesline.append((forward_line, backward_line))
-            plt.grid(b=True, which='major', color='0.5', linestyle='-')
+            plt.grid(visible=True, which='major', color='0.5', linestyle='-')
 
         plt.subplots_adjust(left=0.2, right=0.9, bottom=0.1, top=0.9, wspace=0.4, hspace=0.4)
 
