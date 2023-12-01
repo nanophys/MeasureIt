@@ -234,7 +234,7 @@ class Model_340_Channel(InstrumentChannel):
         return terms_in_number
 
 
-class Output_340(InstrumentChannel):
+class Loop_340(InstrumentChannel):
     """
     Base class for the outputs of Lakeshore temperature controllers
 
@@ -242,7 +242,7 @@ class Output_340(InstrumentChannel):
         parent
             instrument that this channel belongs to
         output_name
-            name of this output
+            name of this loop
         self._loop
             identifier for this output that is used in VISA commands of the
             instrument
@@ -265,8 +265,6 @@ class Output_340(InstrumentChannel):
         'medium': 2,
         'high': 3}
 
-    _input_channel_parameter_kwargs: ClassVar[Dict[str, Any]] = {'A': 1, 'B': 2}
-
     def __init__(self, parent, output_name, loop, has_pid: bool = True) \
             -> None:
         super().__init__(parent, output_name)
@@ -282,16 +280,14 @@ class Output_340(InstrumentChannel):
                            docstring='Specifies the control mode',
                            val_mapping=self.MODES,
                            set_cmd=f'CMODE {self._loop} {{}}',
-                           get_cmd=f'CMODE ')
+                           get_cmd=f'CMODE? {self._loop}')
 
         self.add_parameter('input_channel',
                            label='Input channel',
                            docstring='Specifies which measurement input to '
                                      'control from (note that only '
                                      'measurement inputs are available)',
-                           parameter_class=GroupParameter,
-                           val_mapping=self._input_channel_parameter_kwargs)  # ,
-        # **self._input_channel_parameter_kwargs)
+                           parameter_class=GroupParameter)
 
         self.add_parameter('units',
                            label='Setpoint units',
@@ -304,6 +300,12 @@ class Output_340(InstrumentChannel):
                            val_mapping={'current': 1, 'power': 2},
                            parameter_class=GroupParameter)
 
+        self.add_parameter('enabled',
+                           label='Control loop on/off',
+                           docstring='Specifies whether the control loop is on or off.',
+                           val_mapping={'on': 0, 'off': 1},
+                           parameter_class=GroupParameter)
+
         self.add_parameter('powerup_enable',
                            label='Power-up enable on/off',
                            docstring='Specifies whether the output remains on '
@@ -312,31 +314,31 @@ class Output_340(InstrumentChannel):
                            parameter_class=GroupParameter)
 
         self.output_group = Group([self.input_channel, self.units,
-                                   self.powerup_enable, self.powerup_enable],
+                                   self.enabled, self.powerup_enable],
                                   set_cmd=f'CSET {self._loop}, {{input_channel}}, '
                                           f'{{units}}, '
-                                          f'{{powerup_enable}},'
-                                          f'{{current_or_power}}',
+                                          f'{{enabled}},'
+                                          f'{{powerup_enable}}',
                                   get_cmd=f'CSET? {self._loop}')
 
         # Parameters for Closed Loop PID Parameter Command
         if self._has_pid:
             self.add_parameter('P',
-                               label='Proportional (closed-loop)',
+                               label='P',
                                docstring='The value for closed control loop '
                                          'Proportional (gain)',
                                vals=vals.Numbers(0, 1000),
                                get_parser=float,
                                parameter_class=GroupParameter)
             self.add_parameter('I',
-                               label='Integral (closed-loop)',
+                               label='I',
                                docstring='The value for closed control loop '
                                          'Integral (reset)',
                                vals=vals.Numbers(0, 1000),
                                get_parser=float,
                                parameter_class=GroupParameter)
             self.add_parameter('D',
-                               label='Derivative (closed-loop)',
+                               label='D',
                                docstring='The value for closed control loop '
                                          'Derivative (rate)',
                                vals=vals.Numbers(0, 1000),
@@ -355,7 +357,6 @@ class Output_340(InstrumentChannel):
                                      'an output in `Monitor Out` mode. '
                                      'An output in `Monitor Out` mode is '
                                      'always on.',
-                           val_mapping=self.RANGES,
                            set_cmd=f'RANGE {{}}',
                            get_cmd=f'RANGE?')
 
@@ -443,6 +444,7 @@ class Output_340(InstrumentChannel):
                            set_cmd=self._set_blocking_t,
                            snapshot_exclude=True)
 
+
     def _set_blocking_t(self, temperature):
         self.set_range_from_temperature(temperature)
         self.setpoint(temperature)
@@ -479,6 +481,7 @@ class Output_340(InstrumentChannel):
         i = min(i, len(range_limits) - 1)
         # there is a `+1` because `self.RANGES` includes `'off'` as the first
         # value.
+
         orange = self.INVERSE_RANGES[i + 1]  # this is `output range` not the fruit
         self.log.debug(f'setting output range from temperature '
                        f'({temperature} K) to {orange}.')
@@ -578,7 +581,7 @@ class Model_340(LakeshoreBase):
     def __init__(self, name: str, address: str, **kwargs) -> None:
         super().__init__(name, address, **kwargs)
 
-        self.output_1 = Output_340(self, 'output_1', 1)
-        self.output_2 = Output_340(self, 'output_2', 2)
-        self.add_submodule('output_1', self.output_1)
-        self.add_submodule('output_2', self.output_2)
+        self.loop_1 = Loop_340(self, 'loop_1', 1)
+        self.loop_2 = Loop_340(self, 'loop_2', 2)
+        self.add_submodule('loop_1', self.loop_1)
+        self.add_submodule('loop_2', self.loop_2)
