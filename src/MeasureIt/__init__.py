@@ -5,7 +5,7 @@ from qcodes import config
 from .sweep0d import Sweep0D
 from .sweep1d import Sweep1D
 from .sweep2d import Sweep2D
-from .sweep_queue import SweepQueue
+from .sweep_queue import SweepQueue, DatabaseEntry
 from .simul_sweep import SimulSweep
 from .sweep_ips import SweepIPS
 
