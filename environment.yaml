@@ -1,0 +1,25 @@
+name: qcodes
+channels:
+  - conda-forge
+  - anaconda
+  - pypi
+dependencies:
+  - python>=3.7
+  - qcodes
+  - conda-forge::pywin32==304
+  - pip>=23.1
+  - scipy
+  - numpy
+  - pandas
+  - ipykernel
+  - matplotlib
+  - sphinx
+  - sphinx-rtd-theme
+  - pip:
+    - nidaqmx
+    - PyQt5
+    - zhinst
+    - qcodes_contrib_drivers
+    
+
+
