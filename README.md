@@ -2,38 +2,6 @@
 
 Measurement software based on [QCoDeS](https://qcodes.github.io/), developed in University of Washington physics.
 
-## Build the documentation
-
-To build the documentation, first install requirements(if GUI has already successfully run, only `sphinx` and `sphinx-rtd-theme` are needed):
-
-```bash
-pip install -r requirements_doc.txt
-```
-
-The documentation is located directory `docs/source`. A `makefile` or `make.bat` is set up for quick building:
-
-For HTML version, go to the directory `docs/source` and
-
-```bash
-make html
-```
-
-which generates the mainpage, `index.html` in `docs/source/_build/html`.
-
-For pdf version, go to the directory `docs/source` and
-
-```bash
-make latex
-```
-
-then go to `docs/source/_build/latex`, and with a proper latex version, a makefile is automatically generated. 
-
-```bash
-make
-```
-
-This will build the pdf version of the documentation.
-
 ## Installation & Updating
 
 The following downloads are required/strongly recommended:
@@ -43,14 +11,35 @@ The following downloads are required/strongly recommended:
 - NI VISA package: http://www.ni.com/download/ni-visa-18.5/7973/en/
 
 It is useful to first create a conda environment to manage all the required 
-packages for this package to work. First, download some form of conda (either 
-full Anaconda or Miniconda):
+packages for this package to work. First, download some form of conda 
+(Miniforge3 is strongly recommended since it comes with mamba):
 
-Download Anaconda: https://www.anaconda.com/download/
-Download Miniconda: https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html
+* Download Miniforge: https://github.com/conda-forge/miniforge
+* Download Anaconda: https://www.anaconda.com/download/
+* Download Miniconda: https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html
 
-Then, create a new environment. In this example, we've named the environment 
-"qcodes" and given it Python v3.9:
+You can create a new environment with all the necessary packages for MeasureIt 
+by stepping into the MeasureIt directory and simply running
+
+```
+(base) $ conda env create -f environment.yml
+```
+
+This will create an environment called "qcodes" for you containing all the 
+dependency packages for MeasureIt. This process can take a while -- installing 
+mamba can make it much faster. You can then replace "conda" with "mamba" in any
+commands and it will execute much faster. As previously mentioned, Miniforge3 
+comes with mamba already, so no work needs to be done if you install this from 
+the get go. Alternatively, you can follow the deprecated procedure of adding 
+mamba to an existing install of conda by running
+
+```
+(base) $ conda install -n base --override-channels -c conda-forge mamba 'python_abi=*=*cp*'
+```
+
+To create a new environment from scratch, you can do the following. After 
+downloading your preferred conda version, create a new environment. In this 
+example, we've named the environment "qcodes" and given it Python v3.9:
 
 ```
 (base) $ conda update conda
@@ -63,7 +52,8 @@ Activate the qcodes environment with
 (base) $ conda activate qcodes
 ```
 
-To install the MeasureIt package, begin by installing pip (>=23.1) to your environment:
+To install the MeasureIt package, begin by installing pip (>=23.1) to your 
+environment:
 
 ```
 (base) $ conda activate qcodes
@@ -143,6 +133,37 @@ run:
 The --prune flag cuts installations not explicitly listed in environment.yaml, 
 which includes MeasureIt and MultiPyVu.
 
+## Build the documentation
+
+To build the documentation, first install requirements(if GUI has already successfully run, only `sphinx` and `sphinx-rtd-theme` are needed):
+
+```bash
+pip install -r requirements_doc.txt
+```
+
+The documentation is located directory `docs/source`. A `makefile` or `make.bat` is set up for quick building:
+
+For HTML version, go to the directory `docs/source` and
+
+```bash
+make html
+```
+
+which generates the mainpage, `index.html` in `docs/source/_build/html`.
+
+For pdf version, go to the directory `docs/source` and
+
+```bash
+make latex
+```
+
+then go to `docs/source/_build/latex`, and with a proper latex version, a makefile is automatically generated. 
+
+```bash
+make
+```
+
+This will build the pdf version of the documentation.
 
 ## External links
 
