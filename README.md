@@ -150,6 +150,7 @@ run:
 (qcodes) $ conda env update --file environment.yaml --prune
 (qcodes) $ python -m pip install --no-deps --editable . --config-settings editable_mode=strict
 (qcodes) $ python -m pip install --no-deps MultiPyVu==1.2.0
+(qcodes) $ python -m pip install --no-deps nidaqmx==0.6.2
 ```
 
 The --prune flag cuts installations not explicitly listed in environment.yaml, 
