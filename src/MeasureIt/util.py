@@ -187,6 +187,7 @@ def save_to_csv(ds, fn=None, use_labels=True):
             os.mkdir(fp)
 
         fn = f'{fp}{ds.run_id}_{ds.exp_name}_{ds.sample_name}.csv'
+        fn = fn.translate({ord(i): '' for i in '?*<>"\''})
         export_ds.to_csv(fn)
 
 def set_magnet_ramp_ranges(magnet, ranges):
