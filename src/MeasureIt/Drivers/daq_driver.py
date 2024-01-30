@@ -411,7 +411,7 @@ class DaqAOChannel(InstrumentChannel):
 
         # Channel handler that can be used to communicate things like gain, impedance
         # back to the DAQ
-        self.channel_handle = nidaqmx._task_modules.channels.ao_channel.AOChannel(self.write_task._handle, self.channel)
+        #self.channel_handle = nidaqmx._task_modules.channels.ao_channel.AOChannel(self.write_task._handle, self.channel)
 
     #        if self.gain != -1:
     #            task.ao_channels.ao_gain=self.gain
@@ -619,7 +619,7 @@ class DaqAIChannel(InstrumentChannel):
 
         # Channel handler that can be used to communicate things like gain, impedance
         # back to the DAQ
-        self.channel_handle = nidaqmx._task_modules.channels.ai_channel.AIChannel(self.task._handle, self.channel)
+        #self.channel_handle = nidaqmx._task_modules.channels.ai_channel.AIChannel(self.task._handle, self.channel)
         #        if self.gain != -1:
         #            task.ai_channels.ai_gain=self.gain
         #        if self.impedance != -1:
