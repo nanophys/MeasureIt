@@ -76,8 +76,6 @@ class SimulSweep(BaseSweep, QObject):
 
         self.simul_params = []
         self.set_params_dict = _p.copy()
-        self.bidirectional = bidirectional
-        self.continuous = continual
         self.direction = 0
         self.n_steps = n_steps
         self.is_ramping = False
@@ -90,6 +88,9 @@ class SimulSweep(BaseSweep, QObject):
         QObject.__init__(self)
         BaseSweep.__init__(self, set_param=sp, *args, **kwargs)
 
+        self.bidirectional = bidirectional
+        self.continuous = continual
+        
         if n_steps is not None:
             for p, v in self.set_params_dict.items():
                 v['step'] = (v['stop'] - v['start'])/n_steps
@@ -307,6 +308,7 @@ class SimulSweep(BaseSweep, QObject):
         self.ramp_sweep = SimulSweep(ramp_params_dict, n_steps=n_steps, inter_delay=self.inter_delay, plot_data=True, save_data=False,
                                      complete_func=partial(self.done_ramping, vals_dict, 
                                                            start_on_finish=start_on_finish, pd=persist))
+        self.ramp_sweep.follow_param(self._params)
         self.is_ramping = True
         self.is_running = False
         self.ramp_sweep.start(ramp_to_start=False)
