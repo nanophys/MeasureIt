@@ -11,3 +11,7 @@ docs/source/_build/
 !examples/content/*.ipynb
 !tests/*.ipynb
 build/
+Drivers/attodry.py
+databases/testdatabase.db
+databases/testdatabase.db-shm
+databases/testdatabase.db-wal

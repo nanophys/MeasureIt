@@ -8,7 +8,6 @@ import string
 import qcodes as qc
 import pandas as pd
 from qcodes import initialise_or_create_database_at, Station
-from qcodes.dataset.data_export import get_data_by_id
 from pathlib import Path
 
 unit_dict = {
@@ -277,45 +276,6 @@ def export_db_to_txt(db_fn, exp_name=None, sample_name=None):
             print("sample name: " + exp.sample_name)
             write_sample_to_txt(exp, count)
             count += 1
-
-
-def write_sample_to_txt(exp, count=0):
-    """
-    Creates a new file to print the sample data from the experiment.
-    
-    Parameters
-    ---------
-    exp:
-        The QCoDeS experiment containing the desired data.
-    count:
-        Optional argument to start at a desired dataset.
-    """
-    
-    # print(exp.data_sets())
-    for a in exp.data_sets():
-        print(a.run_id)
-        data = get_data_by_id(a.run_id)
-        print(data)
-        for dataset in data:
-            file_name = "{:02d}".format(count) + "_" + exp.sample_name + '.txt'
-            print(file_name)
-            file_path = os.environ['MeasureItHome'] + '\\Origin Files\\' + exp.name + "\\" + file_name
-            print(file_path)
-            file = open(file_path, "w")
-            count += 1
-            num_params = len(dataset)
-
-            for param in dataset:
-                file.write(param['label'] + " (" + param['unit'] + ")\t")
-
-            file.write("\n")
-
-            for i in range(len(dataset[0]['data'])):
-                for param in dataset:
-                    file.write(str(param['data'][i]) + "\t")
-                file.write("\n")
-            file.close()
-
 
 def _value_parser(value):
     """

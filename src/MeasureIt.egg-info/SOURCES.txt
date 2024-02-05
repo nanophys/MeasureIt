@@ -29,6 +29,7 @@ src/MeasureIt/Drivers/ITC503.py
 src/MeasureIt/Drivers/Keithley_2450.py
 src/MeasureIt/Drivers/Keithley_2450_DW.py
 src/MeasureIt/Drivers/LM510.py
+src/MeasureIt/Drivers/attodry.py
 src/MeasureIt/Drivers/LR.py
 src/MeasureIt/Drivers/Lakeshore_331.py
 src/MeasureIt/Drivers/M4G.py
