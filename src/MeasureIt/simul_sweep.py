@@ -45,6 +45,8 @@ class SimulSweep(BaseSweep, QObject):
         Assigns the desired Runner Thread.
     plotter:
         Assigns the desired Plotter Thread.
+    err:
+        Tolerance for considering rounding errors when determining when the sweep has finished.
         
     Methods
     ---------
@@ -70,7 +72,7 @@ class SimulSweep(BaseSweep, QObject):
         Changes the direction of the sweep.
     """
 
-    def __init__(self, _p, n_steps=None, bidirectional=False, continual=False, *args, **kwargs):
+    def __init__(self, _p, n_steps=None, err=0.1, bidirectional=False, continual=False, *args, **kwargs):
         if len(_p.keys()) < 1 or not all(isinstance(p, dict) for p in _p.values()):
             raise ValueError('Must pass at least one Parameter and the associated values as dictionaries.')
 
@@ -80,6 +82,7 @@ class SimulSweep(BaseSweep, QObject):
         self.n_steps = n_steps
         self.is_ramping = False
         self.ramp_sweep = None
+        self.err = err
 
         # Take the first parameter, and set it as the normal Sweep1D set param
         sp = list(_p.keys())[0]
@@ -321,7 +324,7 @@ class SimulSweep(BaseSweep, QObject):
         # Check if we are at the value we expect, otherwise something went wrong with the ramp
         for p, v in vals_dict.items():
             p_step = self.set_params_dict[p]['step']
-            if abs(safe_get(p) - v) - abs(p_step / 2) > abs(p_step) * 1e-4:
+            if abs(safe_get(p) - v) - abs(p_step / 2) > abs(p_step) * self.err:
                 self.print_main.emit(f'Ramping failed (possible that the direction was changed while ramping). '
                       f'Expected {p.label} final value: {v}. Actual value: {safe_get(p)}. '
                       f'Stopping the sweep.')
