@@ -196,7 +196,7 @@ class SimulSweep(BaseSweep, QObject):
 
         for p, v in self.set_params_dict.items():
             # If we aren't at the end, keep going
-            if abs(v['setpoint'] - v['stop']) - abs(v['step'] / 2) > abs(v['step']) * 1e-4:
+            if abs(v['setpoint'] - v['stop']) - abs(v['step'] / 2) > abs(v['step']) * self.err:
                 v['setpoint'] = v['setpoint'] + v['step']
                 safe_set(p, v['setpoint'])
                 rets.append((p, v['setpoint']))
@@ -288,7 +288,7 @@ class SimulSweep(BaseSweep, QObject):
                 return
             
             p_step = self.set_params_dict[p]['step']
-            if abs(v - safe_get(p)) - abs(p_step / 2) < abs(p_step) * 1e-4:
+            if abs(v - safe_get(p)) - abs(p_step / 2) < abs(p_step) * self.err:
                 continue
 
             ramp_params_dict[p] = {}
