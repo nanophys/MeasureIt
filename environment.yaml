@@ -15,6 +15,7 @@ dependencies:
   - matplotlib
   - sphinx
   - sphinx-rtd-theme
+  - nidaqmx
   - pip:
     - PyQt5
     - zhinst

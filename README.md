@@ -114,11 +114,10 @@ runs with the same versions of packages. To do this, navigate again to the
 ```
 (qcodes) $ conda env update --file environment.yaml
 (qcodes) $ python -m pip install --no-deps MultiPyVu==1.2.0
-(qcodes) $ python -m pip install --no-deps nidaqmx==0.6.2
 ```
 
-Most of tha packages are reasonable, but there is an issue with installing 
-MultiPyVu for OS other than Windows via pip, so until that issue can be fixed 
+Most of the packages are reasonable, but there is an issue with installing 
+MultiPyVu for OSs other than Windows via pip, so until that issue can be fixed 
 this is the workaround.
 
 If packages need to updated at any point, navigate to the MeasureIt directory
@@ -128,7 +127,6 @@ and run:
 (qcodes) $ conda env update --file environment.yaml --prune
 (qcodes) $ python -m pip install --no-deps --editable . --config-settings editable_mode=strict
 (qcodes) $ python -m pip install --no-deps MultiPyVu==1.2.0
-(qcodes) $ python -m pip install --no-deps nidaqmx==0.6.2
 ```
 
 This udpates all the packages listed in the environment.yaml file and then 
@@ -150,7 +148,6 @@ run:
 (qcodes) $ conda env update --file environment.yaml --prune
 (qcodes) $ python -m pip install --no-deps --editable . --config-settings editable_mode=strict
 (qcodes) $ python -m pip install --no-deps MultiPyVu==1.2.0
-(qcodes) $ python -m pip install --no-deps nidaqmx==0.6.2
 ```
 
 The --prune flag cuts installations not explicitly listed in environment.yaml, 
