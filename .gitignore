@@ -2,7 +2,7 @@ __pycache__/
 .ipynb_checkpoints/
 .idea/
 docs/source/_build/
-
+src/MeasureIt/MeasureIt.egg-info
 .DS_Store
 .vscode/settings.json
 *.pyc
