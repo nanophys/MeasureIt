@@ -15,11 +15,11 @@ dependencies:
   - matplotlib
   - sphinx
   - sphinx-rtd-theme
-  - nidaqmx
   - pip:
     - PyQt5
     - zhinst
     - qcodes_contrib_drivers
+    - nidaqmx
     
 
 
