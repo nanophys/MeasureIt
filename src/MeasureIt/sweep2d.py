@@ -82,7 +82,7 @@ class Sweep2D(BaseSweep, QObject):
 
     add_heatmap_lines = pyqtSignal(list)
 
-    def __init__(self, in_params, out_params, outer_delay=1, update_func=None, *args, **kwargs):
+    def __init__(self, in_params, out_params, outer_delay=1, err=[0.1, 1e-2], update_func=None, *args, **kwargs):
         """
         Initializes the sweep.
         
@@ -114,6 +114,8 @@ class Sweep2D(BaseSweep, QObject):
             refreshing the plot.
         back_multiplier:
             Factor to scale the step size after flipping directions.
+        err:
+            Tolerance for considering rounding errors when determining when the sweep has finished.
         """
 
         # Ensure that the inputs were passed (at least somewhat) correctly
@@ -144,13 +146,14 @@ class Sweep2D(BaseSweep, QObject):
         else:
             self.out_step = (-1) * abs(self.out_step)
 
+        [self.err, self.err_in] = err
         # Initialize the BaseSweep
         QObject.__init__(self)
         BaseSweep.__init__(self, set_param=self.set_param, *args, **kwargs)
 
         # Create the inner sweep object
         self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
-                                inter_delay=self.inter_delay, save_data=self.save_data, x_axis_time=0,
+                                inter_delay=self.inter_delay, save_data=self.save_data, x_axis_time=0, err=self.err_in
                                 plot_data=self.plot_data, back_multiplier=self.back_multiplier, plot_bin=self.plot_bin)
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
@@ -408,7 +411,7 @@ class Sweep2D(BaseSweep, QObject):
 
         # Check if we are already at the value
         curr_value = self.set_param.get()
-        if abs(value - curr_value) <= self.out_step / 2:
+        if abs(value - curr_value) <= self.out_step * self.err:
             # self.print_main.emit(f"Already within {self.step} of the desired ramp value. Current value: {curr_value},
             # ramp setpoint: {value}.\nSetting our setpoint directly to the ramp value.")
             self.set_param.set(value)
