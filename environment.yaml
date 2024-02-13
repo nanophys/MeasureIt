@@ -15,6 +15,11 @@ dependencies:
   - matplotlib
   - sphinx
   - sphinx-rtd-theme
+  - jupyterlab
+  - notebook
+  - ipykernel
+  - ipython
+  - ipympl
   - pip:
     - PyQt5
     - zhinst
