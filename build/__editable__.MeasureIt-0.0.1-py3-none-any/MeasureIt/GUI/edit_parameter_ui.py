@@ -1,1 +1,1 @@
-/Users/jackbarlow/MeasureIt/src/MeasureIt/GUI/edit_parameter_ui.py
+/Users/caijiaqi/GitHub/MeasureIt/src/MeasureIt/GUI/edit_parameter_ui.py

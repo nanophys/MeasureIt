@@ -1,1 +1,1 @@
-/Users/jackbarlow/MeasureIt/src/MeasureIt/GUI/Compile_UI.py
+/Users/caijiaqi/GitHub/MeasureIt/src/MeasureIt/GUI/Compile_UI.py

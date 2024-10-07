@@ -1,1 +1,1 @@
-/Users/jackbarlow/MeasureIt/src/MeasureIt/plotter_thread.py
+/Users/caijiaqi/GitHub/MeasureIt/src/MeasureIt/plotter_thread.py

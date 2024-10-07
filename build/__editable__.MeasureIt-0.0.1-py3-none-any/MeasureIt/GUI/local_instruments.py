@@ -1,1 +1,1 @@
-/Users/jackbarlow/MeasureIt/src/MeasureIt/GUI/local_instruments.py
+/Users/caijiaqi/GitHub/MeasureIt/src/MeasureIt/GUI/local_instruments.py
