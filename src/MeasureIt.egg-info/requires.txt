@@ -7,3 +7,5 @@ sphinx_rtd_theme
 scipy
 zhinst
 matplotlib
+pywin32
+multipyvu
