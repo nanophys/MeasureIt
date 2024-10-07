@@ -44,6 +44,10 @@ class Sweep2D(BaseSweep, QObject):
         Assigns the Plotter Thread.
     back_multiplier:
         Factor to scale the step size after flipping directions.
+    out_ministeps:
+        Steps for outer parameter to setp to next setpoint. 
+    err:
+        Tolerance for considering rounding errors when determining when the sweep has finished.
     heatmap_plotter:
         Uses color to represent values of a third parameter plotted against
         two sweeping parameters.
@@ -82,7 +86,7 @@ class Sweep2D(BaseSweep, QObject):
 
     add_heatmap_lines = pyqtSignal(list)
 
-    def __init__(self, in_params, out_params, outer_delay=1, err=[0.1, 1e-2], update_func=None, *args, **kwargs):
+    def __init__(self, in_params, out_params, outer_delay=1, err=[0.1, 1e-2], out_ministeps=1, update_func=None, *args, **kwargs):
         """
         Initializes the sweep.
         
@@ -114,6 +118,8 @@ class Sweep2D(BaseSweep, QObject):
             refreshing the plot.
         back_multiplier:
             Factor to scale the step size after flipping directions.
+        out_ministeps:
+            Steps for outer parameter to setp to next setpoint. 
         err:
             Tolerance for considering rounding errors when determining when the sweep has finished.
         """
@@ -140,6 +146,9 @@ class Sweep2D(BaseSweep, QObject):
         self.out_stop = out_params[2]
         self.out_step = out_params[3]
         self.out_setpoint = self.out_start
+        self.out_ministeps = round(out_ministeps)
+        if self.out_ministeps<1:
+            self.out_ministeps=1
 
         if (self.out_stop - self.out_start) > 0:
             self.out_step = abs(self.out_step)
@@ -337,11 +346,18 @@ class Sweep2D(BaseSweep, QObject):
 
         # If we aren't at the end, keep going
         if abs(self.out_setpoint - self.out_stop) - abs(self.out_step / 2) > abs(self.out_step) * 1e-4:
+            #time.sleep(self.outer_delay)
+            self.print_main.emit(f"Setting {self.set_param.label} to {self.out_setpoint + self.out_step} ({self.set_param.unit}) with {self.out_ministeps} steps")
+            #increment for each ministeps
+            inc = self.out_step/self.out_ministeps
+            for step in range(self.out_ministeps):
+                self.set_param.set(self.out_setpoint+(step+1)*inc)
+                time.sleep(self.outer_delay)
+                self.print_main.emit(f"DEBUG: now, the setpoint of out_parm is {self.set_param.get()}")
+            #update the current setpoint
             self.out_setpoint = self.out_setpoint + self.out_step
-            time.sleep(self.outer_delay)
-            self.print_main.emit(f"Setting {self.set_param.label} to {self.out_setpoint} ({self.set_param.unit})")
-            self.set_param.set(self.out_setpoint)
-            time.sleep(self.outer_delay)
+            
+            
             # Reset our plots
             self.in_sweep.reset_plots()
             self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
