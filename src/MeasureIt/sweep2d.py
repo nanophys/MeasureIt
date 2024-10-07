@@ -353,7 +353,7 @@ class Sweep2D(BaseSweep, QObject):
             for step in range(self.out_ministeps):
                 self.set_param.set(self.out_setpoint+(step+1)*inc)
                 time.sleep(self.outer_delay)
-                self.print_main.emit(f"DEBUG: now, the setpoint of out_parm is {self.set_param.get()}")
+            #    self.print_main.emit(f"DEBUG: now, the setpoint of out_parm is {self.set_param.get()}")
             #update the current setpoint
             self.out_setpoint = self.out_setpoint + self.out_step
             
