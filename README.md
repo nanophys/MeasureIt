@@ -164,6 +164,18 @@ to match the user's path to the repository
 - Right-click 'MeasureIt.bat' and click 'Create shortcut' and drag the new 
 shortcut to the desktop
 
+### Add MeasureItHome and database
+Running examples requries a path (MeasureItHome) and a folder that saves .db file generated during the test sweeps.
+To this end, in linux-like system, add to your configuration file
+```
+export MeasureItHome="/Users/xxxx/GitHub/MeasureIt"
+```
+edit the folder to the MeasureIt installation location.
+
+In Windows, this can be done by editing the environment variable. 
+
+Finally, make a folder named databases in MeasureItHome. 
+
 ## Build the documentation
 
 To build the documentation, first install requirements(if GUI has already successfully run, only `sphinx` and `sphinx-rtd-theme` are needed):
