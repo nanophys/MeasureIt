@@ -124,8 +124,9 @@ class Heatmap(QObject):
 
         # Create our colorbar scale
         cbar = plt.colorbar(self.heatmap, cax=cax)
-        cbar.set_label(f'{self.sweep.in_sweep._params[1].label} ({self.sweep.in_sweep._params[1].unit})')
-
+        # Create label
+        plot_para = self.sweep.in_sweep._params[self.sweep.heatmap_ind]
+        cbar.set_label(f'{plot_para.label} ({plot_para.unit})')
         self.figs_set = True
 
     @pyqtSlot(list)

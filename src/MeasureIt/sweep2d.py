@@ -66,6 +66,8 @@ class Sweep2D(BaseSweep, QObject):
         Stops the sweeping of both the inner and outer sweep.
     resume()
         Resumes the inner and outer sweeps.
+    follow_heatmap_param(para)
+        Assign a followed parameter for heatmap to follow.
     update_values()
         Updates plots and heatmap based on data from the inner and outer sweeps.
     get_param_setpoint()
@@ -81,6 +83,8 @@ class Sweep2D(BaseSweep, QObject):
     ramp_to_zero()
         
     done_ramping(start_on_finish=False)
+
+    
         
     """
 
@@ -184,11 +188,15 @@ class Sweep2D(BaseSweep, QObject):
 
         # Initialize our heatmap plotting thread
         self.heatmap_plotter = None
+        # The index for 2d heatmap to plot. 
+        self.heatmap_ind = 1
+
+        self.print_main.emit(f"Heatmap will follow a random parameter by default")
 
     def __str__(self):
         return f"2D Sweep of {self.set_param.label} from {self.out_start} to {self.out_stop} with step " \
                f"{self.out_step}, while sweeping {self.in_param.label} from {self.in_start} to {self.in_stop} with " \
-               f"step {self.in_step}."
+               f"step {self.in_step}. Heatmap follows {self.in_sweep._params[self.heatmap_ind].label}. "
 
     def __repr__(self):
         return f"Sweep2D([{self.set_param.label}, {self.out_start}, {self.out_stop}, {self.out_step}], " \
@@ -314,6 +322,15 @@ class Sweep2D(BaseSweep, QObject):
         self.is_running = True
         self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint), ramp_to_start=False)
 
+    def follow_heatmap_param(self,heatmap_para):
+        """Follow a heatmap parameter by search the corresponding index of heatmap_para. heatmap_ind will be updated. """
+        try:
+            self.heatmap_ind = self.in_sweep._params.index(heatmap_para)
+        except:
+            self.heatmap_ind = 1
+            self.print_main.emit(f"Heatmap Para {heatmap_para.label} is invaild. Did you follow it? ")
+        #self.print_main.emit(f"Heatmap will follow {heatmap_para.label}")
+
     def update_values(self):
         """
         Updates plots and heatmap based on data from the inner and outer sweeps.
@@ -339,7 +356,7 @@ class Sweep2D(BaseSweep, QObject):
             return
 
         # Update our heatmap!
-        lines = self.in_sweep.plotter.axes[1].get_lines()
+        lines = self.in_sweep.plotter.axes[self.heatmap_ind].get_lines()
         self.add_heatmap_lines.emit(lines)
 
         # Check our update condition
