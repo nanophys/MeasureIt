@@ -292,6 +292,7 @@ class Sweep2D(BaseSweep, QObject):
             if self.heatmap_plotter is None:
                 # Initialize our heatmap
                 self.heatmap_plotter = Heatmap(self)
+                # Initialize the thread for updating heatmap
                 self.heatmap_thread = QThread()
                 self.heatmap_plotter.moveToThread(self.heatmap_thread)
                 self.heatmap_plotter.create_figs()
@@ -435,7 +436,7 @@ class Sweep2D(BaseSweep, QObject):
             return
 
         # Create a new sweep to ramp our outer parameter to zero
-        self.ramp_sweep = Sweep1D(self.set_param, curr_value, value, multiplier * self.out_step,
+        self.ramp_sweep = Sweep1D(self.set_param, curr_value, value, multiplier * self.out_step/self.out_ministeps,
                                   inter_delay=self.inter_delay,
                                   complete_func=partial(self.done_ramping, start_on_finish),
                                   save_data=False, plot_data=True)
@@ -464,7 +465,7 @@ class Sweep2D(BaseSweep, QObject):
             self.out_step = abs(self.out_step)
 
         # Create a new sweep to ramp our outer parameter to zero
-        zero_sweep = Sweep1D(self.set_param, self.set_param.get(), 0, self.step, inter_delay=self.inter_delay,
+        zero_sweep = Sweep1D(self.set_param, self.set_param.get(), 0, self.step/self.out_ministeps, inter_delay=self.inter_delay,
                              complete_func=self.done_ramping)
         zero_sweep.follow_param(self._params)
         self.is_running = True
