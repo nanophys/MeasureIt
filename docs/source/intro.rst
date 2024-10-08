@@ -12,4 +12,8 @@ Motivation comes here.
 Copyrights
 ***********
 
+Get Started
+***********
+start/index
+
 Copyrights info comes here.

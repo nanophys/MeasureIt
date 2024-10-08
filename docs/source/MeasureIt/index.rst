@@ -1,5 +1,5 @@
-Packages
-===
+MeasureIt package
+=================
 
 Subpackages
 -----------

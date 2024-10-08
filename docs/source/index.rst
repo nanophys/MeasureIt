@@ -9,10 +9,11 @@ Welcome to MeasureIt's documentation!
 **MeasureIt** is a Python library in development by physics graduate students at the Unversity of Washington for controlling equipment and extracting data in condensed matter experiments.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
    intro
+   start/index
    src
 
 Indices and tables
@@ -24,3 +25,7 @@ Indices and tables
 
 .. note::
    The documentation is under development
+
+Contributions
+=============
+MeasureIt is maintained currently by Jiaqi Cai (MIT), Jack Barlow (UW) and Elliott Runburg (UW).
