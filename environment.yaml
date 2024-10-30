@@ -18,7 +18,7 @@ dependencies:
   - jupyterlab
   - notebook
   - ipykernel
-  - ipython
+  - ipython<7.29
   - jupyter_client
   - jupyter_core
   - traitlets
