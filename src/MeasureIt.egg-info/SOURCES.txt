@@ -34,6 +34,7 @@ src/MeasureIt/Drivers/Lakeshore_331.py
 src/MeasureIt/Drivers/M4G.py
 src/MeasureIt/Drivers/Model_340.py
 src/MeasureIt/Drivers/Model_372.py
+src/MeasureIt/Drivers/NDsweeper.py
 src/MeasureIt/Drivers/SCM10.py
 src/MeasureIt/Drivers/SWbox3499.py
 src/MeasureIt/Drivers/VGC503.py

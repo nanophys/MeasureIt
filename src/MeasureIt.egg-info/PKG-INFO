@@ -724,8 +724,8 @@ is important that each one use the same versions of python packages so that
 errors can be isolated and taken care of more easily. A great way of doing this 
 is by using conda environments to manage the packages we have available and 
 standardizing the packages we use by storing references to them in a shared 
-file. In this package, this is simply titled "environment.yml". Updating 
-packages from .yml files can take a while though, but installing mamba can make 
+file. In this package, this is simply titled "environment.yaml". Updating 
+packages from .yaml files can take a while though, but installing mamba can make 
 it much faster. This is just a re-working of some of the conda functions using 
 C/C++ to make them much faster. Using mamba is simple: you simply replace 
 "conda" with "mamba" in any commands and it will execute much faster. As 
@@ -737,13 +737,13 @@ deprecated method of adding mamba to an existing install of conda by running
 (base) $ conda install -n base --override-channels -c conda-forge mamba 'python_abi=*=*cp*'
 ```
 
-### Create qcodes environment using environment.yml file
+### Create qcodes environment using environment.yaml file
 
 You can create a new environment with all the necessary packages for MeasureIt 
 by stepping into the MeasureIt directory and simply running
 
 ```
-(base) $ conda env create -f environment.yml
+(base) $ conda env create -f environment.yaml
 ```
 
 This will create an environment called "qcodes" for you containing all the 
@@ -862,6 +862,18 @@ which includes MeasureIt and MultiPyVu.
 to match the user's path to the repository
 - Right-click 'MeasureIt.bat' and click 'Create shortcut' and drag the new 
 shortcut to the desktop
+
+### Add MeasureItHome and database
+Running examples requries a path (MeasureItHome) and a folder that saves .db file generated during the test sweeps.
+To this end, in linux-like system, add to your configuration file
+```
+export MeasureItHome="/Users/xxxx/GitHub/MeasureIt"
+```
+edit the folder to the MeasureIt installation location.
+
+In Windows, this can be done by editing the environment variable. 
+
+Finally, make a folder named databases in MeasureItHome. 
 
 ## Build the documentation
 
