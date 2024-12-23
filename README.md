@@ -2,6 +2,9 @@
 
 Measurement software based on [QCoDeS](https://qcodes.github.io/), developed in University of Washington physics.
 
+## Community information
+[Join our slack channel!](https://join.slack.com/t/measureit-workspace/shared_invite/zt-2ws3h3k2q-78XfSUNtqCjSUkydRW2MXA)
+
 ## Installation & Updating
 
 The following downloads are required/strongly recommended:
@@ -208,8 +211,14 @@ make
 
 This will build the pdf version of the documentation.
 
-## External links
+## External links and active users
 
+# Seattle
 [David Cobden's lab](https://sites.google.com/uw.edu/nanodevice-physics)
 
 [Xiaodong Xu's lab](https://sites.google.com/uw.edu/xulab)
+
+# Cambridage
+[Pablo Jarillo-Herrero's lab](https://jarillo-herrero.mit.edu)
+
+[Long Ju's lab](https://physics.mit.edu/faculty/long-ju)
