@@ -218,7 +218,7 @@ This will build the pdf version of the documentation.
 
 [Xiaodong Xu's lab](https://sites.google.com/uw.edu/xulab)
 
-# Cambridage
+# Cambridge
 [Pablo Jarillo-Herrero's lab](https://jarillo-herrero.mit.edu)
 
 [Long Ju's lab](https://physics.mit.edu/faculty/long-ju)
