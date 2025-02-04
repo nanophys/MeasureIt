@@ -2,6 +2,8 @@
 
 import nidaqmx
 import time
+import nidaqmx.task
+import nidaqmx.task.channels
 from qcodes import (Instrument, validators as vals)
 from qcodes.instrument.channel import InstrumentChannel
 from nidaqmx._base_interpreter import BaseInterpreter
@@ -411,7 +413,7 @@ class DaqAOChannel(InstrumentChannel):
 
         # Channel handler that can be used to communicate things like gain, impedance
         # back to the DAQ
-        self.channel_handle = nidaqmx._task_modules.channels.ao_channel.AOChannel(self.write_task._handle, self.channel,BaseInterpreter)
+        self.channel_handle = nidaqmx.task.channels._ao_channel.AOChannel(self.write_task._handle, self.channel,BaseInterpreter)
 
     #        if self.gain != -1:
     #            task.ao_channels.ao_gain=self.gain
@@ -619,7 +621,7 @@ class DaqAIChannel(InstrumentChannel):
 
         # Channel handler that can be used to communicate things like gain, impedance
         # back to the DAQ
-        self.channel_handle = nidaqmx._task_modules.channels.ai_channel.AIChannel(self.task._handle, self.channel,BaseInterpreter)
+        self.channel_handle = nidaqmx.task.channels._ai_channel.AIChannel(self.task._handle, self.channel,BaseInterpreter)
         #        if self.gain != -1:
         #            task.ai_channels.ai_gain=self.gain
         #        if self.impedance != -1:
