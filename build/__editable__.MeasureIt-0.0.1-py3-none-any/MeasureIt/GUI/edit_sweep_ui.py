@@ -1,1 +1,0 @@
-/Users/caijiaqi/GitHub/MeasureIt/src/MeasureIt/GUI/edit_sweep_ui.py

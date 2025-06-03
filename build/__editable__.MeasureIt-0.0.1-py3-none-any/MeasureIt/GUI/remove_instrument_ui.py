@@ -1,1 +1,0 @@
-/Users/caijiaqi/GitHub/MeasureIt/src/MeasureIt/GUI/remove_instrument_ui.py

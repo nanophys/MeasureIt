@@ -5,13 +5,98 @@ Measurement software based on [QCoDeS](https://qcodes.github.io/), developed in 
 ## Community information
 [Join our slack channel!](https://join.slack.com/t/measureit-workspace/shared_invite/zt-2ws3h3k2q-78XfSUNtqCjSUkydRW2MXA)
 
-## Installation & Updating
+## High-Level Design
 
-The following downloads are required/strongly recommended:
-- A version of Conda (see below)
+MeasureIt is a measurement software package built on top of QCoDeS (Quantum Computing Data Structures) for physics experiments. The architecture follows these key patterns:
+
+### Core Architecture
+- **Sweep-based Measurement System**: The core abstraction is the `BaseSweep` class with specialized implementations (`Sweep0D`, `Sweep1D`, `Sweep2D`) for different dimensional measurements
+- **Qt-based Threading**: Uses PyQt5 with separate threads for data acquisition (`RunnerThread`) and plotting (`PlotterThread`) 
+- **Driver Layer**: Custom instrument drivers in the `Drivers/` module that interface with various lab equipment
+- **GUI Interface**: A comprehensive PyQt5-based GUI for configuring and running experiments
+- **Data Management**: Integration with QCoDeS for data storage and experiment management
+
+### Key Components
+- **Base Classes**: `BaseSweep` provides the foundation with parameter following, measurement creation, and thread management
+- **Measurement Types**: 
+  - 0D (time-based measurements)
+  - 1D (single parameter sweep) 
+  - 2D (dual parameter sweep)
+- **Queue System**: `SweepQueue` for batch experiment execution
+- **Real-time Plotting**: Live data visualization during measurements
+- **Station Management**: QCoDeS Station integration for instrument management
+
+### Package Structure
+```
+src/MeasureIt/
+├── sweep0d.py, sweep1d.py, sweep2d.py  # Measurement implementations
+├── base_sweep.py                        # Core sweep functionality
+├── sweep_queue.py                       # Batch experiment management
+├── GUI/                                 # PyQt5 user interface
+├── Drivers/                             # Instrument drivers
+└── util.py                             # Utility functions
+```
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.8+
 - Git 
 - NI DAQmx drivers: http://www.ni.com/en-us/support/downloads/drivers/download/unpackaged.ni-daqmx.291872.html
 - NI VISA package: http://www.ni.com/download/ni-visa-18.5/7973/en/
+
+### Installation with uv (Recommended)
+
+1. **Install uv**:
+   ```bash
+   # On macOS and Linux
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   
+   # On Windows
+   powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+   
+   # Or with pip
+   pip install uv
+   ```
+
+2. **Clone and install**:
+   ```bash
+   git clone https://github.com/nanophys/MeasureIt
+   cd MeasureIt
+   
+   # Install with all dependencies
+   uv pip install -e ".[all]"
+   ```
+
+3. **Set up environment**:
+   ```bash
+   # Set MeasureItHome environment variable
+   export MeasureItHome="/path/to/your/MeasureIt"  # Linux/macOS
+   set MeasureItHome="C:\path\to\your\MeasureIt"   # Windows
+   
+   # Create databases folder
+   mkdir -p "$MeasureItHome/databases"  # Linux/macOS
+   mkdir "%MeasureItHome%\databases"    # Windows
+   ```
+
+### Alternative Installation with pip
+
+```bash
+git clone https://github.com/nanophys/MeasureIt
+cd MeasureIt
+pip install -e ".[all]"
+```
+
+### Updating MeasureIt
+
+```bash
+cd /path/to/MeasureIt
+git pull
+uv pip install -e ".[all]" --upgrade  # or pip install -e ".[all]" --upgrade
+```
+
+## Installation & Updating
 
 It is useful to first create a conda environment to manage all the required 
 packages for this package to work. First, download some form of conda 
@@ -179,37 +264,82 @@ In Windows, this can be done by editing the environment variable.
 
 Finally, make a folder named databases in MeasureItHome. 
 
-## Build the documentation
+## Basic Usage
 
-To build the documentation, first install requirements(if GUI has already successfully run, only `sphinx` and `sphinx-rtd-theme` are needed):
+### Running the GUI
+
+After installation and environment setup:
 
 ```bash
-pip install -r requirements_doc.txt
+# Activate your environment (if using conda)
+conda activate qcodes  # or your environment name
+
+# Start the GUI
+python -m MeasureIt.GUI.GUI_Measureit
 ```
 
-The documentation is located directory `docs/source`. A `makefile` or `make.bat` is set up for quick building:
+### Programmatic Usage
 
-For HTML version, go to the directory `docs/source` and
+```python
+import MeasureIt
+from qcodes import Station
+
+# Create a station and add instruments
+station = Station()
+# ... add your instruments ...
+
+# Create a 1D sweep
+sweep = MeasureIt.Sweep1D(
+    set_param=dac.voltage,
+    start=0,
+    stop=1,
+    step=0.01,
+    inter_delay=0.1
+)
+
+# Follow parameters to measure
+sweep.follow_param(dmm.voltage, lockin.x)
+
+# Start the measurement
+sweep.start()
+```
+
+## Documentation
+
+### Building Documentation
 
 ```bash
+# Install documentation dependencies
+uv pip install -e ".[docs]"  # or pip install -e ".[docs]"
+
+# Build HTML documentation
+cd docs/source
 make html
 ```
 
-which generates the mainpage, `index.html` in `docs/source/_build/html`.
+The documentation is located in the `docs/source` directory. The built documentation will be in `docs/source/_build/html/`.
 
-For pdf version, go to the directory `docs/source` and
+### Online Documentation
 
+Visit our [online documentation](https://measureituw.readthedocs.io/en/latest/?badge=latest) for detailed guides and API reference.
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed information about:
+
+- Setting up a development environment
+- Code quality standards and tools
+- Testing guidelines
+- Documentation standards
+- Submitting pull requests
+
+For quick development setup:
 ```bash
-make latex
+# Clone and set up development environment
+git clone https://github.com/nanophys/MeasureIt
+cd MeasureIt
+uv pip install -e ".[dev,docs,jupyter]"  # or pip install -e ".[dev,docs,jupyter]"
 ```
-
-then go to `docs/source/_build/latex`, and with a proper latex version, a makefile is automatically generated. 
-
-```bash
-make
-```
-
-This will build the pdf version of the documentation.
 
 ## External links and active users
 

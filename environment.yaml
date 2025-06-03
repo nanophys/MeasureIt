@@ -1,3 +1,7 @@
+# DEPRECATED: This file is deprecated in favor of pyproject.toml
+# Please use: uv pip install -e ".[all]" or pip install -e ".[all]"
+# See README.md for updated installation instructions
+
 name: qcodes
 channels:
   - conda-forge

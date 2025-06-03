@@ -5,15 +5,15 @@ import nidaqmx
 import numpy as np
 import qcodes as qc
 from qcodes import Station, initialise_or_create_database_at, load_by_run_spec
-from qcodes.tests.instrument_mocks import MockParabola
-sys.path.append(os.environ['MeasureItHome'])
-import src
+from qcodes.instrument_drivers.mock_instruments import MockParabola
+# sys.path.append(os.environ['MeasureItHome'])
+
 from drivers.daq_driver import Daq
-from src.base_sweep import BaseSweep
-from src.simul_sweep import SimulSweep
-from src.sweep0d import Sweep0D
-from src.sweep1d import Sweep1D
-from src.util import (connect_station_instruments, connect_to_station,
+from MeasureIt.base_sweep import BaseSweep
+from MeasureIt.simul_sweep import SimulSweep
+from MeasureIt.sweep0d import Sweep0D
+from MeasureIt.sweep1d import Sweep1D
+from MeasureIt.util import (connect_station_instruments, connect_to_station,
                       init_database)
 import matplotlib             
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
