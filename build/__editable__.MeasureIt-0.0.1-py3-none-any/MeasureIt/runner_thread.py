@@ -1,1 +1,0 @@
-/Users/caijiaqi/GitHub/MeasureIt/src/MeasureIt/runner_thread.py
