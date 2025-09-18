@@ -45,6 +45,7 @@ dependencies = [
     
     # GUI framework
     "PyQt5>=5.15.0",
+    "pyqtgraph>=0.13.0",
     
     # Instrument drivers
     "nidaqmx>=0.6.0",
