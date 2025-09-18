@@ -88,7 +88,7 @@ class Sweep2D(BaseSweep, QObject):
         
     """
 
-    add_heatmap_lines = pyqtSignal(list)
+    add_heatmap_data = pyqtSignal(dict)
 
     def __init__(self, in_params, out_params, outer_delay=1, err=[0.1, 1e-2], out_ministeps=1, update_func=None, *args, **kwargs):
         """
@@ -304,7 +304,7 @@ class Sweep2D(BaseSweep, QObject):
                 self.heatmap_thread = QThread()
                 self.heatmap_plotter.moveToThread(self.heatmap_thread)
                 self.heatmap_plotter.create_figs()
-                self.add_heatmap_lines.connect(self.heatmap_plotter.add_lines)
+                self.add_heatmap_data.connect(self.heatmap_plotter.add_data)
                 self.heatmap_thread.start()
 
             self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
@@ -356,11 +356,12 @@ class Sweep2D(BaseSweep, QObject):
             return
 
         # Update our heatmap!
-        lines = self.in_sweep.plotter.axes[self.heatmap_ind].get_lines()
-        self.add_heatmap_lines.emit(lines)
+        plot_data = self.in_sweep.plotter.get_plot_data(self.heatmap_ind)
+        if plot_data is not None:
+            self.add_heatmap_data.emit(plot_data)
 
         # Check our update condition
-        self.update_rule(self.in_sweep, lines)
+        self.update_rule(self.in_sweep, plot_data)
 
         # If we aren't at the end, keep going
         if abs(self.out_setpoint - self.out_stop) - abs(self.out_step / 2) > abs(self.out_step) * 1e-4:

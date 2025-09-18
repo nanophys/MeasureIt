@@ -342,6 +342,38 @@ class Plotter(QObject):
 
                         plot_item.setData(new_x, new_y)
 
+    def get_plot_data(self, param_index):
+        """
+        Get x,y data arrays for a specific parameter.
+        Used by Sweep2D for heatmap visualization.
+
+        Parameters
+        ---------
+        param_index:
+            Index of the parameter in self.sweep._params
+
+        Returns
+        ---------
+        dict or None:
+            Dictionary with 'forward' and 'backward' data tuples (x_data, y_data)
+            or None if parameter not found
+        """
+        if param_index < len(self.sweep._params):
+            param = self.sweep._params[param_index]
+            if param in self.plot_items:
+                forward_item, backward_item = self.plot_items[param]
+
+                # Get data arrays, handling None case
+                forward_x = forward_item.xData if forward_item.xData is not None else np.array([])
+                forward_y = forward_item.yData if forward_item.yData is not None else np.array([])
+                backward_x = backward_item.xData if backward_item.xData is not None else np.array([])
+                backward_y = backward_item.yData if backward_item.yData is not None else np.array([])
+
+                return {
+                    'forward': (forward_x, forward_y),
+                    'backward': (backward_x, backward_y)
+                }
+        return None
 
     @pyqtSlot()
     def run(self):

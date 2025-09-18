@@ -30,6 +30,8 @@ This document tracks the migration from matplotlib to pyqtgraph for the MeasureI
 - [x] Replace matplotlib plotter with PyQtGraph in base_sweep.py
 - [x] Ensure thread safety with PyQtGraph in QThread
 - [x] Test signal/slot connections between runner and plotter threads
+- [x] Migrate heatmap_thread.py to PyQtGraph ImageView
+- [x] Update Sweep2D data flow to use get_plot_data instead of axes
 - [ ] Verify compatibility with all sweep types (0D, 1D, 2D, SimulSweep)
 
 ### Phase 5: Testing & Validation
