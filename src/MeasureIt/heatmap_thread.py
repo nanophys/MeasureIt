@@ -60,7 +60,7 @@ class Heatmap(QObject):
         Closes all active figures.
     """
 
-    def __init__(self, sweep, update_interval=500):
+    def __init__(self, sweep, update_interval=200):
         """
         Initializes the PyQtGraph heatmap thread.
 
@@ -69,7 +69,7 @@ class Heatmap(QObject):
         sweep:
             The parent sweep object.
         update_interval:
-            Update interval in milliseconds (default 500ms = 2 FPS).
+            Update interval in milliseconds (default 200ms = 5 FPS).
         """
         QObject.__init__(self)
 
@@ -82,15 +82,18 @@ class Heatmap(QObject):
 
         # PyQtGraph-specific attributes
         self.widget = None
-        self.image_view = None
+        self.plot_widget = None
+        self.image_item = None
         self.heatmap_data = None
         self.heatmap_dict = {}
         self.out_keys = []
         self.in_keys = []
 
-        # Timer for regular heatmap updates (2 FPS)
+        # Timer for regular heatmap updates (5 FPS)
         self.update_timer = None
         self.update_interval = update_interval  # milliseconds
+        self.needs_refresh = False
+        self.max_items_per_update = 10  # Process max 10 items per timer tick
 
     def handle_close(self, event):
         """Handle widget close event."""
@@ -101,88 +104,99 @@ class Heatmap(QObject):
         """
         Creates the PyQtGraph heatmap figure for the 2D sweep.
         """
-
-        if self.figs_set:
-            return
-
-        # First, determine the resolution on each axis
-        self.res_in = math.ceil(abs((self.sweep.in_stop - self.sweep.in_start) / self.sweep.in_step)) + 1
-        self.res_out = math.ceil(abs((self.sweep.out_stop - self.sweep.out_start) / self.sweep.out_step)) + 1
-
-        # Create the heatmap data matrix - initially as all 0s
-        self.heatmap_dict = {}
-        self.out_keys = []
-        self.in_keys = []
-        self.out_step = self.sweep.out_step
-        self.in_step = self.sweep.in_step
-
-        for x_out in np.linspace(self.sweep.out_start, self.sweep.out_stop,
-                                 int(abs(self.sweep.out_stop - self.sweep.out_start) / abs(self.sweep.out_step) + 1),
-                                 endpoint=True):
-            self.heatmap_dict[x_out] = {}
-            self.out_keys.append(x_out)
-            for x_in in np.linspace(self.sweep.in_start, self.sweep.in_stop,
-                                    int(abs(self.sweep.in_stop - self.sweep.in_start) / abs(self.sweep.in_step) + 1),
-                                    endpoint=True):
-                self.heatmap_dict[x_out][x_in] = 0
-                if x_in not in self.in_keys:
-                    self.in_keys.append(x_in)
-
-        self.out_keys = sorted(self.out_keys)
-        self.in_keys = sorted(self.in_keys)
-
-        # Initialize the heatmap data array
-        self.heatmap_data = np.zeros((self.res_out, self.res_in))
-
-        # Create main widget and layout
-        self.widget = QWidget()
-        self.widget.setWindowTitle('MeasureIt - 2D Heatmap')
-        self.widget.resize(800, 600)
-
-        main_layout = QVBoxLayout(self.widget)
-
-        # Add parameter info label
-        plot_para = self.sweep.in_sweep._params[self.sweep.heatmap_ind]
-        info_label = QLabel(f"2D Heatmap: {plot_para.label} ({plot_para.unit})")
-        info_label.setFont(QFont("Arial", 12))
-        info_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 5px; }")
-        main_layout.addWidget(info_label)
-
-        # Create PyQtGraph ImageView with default functionality
-        self.image_view = pg.ImageView()
-        main_layout.addWidget(self.image_view)
-
-        # Set up the initial image with proper scaling
-        self.image_view.setImage(self.heatmap_data,
-                                pos=[self.sweep.in_start, self.sweep.out_start],
-                                scale=[(self.sweep.in_stop - self.sweep.in_start) / self.res_in,
-                                       (self.sweep.out_stop - self.sweep.out_start) / self.res_out])
-
-        # Set axis labels using the ImageView's internal PlotItem
-        # Access the PlotItem through the ImageView structure
         try:
-            view_box = self.image_view.getView()
-            if hasattr(view_box, 'parent'):
-                plot_item = view_box.parent()
-                if hasattr(plot_item, 'setLabel'):
-                    plot_item.setLabel('bottom', f'{self.sweep.in_param.label}', units=self.sweep.in_param.unit)
-                    plot_item.setLabel('left', f'{self.sweep.set_param.label}', units=self.sweep.set_param.unit)
+            if self.figs_set:
+                return
+
+            # First, determine the resolution on each axis
+            self.res_in = math.ceil(abs((self.sweep.in_stop - self.sweep.in_start) / self.sweep.in_step)) + 1
+            self.res_out = math.ceil(abs((self.sweep.out_stop - self.sweep.out_start) / self.sweep.out_step)) + 1
+
+            # Create the heatmap data matrix - initially as all 0s
+            self.heatmap_dict = {}
+            self.out_keys = []
+            self.in_keys = []
+            self.out_step = self.sweep.out_step
+            self.in_step = self.sweep.in_step
+
+            for x_out in np.linspace(self.sweep.out_start, self.sweep.out_stop,
+                                     int(abs(self.sweep.out_stop - self.sweep.out_start) / abs(self.sweep.out_step) + 1),
+                                     endpoint=True):
+                self.heatmap_dict[x_out] = {}
+                self.out_keys.append(x_out)
+                for x_in in np.linspace(self.sweep.in_start, self.sweep.in_stop,
+                                        int(abs(self.sweep.in_stop - self.sweep.in_start) / abs(self.sweep.in_step) + 1),
+                                        endpoint=True):
+                    self.heatmap_dict[x_out][x_in] = 0
+                    if x_in not in self.in_keys:
+                        self.in_keys.append(x_in)
+
+            self.out_keys = sorted(self.out_keys)
+            self.in_keys = sorted(self.in_keys)
+
+            # Initialize the heatmap data array
+            self.heatmap_data = np.zeros((self.res_out, self.res_in))
+
+            # Reset count for new sweep
+            self.count = 0
+
+            # Create main widget and layout
+            self.widget = QWidget()
+            self.widget.setWindowTitle('MeasureIt - 2D Heatmap')
+            self.widget.resize(800, 600)
+
+            main_layout = QVBoxLayout(self.widget)
+
+            # Add parameter info label
+            plot_para = self.sweep.in_sweep._params[self.sweep.heatmap_ind]
+            info_label = QLabel(f"2D Heatmap: {plot_para.label} ({plot_para.unit})")
+            info_label.setFont(QFont("Arial", 12))
+            info_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 5px; }")
+            main_layout.addWidget(info_label)
+
+            # Create PyQtGraph PlotWidget for proper 2D plotting with axis labels
+            self.plot_widget = pg.PlotWidget()
+            self.plot_widget.setLabel('bottom', f'{self.sweep.in_param.label}', units=self.sweep.in_param.unit)
+            self.plot_widget.setLabel('left', f'{self.sweep.set_param.label}', units=self.sweep.set_param.unit)
+            self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
+            main_layout.addWidget(self.plot_widget)
+
+            # Create ImageItem for the heatmap data
+            self.image_item = pg.ImageItem()
+            self.plot_widget.addItem(self.image_item)
+
+            # Store coordinate transform parameters for updates
+            self.pos = [self.sweep.in_start, self.sweep.out_start]
+            self.scale = [(self.sweep.in_stop - self.sweep.in_start) / self.res_in,
+                          (self.sweep.out_stop - self.sweep.out_start) / self.res_out]
+
+            # Set up the initial image with proper scaling
+            self.image_item.setImage(self.heatmap_data)
+
+            # Set the coordinate transformation for proper axis scaling
+            transform = pg.QtGui.QTransform()
+            transform.translate(self.pos[0], self.pos[1])
+            transform.scale(self.scale[0], self.scale[1])
+            self.image_item.setTransform(transform)
+
+            # Connect close event
+            self.widget.closeEvent = self.handle_close
+
+            # Show the widget
+            self.widget.show()
+
+            # Start the update timer for regular heatmap refreshes
+            self.update_timer = QTimer()
+            self.update_timer.timeout.connect(self.update_heatmap)
+            self.update_timer.start(self.update_interval)
+
+            self.figs_set = True
+
         except Exception as e:
-            print(f"Could not set axis labels: {e}")
-            # Continue without axis labels to preserve functionality
-
-        # Connect close event
-        self.widget.closeEvent = self.handle_close
-
-        # Show the widget
-        self.widget.show()
-
-        # Start the update timer for regular heatmap refreshes
-        self.update_timer = QTimer()
-        self.update_timer.timeout.connect(self.update_heatmap)
-        self.update_timer.start(self.update_interval)
-
-        self.figs_set = True
+            print(f"Error creating heatmap figures: {e}")
+            import traceback
+            traceback.print_exc()
+            self.figs_set = False
 
     @pyqtSlot(dict)
     def add_data(self, data_dict):
@@ -195,11 +209,17 @@ class Heatmap(QObject):
             Dictionary containing 'forward' and 'backward' data tuples (x_data, y_data)
             from the plotter thread.
         """
-        self.data_to_add.append(data_dict)
+        try:
+            if data_dict is not None:
+                self.data_to_add.append(data_dict)
+        except Exception as e:
+            print(f"Error in heatmap add_data: {e}")
+            import traceback
+            traceback.print_exc()
 
     def add_to_heatmap(self, data_dict):
         """
-        Processes data dictionary and updates heatmap data.
+        Processes data dictionary for one complete inner sweep and updates heatmap data.
 
         Parameters
         ---------
@@ -209,7 +229,7 @@ class Heatmap(QObject):
         if 'forward' not in data_dict:
             return
 
-        # Use forward data for heatmap (consistent with original)
+        # Get the complete inner sweep data
         x_data, y_data = data_dict['forward']
 
         if len(x_data) == 0 or len(y_data) == 0:
@@ -223,57 +243,67 @@ class Heatmap(QObject):
         if len(x_clean) == 0:
             return
 
-        # Find the closest inner parameter key
-        in_key = None
-        min_distance = float('inf')
-        for key in self.in_keys:
-            distance = abs(x_clean[0] - key)
-            if distance < min_distance:
-                min_distance = distance
-                in_key = key
-
-        if in_key is None or min_distance > abs(self.in_step / 2):
+        # Safety check for count
+        if self.count >= len(self.out_keys):
+            print(f"Warning: heatmap count {self.count} exceeds out_keys length {len(self.out_keys)}")
             return
 
-        start_pt = self.in_keys.index(in_key)
+        # Update the entire row for this outer parameter value
+        current_out_key = self.out_keys[self.count]
 
-        # Update heatmap dictionary and track min/max values
-        for i, (x, y) in enumerate(zip(x_clean, y_clean)):
-            if start_pt + i < len(self.in_keys):
-                self.heatmap_dict[self.out_keys[self.count]][self.in_keys[start_pt + i]] = y
-                if y > self.max_datapt:
-                    self.max_datapt = y
-                if y < self.min_datapt:
-                    self.min_datapt = y
+        # Map inner sweep data to heatmap grid
+        for x_val, y_val in zip(x_clean, y_clean):
+            # Find closest in_key for this x value
+            closest_in_key = min(self.in_keys, key=lambda k: abs(k - x_val))
+            self.heatmap_dict[current_out_key][closest_in_key] = y_val
+
+            # Track min/max values
+            if y_val > self.max_datapt:
+                self.max_datapt = y_val
+            if y_val < self.min_datapt:
+                self.min_datapt = y_val
 
         # Update the data array row
         row_idx = self.res_out - self.count - 1  # Flip for proper orientation
         for i, in_key in enumerate(self.in_keys):
             if i < self.res_in:
-                self.heatmap_data[row_idx][i] = self.heatmap_dict[self.out_keys[self.count]][in_key]
+                self.heatmap_data[row_idx][i] = self.heatmap_dict[current_out_key][in_key]
 
+        # Increment count for next outer sweep step
         self.count += 1
+        self.needs_refresh = True
 
     def update_heatmap(self):
-        """ Updates the heatmap with new data from the queue. """
+        """ Updates the heatmap with new data from the queue using batch processing. """
 
         if not self.figs_set:
             return
 
-        # Process queued data
-        while len(self.data_to_add) > 0:
+        # Process limited batch of data to prevent UI blocking
+        items_processed = 0
+        while len(self.data_to_add) > 0 and items_processed < self.max_items_per_update:
             data_dict = self.data_to_add.popleft()
             self.add_to_heatmap(data_dict)
+            items_processed += 1
+            self.needs_refresh = True
 
-        # Update the ImageView with new data
-        if self.image_view is not None:
-            # Set the image with proper levels
+        # Update display with proper scaling while preserving view
+        if self.image_item is not None and (self.needs_refresh or items_processed > 0):
+            # Remember current view state
+            view_box = self.plot_widget.getViewBox()
+            view_range = view_box.viewRange()
+
+            # Update the image data
+            self.image_item.setImage(self.heatmap_data)
+
+            # Set color levels if we have data range
             if self.max_datapt > self.min_datapt:
-                self.image_view.setImage(self.heatmap_data,
-                                       levels=[self.min_datapt, self.max_datapt],
-                                       autoLevels=False)
-            else:
-                self.image_view.setImage(self.heatmap_data, autoLevels=True)
+                self.image_item.setLevels([self.min_datapt, self.max_datapt])
+
+            # Restore view range to preserve user zoom/pan
+            view_box.setRange(xRange=view_range[0], yRange=view_range[1], padding=0)
+
+            self.needs_refresh = False
 
     def clear(self):
         """ Closes all active figures. """
@@ -284,10 +314,12 @@ class Heatmap(QObject):
                 self.update_timer = None
 
             self.figs_set = False
+            self.needs_refresh = False
             if self.widget is not None:
                 self.widget.close()
                 self.widget = None
-                self.image_view = None
+                self.plot_widget = None
+                self.image_item = None
                 self.heatmap_data = None
                 self.heatmap_dict = {}
                 self.out_keys = []
