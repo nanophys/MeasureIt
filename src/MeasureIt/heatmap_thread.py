@@ -1,7 +1,15 @@
 # heatmap_thread.py
 
 from PyQt5.QtCore import QObject, pyqtSlot, QTimer
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PyQt5.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QComboBox,
+    QCheckBox,
+    QPushButton,
+)
 from PyQt5.QtGui import QFont
 import math
 from collections import deque
@@ -41,12 +49,20 @@ class Heatmap(QObject):
         Changes to true after figures have been created.
     widget:
         Main QWidget containing the heatmap layout.
-    image_view:
-        PyQtGraph ImageView widget for heatmap display.
+    layout_widget:
+        PyQtGraph GraphicsLayoutWidget to host plot + colorbar.
+    plot_item:
+        PyQtGraph PlotItem used as the main view with axes.
     heatmap_data:
         2D numpy array containing the heatmap data.
     heatmap_dict:
         Dictionary mapping outer/inner parameter values to data.
+    hist_item:
+        HistogramLUTItem providing an interactive colorbar.
+    cmap_box:
+        QComboBox to pick colormap.
+    auto_levels_chk:
+        QCheckBox to toggle auto color scaling.
 
     Methods
     ---------
@@ -82,8 +98,10 @@ class Heatmap(QObject):
 
         # PyQtGraph-specific attributes
         self.widget = None
-        self.plot_widget = None
+        self.layout_widget = None
+        self.plot_item = None
         self.image_item = None
+        self.hist_item = None
         self.heatmap_data = None
         self.heatmap_dict = {}
         self.out_keys = []
@@ -94,6 +112,11 @@ class Heatmap(QObject):
         self.update_interval = update_interval  # milliseconds
         self.needs_refresh = False
         self.max_items_per_update = 10  # Process max 10 items per timer tick
+
+        # UI controls
+        self.cmap_box = None
+        self.auto_levels_chk = None
+        self._auto_levels_enabled = True
 
     def handle_close(self, event):
         """Handle widget close event."""
@@ -140,6 +163,12 @@ class Heatmap(QObject):
             # Reset count for new sweep
             self.count = 0
 
+            # Ensure a QApplication exists (safe in scripts and Jupyter when %gui qt is active)
+            try:
+                pg.mkQApp()
+            except Exception:
+                pass
+
             # Create main widget and layout
             self.widget = QWidget()
             self.widget.setWindowTitle('MeasureIt - 2D Heatmap')
@@ -154,16 +183,61 @@ class Heatmap(QObject):
             info_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 5px; }")
             main_layout.addWidget(info_label)
 
-            # Create PyQtGraph PlotWidget for proper 2D plotting with axis labels
-            self.plot_widget = pg.PlotWidget()
-            self.plot_widget.setLabel('bottom', f'{self.sweep.in_param.label}', units=self.sweep.in_param.unit)
-            self.plot_widget.setLabel('left', f'{self.sweep.set_param.label}', units=self.sweep.set_param.unit)
-            self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
-            main_layout.addWidget(self.plot_widget)
+            # Controls row (colormap picker, auto-levels, reset)
+            controls = QHBoxLayout()
+            controls.setContentsMargins(0, 0, 0, 0)
+            controls.setSpacing(8)
+            controls.addWidget(QLabel("Colormap:"))
+            self.cmap_box = QComboBox()
+            # Prefer common scientific colormaps; filter by availability
+            available_maps = []
+            try:
+                available_maps = list(pg.colormap.listMaps())
+            except Exception:
+                available_maps = []
+            preferred = [
+                'viridis', 'plasma', 'inferno', 'magma', 'cividis', 'turbo',
+                'gray', 'grays', 'jet', 'hot', 'coolwarm'
+            ]
+            cmaps = [m for m in preferred if m in available_maps] or available_maps or ['viridis']
+            for m in cmaps:
+                self.cmap_box.addItem(m)
+            self.cmap_box.setCurrentText('viridis' if 'viridis' in cmaps else cmaps[0])
+            self.cmap_box.currentTextChanged.connect(self._apply_colormap)
+            controls.addWidget(self.cmap_box)
+
+            self.auto_levels_chk = QCheckBox("Auto levels")
+            self.auto_levels_chk.setChecked(True)
+            self.auto_levels_chk.toggled.connect(self._toggle_auto_levels)
+            controls.addWidget(self.auto_levels_chk)
+
+            reset_btn = QPushButton("Reset view")
+            reset_btn.clicked.connect(self._reset_view)
+            controls.addWidget(reset_btn)
+
+            controls.addStretch(1)
+            main_layout.addLayout(controls)
+
+            # Create GraphicsLayout with a PlotItem (left) and HistogramLUTItem (right)
+            self.layout_widget = pg.GraphicsLayoutWidget()
+            main_layout.addWidget(self.layout_widget)
+
+            self.plot_item = self.layout_widget.addPlot(row=0, col=0)
+            self.plot_item.setLabel('bottom', f'{self.sweep.in_param.label}', units=self.sweep.in_param.unit)
+            self.plot_item.setLabel('left', f'{self.sweep.set_param.label}', units=self.sweep.set_param.unit)
+            self.plot_item.showGrid(x=True, y=True, alpha=0.3)
 
             # Create ImageItem for the heatmap data
             self.image_item = pg.ImageItem()
-            self.plot_widget.addItem(self.image_item)
+            self.plot_item.addItem(self.image_item)
+
+            # Add interactive colorbar/histogram
+            try:
+                self.hist_item = pg.HistogramLUTItem()
+                self.hist_item.setImageItem(self.image_item)
+                self.layout_widget.addItem(self.hist_item, row=0, col=1)
+            except Exception:
+                self.hist_item = None  # fallback silently if unavailable
 
             # Store coordinate transform parameters for updates
             self.pos = [self.sweep.in_start, self.sweep.out_start]
@@ -175,9 +249,19 @@ class Heatmap(QObject):
 
             # Set the coordinate transformation for proper axis scaling
             transform = pg.QtGui.QTransform()
-            transform.translate(self.pos[0], self.pos[1])
-            transform.scale(self.scale[0], self.scale[1])
-            self.image_item.setTransform(transform)
+            try:
+                transform.translate(self.pos[0], self.pos[1])
+                transform.scale(self.scale[0], self.scale[1])
+                self.image_item.setTransform(transform)
+            except Exception:
+                # Fallback: setRect if available (older/newer pyqtgraph versions)
+                try:
+                    from PyQt5.QtCore import QRectF
+                    self.image_item.setRect(QRectF(self.pos[0], self.pos[1],
+                                                   self.scale[0] * self.res_in,
+                                                   self.scale[1] * self.res_out))
+                except Exception:
+                    pass
 
             # Connect close event
             self.widget.closeEvent = self.handle_close
@@ -189,6 +273,9 @@ class Heatmap(QObject):
             self.update_timer = QTimer()
             self.update_timer.timeout.connect(self.update_heatmap)
             self.update_timer.start(self.update_interval)
+
+            # Apply initial colormap
+            self._apply_colormap(self.cmap_box.currentText() if self.cmap_box is not None else 'viridis')
 
             self.figs_set = True
 
@@ -290,20 +377,81 @@ class Heatmap(QObject):
         # Update display with proper scaling while preserving view
         if self.image_item is not None and (self.needs_refresh or items_processed > 0):
             # Remember current view state
-            view_box = self.plot_widget.getViewBox()
+            view_box = self.plot_item.getViewBox()
             view_range = view_box.viewRange()
 
             # Update the image data
             self.image_item.setImage(self.heatmap_data)
 
-            # Set color levels if we have data range
-            if self.max_datapt > self.min_datapt:
-                self.image_item.setLevels([self.min_datapt, self.max_datapt])
+            # Set color levels: auto or leave to user via histogram LUT
+            if self._auto_levels_enabled and self.max_datapt > self.min_datapt:
+                try:
+                    # Robust percentiles if data available; fallback to min/max trackers
+                    finite = self.heatmap_data[np.isfinite(self.heatmap_data)]
+                    if finite.size > 0:
+                        lo, hi = np.nanpercentile(finite, [1, 99])
+                        if hi > lo:
+                            if self.hist_item is not None:
+                                self.hist_item.setLevels(lo, hi)
+                            else:
+                                self.image_item.setLevels([lo, hi])
+                        else:
+                            if self.hist_item is not None:
+                                self.hist_item.setLevels(self.min_datapt, self.max_datapt)
+                            else:
+                                self.image_item.setLevels([self.min_datapt, self.max_datapt])
+                    else:
+                        if self.hist_item is not None:
+                            self.hist_item.setLevels(self.min_datapt, self.max_datapt)
+                        else:
+                            self.image_item.setLevels([self.min_datapt, self.max_datapt])
+                except Exception:
+                    # Last resort: use tracked min/max
+                    if self.hist_item is not None:
+                        self.hist_item.setLevels(self.min_datapt, self.max_datapt)
+                    else:
+                        self.image_item.setLevels([self.min_datapt, self.max_datapt])
 
             # Restore view range to preserve user zoom/pan
             view_box.setRange(xRange=view_range[0], yRange=view_range[1], padding=0)
 
             self.needs_refresh = False
+
+    def _apply_colormap(self, name: str):
+        """Apply selected colormap to image and histogram."""
+        try:
+            cmap = None
+            try:
+                cmap = pg.colormap.get(name)
+            except Exception:
+                pass
+
+            if cmap is not None:
+                # Apply to histogram if available (preferred)
+                if self.hist_item is not None and hasattr(self.hist_item, 'setColorMap'):
+                    self.hist_item.setColorMap(cmap)
+                # Also apply LUT to the image for consistency
+                try:
+                    lut = cmap.getLookupTable(alpha=False)
+                    self.image_item.setLookupTable(lut)
+                except Exception:
+                    pass
+            else:
+                # Fallback: simple grayscale LUT
+                lut = np.stack([np.linspace(0, 255, 256)] * 3, axis=1)
+                self.image_item.setLookupTable(lut)
+        except Exception:
+            pass
+
+    def _toggle_auto_levels(self, checked: bool):
+        self._auto_levels_enabled = bool(checked)
+
+    def _reset_view(self):
+        try:
+            if self.plot_item is not None:
+                self.plot_item.enableAutoRange(x=True, y=True)
+        except Exception:
+            pass
 
     def clear(self):
         """ Closes all active figures. """
@@ -318,8 +466,10 @@ class Heatmap(QObject):
             if self.widget is not None:
                 self.widget.close()
                 self.widget = None
-                self.plot_widget = None
+                self.layout_widget = None
+                self.plot_item = None
                 self.image_item = None
+                self.hist_item = None
                 self.heatmap_data = None
                 self.heatmap_dict = {}
                 self.out_keys = []

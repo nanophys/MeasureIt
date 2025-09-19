@@ -166,6 +166,12 @@ class Plotter(QObject):
             print("figs already set. returning.")
             return
 
+        # Ensure a QApplication exists (important for scripts/Jupyter)
+        try:
+            pg.mkQApp()
+        except Exception:
+            pass
+
         self.figs_set = True
         num_plots = len(self.sweep._params)
         if self.sweep.set_param is not None:
@@ -254,8 +260,8 @@ class Plotter(QObject):
         # Show the widget
         self.widget.show()
 
-        # Start the update timer for regular plot refreshes
-        self.update_timer = QTimer()
+        # Start the update timer for regular plot refreshes (parented to widget => main-thread affinity)
+        self.update_timer = QTimer(self.widget)
         self.update_timer.timeout.connect(lambda: self.update_plots(force=True))
         self.update_timer.start(self.update_interval)
 

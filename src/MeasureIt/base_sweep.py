@@ -334,10 +334,16 @@ class BaseSweep(QObject):
             self.send_updates()
         # Gently shut down the plotter
         if self.plotter is not None:
-            self.plotter_thread.quit()
-            if not self.plotter_thread.wait(1000):
-                self.plotter_thread.terminate()
-                self.print_main.emit('forced plotter to terminate')
+            # Backward-compatibility: if a plotter_thread exists from older runs, terminate it
+            try:
+                if self.plotter_thread is not None:
+                    self.plotter_thread.quit()
+                    if not self.plotter_thread.wait(1000):
+                        self.plotter_thread.terminate()
+                        self.print_main.emit('forced plotter to terminate')
+            except Exception:
+                pass
+            self.plotter_thread = None
             self.close_plots()
             self.plotter = None
 
@@ -378,9 +384,8 @@ class BaseSweep(QObject):
 
         # If we don't have a plotter yet want to plot, create it and the figures
         if self.plotter is None and self.plot_data is True:
+            # Keep Plotter in the main GUI thread for Qt/Jupyter safety
             self.plotter = Plotter(self, self.plot_bin)
-            self.plotter_thread = QThread()
-            self.plotter.moveToThread(self.plotter_thread)
             self.plotter.create_figs()
 
             self.add_break.connect(self.plotter.add_break)
@@ -402,11 +407,8 @@ class BaseSweep(QObject):
         # Save persistent data from 2D sweep
         self.persist_data = persist_data
 
-        # Tells the threads to begin
-        if self.plot_data is True and self.plotter_thread.isRunning() is False:
-            self.plotter_thread.start()
-        elif self.plot_data is True and self.plotter.figs_set is False:
-            # self.print_main.emit("somehow here")
+        # Tells the threads to begin (ensure figures exist)
+        if self.plot_data is True and self.plotter is not None and self.plotter.figs_set is False:
             self.plotter.create_figs()
         if not self.runner.isRunning():
             self.runner.kill_flag = False

@@ -298,14 +298,10 @@ class Sweep2D(BaseSweep, QObject):
             self.is_running = True
 
             if self.heatmap_plotter is None:
-                # Initialize our heatmap
+                # Initialize our heatmap in the main GUI thread to avoid crashes in Jupyter/Qt
                 self.heatmap_plotter = Heatmap(self)
-                # Initialize the thread for updating heatmap
-                self.heatmap_thread = QThread()
-                self.heatmap_plotter.moveToThread(self.heatmap_thread)
                 self.heatmap_plotter.create_figs()
                 self.add_heatmap_data.connect(self.heatmap_plotter.add_data)
-                self.heatmap_thread.start()
 
             self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
 
@@ -416,11 +412,17 @@ class Sweep2D(BaseSweep, QObject):
         # Gently shut down the heatmap
         if self.heatmap_plotter is not None:
             self.heatmap_plotter.clear()
-            self.heatmap_thread.quit()
-            if not self.heatmap_thread.wait(1000):
-                self.heatmap_thread.terminate()
-                self.print_main.emit('forced heatmap to terminate')
             self.heatmap_plotter = None
+            # Backward-compat: if a thread was created in older runs, shut it down
+            if hasattr(self, 'heatmap_thread') and self.heatmap_thread is not None:
+                try:
+                    self.heatmap_thread.quit()
+                    if not self.heatmap_thread.wait(1000):
+                        self.heatmap_thread.terminate()
+                        self.print_main.emit('forced heatmap to terminate')
+                except Exception:
+                    pass
+                self.heatmap_thread = None
 
     def ramp_to(self, value, start_on_finish=False, multiplier=1):
         """
