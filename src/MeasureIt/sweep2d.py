@@ -168,6 +168,8 @@ class Sweep2D(BaseSweep, QObject):
         self.in_sweep = Sweep1D(self.in_param, self.in_start, self.in_stop, self.in_step, bidirectional=True,
                                 inter_delay=self.inter_delay, save_data=self.save_data, x_axis_time=0, err=self.err_in,
                                 plot_data=self.plot_data, back_multiplier=self.back_multiplier, plot_bin=self.plot_bin)
+        # Set parent reference so UI actions (e.g., ESC) can stop both inner and outer sweeps
+        self.in_sweep.parent = self
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
         self.in_sweep.follow_param(self.set_param)
@@ -297,7 +299,7 @@ class Sweep2D(BaseSweep, QObject):
 
             self.is_running = True
 
-            if self.heatmap_plotter is None:
+            if self.plot_data and self.heatmap_plotter is None:
                 # Initialize our heatmap in the main GUI thread to avoid crashes in Jupyter/Qt
                 self.heatmap_plotter = Heatmap(self)
                 self.heatmap_plotter.create_figs()
@@ -318,14 +320,74 @@ class Sweep2D(BaseSweep, QObject):
         self.is_running = True
         self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint), ramp_to_start=False)
 
-    def follow_heatmap_param(self,heatmap_para):
-        """Follow a heatmap parameter by search the corresponding index of heatmap_para. heatmap_ind will be updated. """
-        try:
-            self.heatmap_ind = self.in_sweep._params.index(heatmap_para)
-        except:
-            self.heatmap_ind = 1
-            self.print_main.emit(f"Heatmap Para {heatmap_para.label} is invaild. Did you follow it? ")
-        #self.print_main.emit(f"Heatmap will follow {heatmap_para.label}")
+    def follow_heatmap_param(self, heatmap_para):
+        """
+        Configure which followed parameter(s) may be visualized in the heatmap.
+
+        Accepts either a single QCoDeS parameter or a list/tuple of parameters.
+        - If a single parameter is provided, updates the active selection (heatmap_ind).
+        - If a list is provided, stores the allowed set and selects the first one.
+
+        Parameters
+        ---------
+        heatmap_para:
+            A QCoDeS Parameter or list/tuple of Parameters that are already followed
+            by the inner sweep (i.e., present in self.in_sweep._params).
+        """
+
+        def to_index(p):
+            try:
+                return self.in_sweep._params.index(p)
+            except Exception:
+                return None
+
+        # Handle list/tuple of parameters
+        if isinstance(heatmap_para, (list, tuple, set)):
+            indices = []
+            for p in heatmap_para:
+                idx = to_index(p)
+                if idx is not None and self.in_sweep._params[idx] is not self.set_param:
+                    indices.append(idx)
+                else:
+                    try:
+                        self.print_main.emit(
+                            f"Heatmap parameter {getattr(p, 'label', getattr(p, 'name', p))} is invalid or not followed.")
+                    except Exception:
+                        pass
+            if len(indices) == 0:
+                # Fallback to current selection or default 1
+                if not hasattr(self, 'heatmap_param_indices') or len(getattr(self, 'heatmap_param_indices', [])) == 0:
+                    self.heatmap_param_indices = [self.heatmap_ind]
+                return
+            # Store the allowed set and select the first
+            self.heatmap_param_indices = indices
+            self.heatmap_ind = indices[0]
+        else:
+            # Single parameter: update current selection
+            idx = to_index(heatmap_para)
+            if idx is None:
+                # Keep previous selection; notify
+                try:
+                    self.print_main.emit(
+                        f"Heatmap parameter {getattr(heatmap_para, 'label', getattr(heatmap_para, 'name', heatmap_para))} is invalid or not followed.")
+                except Exception:
+                    pass
+                return
+            self.heatmap_ind = idx
+            # Ensure the allowed list exists and includes this index
+            if not hasattr(self, 'heatmap_param_indices') or len(getattr(self, 'heatmap_param_indices', [])) == 0:
+                self.heatmap_param_indices = [idx]
+            elif idx not in self.heatmap_param_indices:
+                self.heatmap_param_indices = [idx] + list(self.heatmap_param_indices)
+
+        # Notify heatmap UI (if active) to refresh its parameter selector
+        if self.heatmap_plotter is not None:
+            try:
+                # Rebuild the list and sync selection
+                if hasattr(self.heatmap_plotter, 'refresh_param_list'):
+                    self.heatmap_plotter.refresh_param_list()
+            except Exception:
+                pass
 
     def update_values(self):
         """
@@ -351,13 +413,23 @@ class Sweep2D(BaseSweep, QObject):
             # Stop the function from running any further, as we don't want to check anything else
             return
 
-        # Update our heatmap!
-        plot_data = self.in_sweep.plotter.get_plot_data(self.heatmap_ind)
-        if plot_data is not None:
-            self.add_heatmap_data.emit(plot_data)
+        # Update heatmap rows for all allowed/selected parameters (only if plotting is enabled)
+        last_plot_data = None
+        if self.plot_data and getattr(self.in_sweep, 'plotter', None) is not None and getattr(self, 'heatmap_plotter', None) is not None:
+            indices = getattr(self, 'heatmap_param_indices', None)
+            if not isinstance(indices, list) or len(indices) == 0:
+                indices = [self.heatmap_ind]
+            for p_idx in indices:
+                plot_data = self.in_sweep.plotter.get_plot_data(p_idx)
+                if plot_data is not None:
+                    last_plot_data = plot_data
+                    payload = dict(plot_data)
+                    payload['param_index'] = p_idx
+                    payload['out_value'] = self.out_setpoint
+                    self.add_heatmap_data.emit(payload)
 
         # Check our update condition
-        self.update_rule(self.in_sweep, plot_data)
+        self.update_rule(self.in_sweep, last_plot_data)
 
         # If we aren't at the end, keep going
         if abs(self.out_setpoint - self.out_stop) - abs(self.out_step / 2) > abs(self.out_step) * 1e-4:

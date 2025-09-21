@@ -124,6 +124,8 @@ class Sweep1D(BaseSweep, QObject):
         self.begin = start
         self.end = stop
         self.step = step
+        # Parent Sweep2D reference (set by Sweep2D)
+        self.parent = None
 
         # Make sure the step is in the right direction
         if (self.end - self.begin) > 0:

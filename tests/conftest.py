@@ -1,0 +1,66 @@
+import os
+import sys
+from pathlib import Path
+import tempfile
+import shutil
+import pytest
+
+
+@pytest.fixture(scope="session", autouse=True)
+def add_src_to_path():
+    """Ensure `src` is on sys.path so `import MeasureIt` works without install."""
+    repo_root = Path(__file__).resolve().parents[1]
+    src = repo_root / "src"
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+    yield
+
+
+@pytest.fixture(scope="function")
+def temp_measureit_home(monkeypatch):
+    """Provide a temporary MeasureItHome with Databases subfolder."""
+    tmpdir = Path(tempfile.mkdtemp(prefix="measureit_home_"))
+    (tmpdir / "Databases").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("MeasureItHome", str(tmpdir))
+    try:
+        yield tmpdir
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def quiet_test_env():
+    """Reduce noisy logs/warnings during tests without affecting runtime behavior."""
+    import warnings
+    # General warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    warnings.filterwarnings("ignore", category=PendingDeprecationWarning)
+    warnings.filterwarnings("ignore", category=ResourceWarning)
+    # Common noisy sources
+    warnings.filterwarnings("ignore", category=UserWarning, module=r"pyqtgraph")
+    warnings.filterwarnings("ignore", message=r".*PyQt5.*sip.*")
+
+    # Qt / macOS noise suppression via environment (best-effort)
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    os.environ.setdefault("OS_ACTIVITY_MODE", "disable")  # macOS launchd spam
+    os.environ.setdefault("QT_LOGGING_RULES", "*.debug=false;qt.qpa.*=false")
+    # Matplotlib backend (should not be used, but avoid backend warnings if imported)
+    os.environ.setdefault("MPLBACKEND", "Agg")
+
+    # Tame QCoDeS console logging
+    try:
+        import qcodes as qc
+        qc.config.logger.console_level = "CRITICAL"
+    except Exception:
+        pass
+
+
+@pytest.fixture(scope="function")
+def fast_sweep_kwargs():
+    """Common kwargs to create fast, headless sweeps for tests."""
+    return dict(
+        inter_delay=0.01,
+        save_data=False,
+        plot_data=False,
+        suppress_output=True,
+    )

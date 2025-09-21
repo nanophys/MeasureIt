@@ -137,7 +137,13 @@ class Plotter(QObject):
         if key == pg.QtCore.Qt.Key_Space:
             self.sweep.flip_direction()
         elif key == pg.QtCore.Qt.Key_Escape:
+            # Stop current sweep; if this is an inner sweep of a 2D sweep, stop the parent as well
             self.sweep.stop()
+            try:
+                if hasattr(self.sweep, 'parent') and self.sweep.parent is not None:
+                    self.sweep.parent.stop()
+            except Exception:
+                pass
         elif key == pg.QtCore.Qt.Key_Return or key == pg.QtCore.Qt.Key_Enter:
             self.sweep.resume()
 
