@@ -5,10 +5,16 @@ import re
 import time
 import os
 import string
+from pathlib import Path
+
 import qcodes as qc
 import pandas as pd
 from qcodes import initialise_or_create_database_at, Station
-from pathlib import Path
+
+try:
+    from platformdirs import user_data_dir
+except Exception:  # pragma: no cover - platformdirs optional at runtime
+    user_data_dir = None
 
 unit_dict = {
     'f': 10 ** -15,
@@ -21,6 +27,28 @@ unit_dict = {
     'G': 10 ** 9,
     '': 10 ** 0
 }
+
+
+def get_measureit_home() -> str:
+    """Return MeasureItHome directory, using environment or a platformdirs fallback.
+
+    - If env var `MeasureItHome` is set, return it (creating if missing).
+    - Else, use platformdirs' user data dir (e.g., ~/.local/share/MeasureIt or %APPDATA%).
+    The directory is created if it does not exist.
+    """
+    env = os.environ.get("MeasureItHome")
+    if env:
+        home = Path(env).expanduser()
+    else:
+        base = Path(user_data_dir("MeasureIt", "UW-Physics")) if user_data_dir else Path.home() / ".measureit"
+        home = base
+        # Also set the environment for downstream code expecting it
+        os.environ["MeasureItHome"] = str(home)
+    home.mkdir(parents=True, exist_ok=True)
+    # Ensure standard subfolders exist
+    for sub in ("Databases", "Origin Files", "cfg", "logs"):
+        (home / sub).mkdir(parents=True, exist_ok=True)
+    return str(home)
 
 class ParameterException(Exception):
     def __init__(self, message, set=False):
@@ -100,8 +128,10 @@ def connect_to_station(config_file=None):
     A loaded or new QCoDeS station for conducting experiments.
     """
     
-    if os.path.isfile(str(Path(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json'))):
-        qc.config.update_config(str(Path(os.environ['MeasureItHome'] + '\\cfg\\')))
+    home = Path(get_measureit_home())
+    cfg_json = home / "cfg" / "qcodesrc.json"
+    if cfg_json.is_file():
+        qc.config.update_config(str(cfg_json.parent))
     station = Station()
     try:
         station.load_config_file(config_file)
@@ -178,16 +208,16 @@ def save_to_csv(ds, fn=None, use_labels=True):
     if fn is not None:
         export_ds.to_csv(fn)
     else:
-        db_path = ds.path_to_db.split('\\')
-        db = db_path[len(db_path)-1].split('.')[0]
-
-        fp = f'{os.environ["MeasureItHome"]}\\Origin Files\\{db}\\'
-        if not os.path.isdir(fp):
-            os.mkdir(fp)
-
-        fn = f'{fp}{ds.run_id}_{ds.exp_name}_{ds.sample_name}.csv'
-        fn = fn.translate({ord(i): '' for i in '?*<>"\''})
-        export_ds.to_csv(fn)
+        db_name = Path(ds.path_to_db).name.split('.')[0]
+        home = Path(get_measureit_home())
+        fp = home / "Origin Files" / db_name
+        fp.mkdir(parents=True, exist_ok=True)
+        fn_path = fp / f"{ds.run_id}_{ds.exp_name}_{ds.sample_name}.csv"
+        # sanitize filename
+        safe = {ord(i): '' for i in '?*<>"\''}
+        fn_clean = fn_path.name.translate(safe)
+        fn_path = fn_path.with_name(fn_clean)
+        export_ds.to_csv(str(fn_path))
 
 def set_magnet_ramp_ranges(magnet, ranges):
     """ 
@@ -242,13 +272,14 @@ def init_database(db, exp, samp, sweep=None):
     sweep=None:
         Optional weep object for creating new runs for existing sweeps
     """
-    if '.db' not in db:
-        db = f'{db}.db'
-        
-    if str(Path(f'{os.environ["MeasureItHome"]}/Databases/')) in db:
-        initialise_or_create_database_at(db)
-    else:
-        initialise_or_create_database_at(str(Path(os.environ['MeasureItHome'] + '/Databases/' + db)))
+    # Normalize db path
+    db_path = Path(db)
+    if db_path.suffix != ".db":
+        db_path = db_path.with_suffix(".db")
+    if not db_path.is_absolute():
+        home = Path(get_measureit_home())
+        db_path = home / "Databases" / db_path
+    initialise_or_create_database_at(str(db_path))
     qc.new_experiment(exp, samp)
 
     if sweep is not None:
@@ -257,17 +288,19 @@ def init_database(db, exp, samp, sweep=None):
 def export_db_to_txt(db_fn, exp_name=None, sample_name=None):
     """ Prints all experiment and sample names to the console. """
     
-    if '.db' in db_fn:
-        initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db_fn)
-    else:
-        initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db_fn + '.db')
+    home = Path(get_measureit_home())
+    db_file = Path(db_fn)
+    if db_file.suffix != ".db":
+        db_file = db_file.with_suffix(".db")
+    if not db_file.is_absolute():
+        db_file = home / "Databases" / db_file
+    initialise_or_create_database_at(str(db_file))
     experiments = []
     for exp in qc.dataset.experiment_container.experiments():
         if exp_name is None or exp.name is exp_name:
             experiments.append(exp)
-            newpath = os.environ['MeasureItHome'] + '\\Origin Files\\' + exp.name
-            if not os.path.exists(newpath):
-                os.makedirs(newpath)
+            newpath = Path(get_measureit_home()) / "Origin Files" / exp.name
+            newpath.mkdir(parents=True, exist_ok=True)
 
     count = 0
     for exp in experiments:

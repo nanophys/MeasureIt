@@ -9,14 +9,24 @@ import sys, os
 from datetime import datetime
 from ruamel.yaml import YAML
 import matplotlib
-from mainwindow_ui import Ui_MeasureIt
-from GUI_Dialogs import *
-from handlers import WriteStream, OutputThread
+from .mainwindow_ui import Ui_MeasureIt
+from .GUI_Dialogs import *
+from .handlers import WriteStream, OutputThread
 from queue import Queue
 
-sys.path.append(os.environ['MeasureItHome'])
-import MeasureIt
-from MeasureIt.util import _value_parser, _name_parser, save_to_csv, safe_set, safe_get, ParameterException
+try:
+    from MeasureIt.util import (
+        _value_parser,
+        _name_parser,
+        save_to_csv,
+        safe_set,
+        safe_get,
+        ParameterException,
+        get_measureit_home,
+    )
+except Exception:
+    # Fallbacks if imported in a constrained environment
+    from MeasureIt.util import _value_parser, _name_parser, save_to_csv, safe_set, safe_get, ParameterException
 from MeasureIt.base_sweep import BaseSweep
 from MeasureIt.sweep0d import Sweep0D
 from MeasureIt.sweep1d import Sweep1D
@@ -169,10 +179,11 @@ class UImain(QtWidgets.QMainWindow):
         self.set_param_index = index
 
     def start_logs(self):
-        self.stdout_filename = os.environ['MeasureItHome'] + '\\logs\\stdout\\' + datetime.now().strftime(
-            "%Y-%m-%d") + '.txt'
-        self.stderr_filename = os.environ['MeasureItHome'] + '\\logs\\stderr\\' + datetime.now().strftime(
-            "%Y-%m-%d") + '.txt'
+        home = os.environ.get('MeasureItHome') or (get_measureit_home() if 'get_measureit_home' in globals() else None)
+        if home is None:
+            return
+        self.stdout_filename = os.path.join(home, 'logs', 'stdout', datetime.now().strftime("%Y-%m-%d") + '.txt')
+        self.stderr_filename = os.path.join(home, 'logs', 'stderr', datetime.now().strftime("%Y-%m-%d") + '.txt')
 
         self.stdout_file = open(self.stdout_filename, 'a')
         sys.stderr = open(self.stderr_filename, 'a')
@@ -185,7 +196,7 @@ class UImain(QtWidgets.QMainWindow):
 
     def load_station(self):
         (fileName, x) = QFileDialog.getOpenFileName(self, "Load Station",
-                                                    os.environ['MeasureItHome'] + "\\cfg\\",
+                                                    os.path.join(os.environ.get('MeasureItHome', ''), 'cfg'),
                                                     "Stations (*.station.yaml)")
 
         if len(fileName) == 0:
@@ -253,7 +264,8 @@ class UImain(QtWidgets.QMainWindow):
             yaml.dump(snap, file)
             if set_as_default:
                 qc.config['station']['default_file'] = filename
-                qc.config.save_config(os.environ['MeasureItHome'] + '\\cfg\\qcodesrc.json')
+                cfg_home = os.environ.get('MeasureItHome', '')
+                qc.config.save_config(os.path.join(cfg_home, 'cfg', 'qcodesrc.json'))
 
     def edit_parameters(self):
         param_ui = EditParameterGUI(self.devices, self.track_params, self.set_params, self)
@@ -500,6 +512,21 @@ class UImain(QtWidgets.QMainWindow):
         print('trying to kill the sweep')
         self.sweep.kill()
         self.sweep = None
+
+
+def main():
+    """Console entrypoint to launch the MeasureIt GUI."""
+    # Ensure MeasureItHome is set for downstream code
+    try:
+        home = os.environ.get('MeasureItHome') or get_measureit_home()
+        os.environ['MeasureItHome'] = home
+    except Exception:
+        pass
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
+    app.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+    app.setStyle('WindowsVista')
+    _ = UImain()
+    sys.exit(app.exec_())
 
     def add_sweep_to_queue(self):
         try:

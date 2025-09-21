@@ -37,22 +37,21 @@ dependencies = [
     "numpy>=1.20.0",
     "scipy>=1.7.0",
     "matplotlib>=3.5.0",
+    "ruamel.yaml>=0.17.0",
     "pandas>=1.3.0",
-    
+
     # QCoDeS ecosystem
     "qcodes>=0.37.0",
     "qcodes_contrib_drivers>=0.18.0",
-    
-    # GUI framework
+
+    # GUI framework (core includes GUI to keep import-time Qt usage working)
     "PyQt5>=5.15.0",
     "pyqtgraph>=0.13.0",
-    
-    # Instrument drivers
-    "nidaqmx>=0.6.0",
-    "zhinst>=21.8.0",
-    
+
     # Platform-specific dependencies
     "multipyvu>=1.2.0; platform_system=='Windows'",
+    # Path helpers
+    "platformdirs>=3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -91,9 +90,43 @@ windows = [
     "pywin32>=304; platform_system=='Windows'",
 ]
 
-# All optional dependencies
+# Optional instrument/driver dependencies
+drivers = [
+    "nidaqmx>=0.6.0",
+    "zhinst>=21.8.0",
+]
+
+# GUI add-ons (kept minimal since core already depends on PyQt5 + pyqtgraph)
+gui = []
+
+# All optional dependencies (union of the above)
 all = [
-    "MeasureIt[dev,docs,jupyter,windows]",
+    # dev
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-qt>=4.2.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+    "pre-commit>=2.20.0",
+    # docs
+    "sphinx>=5.0.0",
+    "sphinx-rtd-theme>=1.2.0",
+    "sphinx-autodoc-typehints>=1.19.0",
+    "myst-parser>=0.18.0",
+    # jupyter
+    "jupyterlab>=3.4.0",
+    "notebook>=6.4.0",
+    "ipykernel>=6.15.0",
+    "ipython>=8.0.0,<8.16",
+    "jupyter_client>=7.3.0",
+    "jupyter_core>=4.11.0",
+    "traitlets>=5.3.0",
+    "ipython_genutils>=0.2.0",
+    # windows
+    "pywin32>=304; platform_system=='Windows'",
+    # drivers
+    "nidaqmx>=0.6.0",
+    "zhinst>=21.8.0",
 ]
 
 [project.urls]
@@ -101,6 +134,10 @@ Repository = "https://github.com/nanophys/MeasureIt"
 Documentation = "https://measureituw.readthedocs.io/en/latest/?badge=latest"
 "Bug Reports" = "https://github.com/nanophys/MeasureIt/issues"
 "Contributing" = "https://github.com/nanophys/MeasureIt/blob/main/CONTRIBUTING.md"
+
+# Console scripts
+[project.scripts]
+measureit-gui = "MeasureIt.GUI.GUI_Measureit:main"
 
 # Tool configurations
 [tool.pytest.ini_options]
