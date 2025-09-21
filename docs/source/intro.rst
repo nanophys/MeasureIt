@@ -1,19 +1,25 @@
 Introduction
 ============
-A data acquisition toolbox developed by Elliott, Jiaqi and Christian @ University of Washington!
 
-``MeasureIt`` Introduction of MeasureIt comes here!
+MeasureIt is a QCoDeS-based measurement toolkit for condensed matter experiments,
+providing threaded data acquisition, live plotting, and a PyQt5 GUI.
 
-Motivation
-**********
+Highlights
+----------
 
-Motivation comes here.
+- Sweep abstractions: 0D/1D/2D sweeps with live data and saving through QCoDeS.
+- Qt-friendly plotting: high-performance real-time plotting via pyqtgraph.
+- GUI: configure stations, follow parameters, and run sweeps interactively.
+- Extensible drivers: integrate lab hardware via QCoDeS and community drivers.
 
-Copyrights
-***********
+Quick Start
+-----------
 
-Get Started
-***********
-start/index
+- Install: ``pip install MeasureIt`` (see :ref:`gettingstarted` for extras).
+- Launch GUI: ``measureit-gui``.
+- Use in notebooks: enable Qt with ``%gui qt`` then start sweeps.
 
-Copyrights info comes here.
+Contributing
+------------
+
+We welcome issues and pull requests. See the README for development setup.
