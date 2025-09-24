@@ -1,6 +1,6 @@
 # plotter_thread.py
 
-from PyQt5.QtCore import QObject, pyqtSlot, QTimer
+from PyQt5.QtCore import QObject, pyqtSlot
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt5.QtGui import QFont
 from collections import deque
@@ -22,14 +22,7 @@ class Plotter(QObject):
     """
     PyQtGraph-based plotter for MeasureIt sweeps.
 
-    Provides high-performance real-time plotting using PyQtGraph instead of matplotlib.
-    Maintains the same API as the original matplotlib Plotter class for compatibility.
-
-    Performance improvements:
-    - 10-25x faster plot updates
-    - Better memory efficiency for large datasets
-    - Native Qt integration
-    - Hardware-accelerated rendering (OpenGL)
+    Provides high-performance real-time plotting using PyQtGraph.
 
     Attributes
     ---------
@@ -70,7 +63,7 @@ class Plotter(QObject):
         Resets plots and closes the widget.
     """
 
-    def __init__(self, sweep, plot_bin=1, update_interval=200):
+    def __init__(self, sweep, plot_bin=1):
         """
         Initializes the PyQtGraph plotter.
 
@@ -80,9 +73,6 @@ class Plotter(QObject):
             Defines the specific parent sweep (Sweep1D, Sweep2D, etc.).
         plot_bin:
             Determines the minimum amount of data to be stored in the queue.
-        update_interval:
-            Update interval in milliseconds (default 200ms = 5 FPS).
-            Use 500ms for 2 FPS, 200ms for 5 FPS.
         """
         QObject.__init__(self)
 
@@ -102,9 +92,10 @@ class Plotter(QObject):
         self.set_plot = None
         self.set_plot_item = None
 
-        # Timer for regular plot updates (2-5 FPS)
-        self.update_timer = None
-        self.update_interval = update_interval  # milliseconds
+        # Performance optimization: store data arrays for efficient updates
+        # Use lists for fast appending, convert to numpy arrays only when plotting
+        self.data_arrays = {}  # Maps parameters to {'forward': {'x': [], 'y': []}, 'backward': {'x': [], 'y': []}}
+        self.set_data_arrays = {'x': [], 'y': []}
 
     def handle_close(self, event):
         """Handle widget close event."""
@@ -137,13 +128,7 @@ class Plotter(QObject):
         if key == pg.QtCore.Qt.Key_Space:
             self.sweep.flip_direction()
         elif key == pg.QtCore.Qt.Key_Escape:
-            # Stop current sweep; if this is an inner sweep of a 2D sweep, stop the parent as well
             self.sweep.stop()
-            try:
-                if hasattr(self.sweep, 'parent') and self.sweep.parent is not None:
-                    self.sweep.parent.stop()
-            except Exception:
-                pass
         elif key == pg.QtCore.Qt.Key_Return or key == pg.QtCore.Qt.Key_Enter:
             self.sweep.resume()
 
@@ -172,12 +157,6 @@ class Plotter(QObject):
             print("figs already set. returning.")
             return
 
-        # Ensure a QApplication exists (important for scripts/Jupyter)
-        try:
-            pg.mkQApp()
-        except Exception:
-            pass
-
         self.figs_set = True
         num_plots = len(self.sweep._params)
         if self.sweep.set_param is not None:
@@ -185,6 +164,7 @@ class Plotter(QObject):
 
         # Calculate grid layout
         columns = math.ceil(math.sqrt(num_plots))
+        rows = math.ceil(num_plots / columns)
 
         # Create main widget and layout
         self.widget = QWidget()
@@ -231,9 +211,15 @@ class Plotter(QObject):
                 current_col = 0
                 current_row += 1
 
+        # Initialize data arrays for parameters
+        for param in self.sweep._params:
+            self.data_arrays[param] = {
+                'forward': {'x': [], 'y': []},
+                'backward': {'x': [], 'y': []}
+            }
 
         # Create plots for followed parameters
-        for param in self.sweep._params:
+        for i, param in enumerate(self.sweep._params):
             plot = self.layout_widget.addPlot(
                 row=current_row, col=current_col,
                 title=f'{param.label} vs {self.sweep.set_param.label if not self.sweep.x_axis else "Time"}'
@@ -266,11 +252,6 @@ class Plotter(QObject):
         # Show the widget
         self.widget.show()
 
-        # Start the update timer for regular plot refreshes (parented to widget => main-thread affinity)
-        self.update_timer = QTimer(self.widget)
-        self.update_timer.timeout.connect(lambda: self.update_plots(force=True))
-        self.update_timer.start(self.update_interval)
-
     @pyqtSlot(list, int)
     def add_data(self, data, direction):
         """
@@ -284,13 +265,16 @@ class Plotter(QObject):
             The direction of the sweep (0 or 1).
         """
         self.data_queue.append((data, direction))
-        # Note: Timer-based updates handle plot refreshing at regular intervals
+
+        # Only update plots when we have enough data points or it's been a while
+        # This prevents excessive update calls that slow down the plotting
+        self.update_plots()
 
     @pyqtSlot(bool)
     def update_plots(self, force=False):
         """
         Updates all plots with new data from the queue.
-        Uses the original matplotlib logic but with PyQtGraph.
+        Optimized for high-frequency updates.
 
         Parameters
         ---------
@@ -304,55 +288,90 @@ class Plotter(QObject):
         if len(self.data_queue) < self.plot_bin and not force:
             return
 
-        # Process queued data following original matplotlib logic
+        # Process all queued data at once for better performance
         while len(self.data_queue) > 0:
             temp = self.data_queue.popleft()
             data = deque(temp[0])
             direction = temp[1]
 
-            # Grab the time data (original logic)
+            # Get time data
             time_data = data.popleft()
 
-            # Grab and plot the set_param if we are driving one (original logic)
+            # Handle set parameter plot
             set_param_data = None
             if self.sweep.set_param is not None:
                 set_param_data = data.popleft()
 
-                # Update set parameter plot using PyQtGraph
-                if self.set_plot_item is not None:
-                    current_x = self.set_plot_item.xData if self.set_plot_item.xData is not None else np.array([])
-                    current_y = self.set_plot_item.yData if self.set_plot_item.yData is not None else np.array([])
+                # Add to set parameter data arrays
+                # Ensure scalars by flattening any arrays
+                time_val = time_data[1]
+                if hasattr(time_val, 'flatten'):
+                    time_val = float(np.array(time_val).flatten()[0])
 
-                    new_x = np.append(current_x, time_data[1])
-                    new_y = np.append(current_y, set_param_data[1])
+                set_val = set_param_data[1]
+                if hasattr(set_val, 'flatten'):
+                    set_val = float(np.array(set_val).flatten()[0])
 
-                    self.set_plot_item.setData(new_x, new_y)
+                self.set_data_arrays['x'].append(time_val)
+                self.set_data_arrays['y'].append(set_val)
 
-            # Determine x_data following original logic
-            x_data = 0
-            if self.sweep.x_axis == 1:
-                x_data = time_data[1]
-            elif self.sweep.x_axis == 0:
-                x_data = set_param_data[1] if set_param_data is not None else time_data[1]
+            # Determine x-axis data for followed parameters
+            x_data_value = time_data[1] if self.sweep.x_axis == 1 else (
+                set_param_data[1] if self.sweep.set_param is not None else time_data[1]
+            )
+            # Ensure x_data_value is scalar
+            if hasattr(x_data_value, 'flatten'):
+                x_data_value = float(np.array(x_data_value).flatten()[0])
 
-            # Now, grab the rest of the following param data (original logic)
+            # Add data to arrays for followed parameters
             for i, data_pair in enumerate(data):
-                if i < len(self.sweep._params):
-                    param = self.sweep._params[i]
-                    if param in self.plot_items:
-                        forward_item, backward_item = self.plot_items[param]
+                param = self.sweep._params[i]
 
-                        # Choose the correct plot item based on direction
-                        plot_item = forward_item if direction == 0 else backward_item
+                if param in self.data_arrays:
+                    direction_key = 'forward' if direction == 0 else 'backward'
 
-                        # Append data point by point (original logic)
-                        current_x = plot_item.xData if plot_item.xData is not None else np.array([])
-                        current_y = plot_item.yData if plot_item.yData is not None else np.array([])
+                    # Ensure y_data is scalar
+                    y_value = data_pair[1]
+                    if hasattr(y_value, 'flatten'):
+                        y_value = float(np.array(y_value).flatten()[0])
 
-                        new_x = np.append(current_x, x_data)
-                        new_y = np.append(current_y, data_pair[1])
+                    self.data_arrays[param][direction_key]['x'].append(x_data_value)
+                    self.data_arrays[param][direction_key]['y'].append(y_value)
 
-                        plot_item.setData(new_x, new_y)
+        # Now update all plots at once (much more efficient)
+        self._update_plot_displays()
+
+    def _update_plot_displays(self):
+        """
+        Efficiently updates all plot displays using stored data arrays.
+        Optimized for large datasets - converts to numpy arrays efficiently.
+        """
+        # Update set parameter plot
+        if self.sweep.set_param is not None and self.set_plot_item is not None:
+            if self.set_data_arrays['x'] and self.set_data_arrays['y']:
+                # Convert to numpy arrays for efficient plotting
+                x_data = np.array(self.set_data_arrays['x'], dtype=np.float64)
+                y_data = np.array(self.set_data_arrays['y'], dtype=np.float64)
+                self.set_plot_item.setData(x_data, y_data)
+
+        # Update followed parameter plots
+        for param in self.sweep._params:
+            if param in self.plot_items and param in self.data_arrays:
+                forward_item, backward_item = self.plot_items[param]
+
+                # Update forward direction
+                forward_data = self.data_arrays[param]['forward']
+                if forward_data['x'] and forward_data['y']:
+                    x_data = np.array(forward_data['x'], dtype=np.float64)
+                    y_data = np.array(forward_data['y'], dtype=np.float64)
+                    forward_item.setData(x_data, y_data)
+
+                # Update backward direction
+                backward_data = self.data_arrays[param]['backward']
+                if backward_data['x'] and backward_data['y']:
+                    x_data = np.array(backward_data['x'], dtype=np.float64)
+                    y_data = np.array(backward_data['y'], dtype=np.float64)
+                    backward_item.setData(x_data, y_data)
 
     def get_plot_data(self, param_index):
         """
@@ -399,11 +418,20 @@ class Plotter(QObject):
         if not self.figs_set:
             return
 
-        # Reset set parameter plot (original logic)
+        # Clear data arrays
+        self.set_data_arrays = {'x': [], 'y': []}
+        for param in self.sweep._params:
+            if param in self.data_arrays:
+                self.data_arrays[param] = {
+                    'forward': {'x': [], 'y': []},
+                    'backward': {'x': [], 'y': []}
+                }
+
+        # Reset set parameter plot
         if self.set_plot_item is not None:
             self.set_plot_item.setData([], [])
 
-        # Reset followed parameter plots (original logic)
+        # Reset followed parameter plots
         for param in self.sweep._params:
             if param in self.plot_items:
                 forward_item, backward_item = self.plot_items[param]
@@ -413,11 +441,6 @@ class Plotter(QObject):
     def clear(self):
         """Resets plots and closes the widget."""
         if self.figs_set:
-            # Stop the update timer
-            if self.update_timer is not None:
-                self.update_timer.stop()
-                self.update_timer = None
-
             self.reset()
             self.figs_set = False
             if self.widget is not None:

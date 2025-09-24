@@ -3,6 +3,7 @@
 from PyQt5.QtCore import QThread, pyqtSignal
 from .util import ParameterException
 import time
+import json
 
 
 class RunnerThread(QThread):
@@ -125,6 +126,12 @@ class RunnerThread(QThread):
             self.runner = self.sweep.meas.run()
             self.datasaver = self.runner.__enter__()
             self.dataset = self.datasaver.dataset
+            # Attach MeasureIt sweep metadata as JSON string under key 'measureit'
+            try:
+                meta = self.sweep.export_json(fn=None)
+                self.dataset.add_metadata(tag="measureit", metadata=json.dumps(meta))
+            except Exception:
+                pass
             ds_dict = {}
             ds_dict['db'] = self.dataset.path_to_db
             ds_dict['run id'] = self.dataset.run_id
@@ -177,5 +184,4 @@ class RunnerThread(QThread):
 
             self.runner.__exit__(None, None, None)
             self.datasaver = None
-
 

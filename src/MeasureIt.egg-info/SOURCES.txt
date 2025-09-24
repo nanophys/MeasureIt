@@ -5,7 +5,9 @@ src/MeasureIt/__init__.py
 src/MeasureIt/base_sweep.py
 src/MeasureIt/gate_leakage.py
 src/MeasureIt/heatmap_thread.py
+src/MeasureIt/heatmap_thread_matplotlib.py
 src/MeasureIt/plotter_thread.py
+src/MeasureIt/plotter_thread_matplotlib.py
 src/MeasureIt/runner_thread.py
 src/MeasureIt/safe_ramp.py
 src/MeasureIt/simul_sweep.py
@@ -20,6 +22,7 @@ src/MeasureIt/util.py
 src/MeasureIt.egg-info/PKG-INFO
 src/MeasureIt.egg-info/SOURCES.txt
 src/MeasureIt.egg-info/dependency_links.txt
+src/MeasureIt.egg-info/entry_points.txt
 src/MeasureIt.egg-info/requires.txt
 src/MeasureIt.egg-info/top_level.txt
 src/MeasureIt/Drivers/Ametek_7230.py
@@ -60,4 +63,4 @@ src/MeasureIt/GUI/remove_instrument_ui.py
 src/MeasureIt/GUI/save_data_ui.py
 src/MeasureIt/GUI/save_station_ui.py
 src/MeasureIt/GUI/view_dataset_ui.py
-tests/test_sweep.py
+tests/test_quickstart_sweeps.py
