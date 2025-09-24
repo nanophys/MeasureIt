@@ -154,3 +154,16 @@ class Sweep0D(BaseSweep, QObject):
             if verbose is True:
                 self.print_main.emit(f'No estimated time for {repr(self)} to run.')
             return 0
+
+    # --- JSON export/import hooks ---
+    def _export_json_specific(self, json_dict: dict) -> dict:
+        json_dict['set_param'] = None
+        json_dict['attributes']['max_time'] = self.max_time
+        return json_dict
+
+    @classmethod
+    def from_json(cls, json_dict, station):
+        attrs = json_dict.get('attributes', {})
+        # Sweep0D takes max_time plus common BaseSweep kwargs
+        max_time = attrs.pop('max_time', 1e6)
+        return cls(max_time=max_time, **attrs)

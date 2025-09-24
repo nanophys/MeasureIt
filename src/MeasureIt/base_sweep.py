@@ -616,82 +616,35 @@ class BaseSweep(QObject):
 
     def export_json(self, fn=None):
         """
-        Saves sweep attributes and parameters of QCoDeS Station as JSON dictionary.
-        
-        Called to save experimental setup to avoid repetitive setup of commonly
-        used measurement instruments.
-        
-        Parameters
-        ---------
-        fn:
-            Represents optional filename to be opened. A copy of the station
-            information will be saved in this file.
-            
-        Returns
-        ---------
-        Dictionary containing all current instruments, parameters, and sweep 
-        attributes.
+        Export sweep configuration as a JSON-serializable dict.
+
+        Base implementation includes common attributes and followed parameters.
+        Subclasses add their specific fields via _export_json_specific.
         """
-        
-        json_dict = {}
-        json_dict['class'] = str(self.__class__.__name__)
-        json_dict['module'] = str(self.__class__.__module__)
 
-        json_dict['attributes'] = {}
-        json_dict['attributes']['inter_delay'] = self.inter_delay
-        json_dict['attributes']['save_data'] = self.save_data
-        json_dict['attributes']['plot_data'] = self.plot_data
-        json_dict['attributes']['plot_bin'] = self.plot_bin
+        json_dict = {
+            'class': str(self.__class__.__name__),
+            'module': str(self.__class__.__module__),
+            'attributes': {
+                'inter_delay': self.inter_delay,
+                'save_data': self.save_data,
+                'plot_data': self.plot_data,
+                'plot_bin': self.plot_bin,
+            },
+        }
 
-        if 'Sweep0D' in json_dict['class']:
-            json_dict['set_param'] = None
-            json_dict['attributes']['max_time'] = self.max_time
-        elif 'Sweep1D' in json_dict['class']:
-            json_dict['set_param'] = {}
-            json_dict['set_param']['param'] = self.set_param.name
-            json_dict['set_param']['instr_module'] = self.set_param.instrument.__class__.__module__
-            json_dict['set_param']['instr_class'] = self.set_param.instrument.__class__.__name__
-            json_dict['set_param']['instr_name'] = self.set_param.instrument.name
-            json_dict['set_param']['start'] = self.begin
-            json_dict['set_param']['stop'] = self.end
-            json_dict['set_param']['step'] = self.step
-            json_dict['attributes']['bidirectional'] = self.bidirectional
-            json_dict['attributes']['continual'] = self.continuous
-            json_dict['attributes']['x_axis_time'] = self.x_axis
-        elif 'Sweep2D' in json_dict['class']:
-            json_dict['attributes']['outer_delay'] = self.outer_delay
-            json_dict['inner_sweep'] = {}
-            json_dict['inner_sweep']['param'] = self.in_param.name
-            json_dict['inner_sweep']['instr_module'] = self.in_param.instrument.__class__.__module__
-            json_dict['inner_sweep']['instr_class'] = self.in_param.instrument.__class__.__name__
-            json_dict['inner_sweep']['instr_name'] = self.in_param.instrument.name
-            json_dict['inner_sweep']['start'] = self.in_start
-            json_dict['inner_sweep']['stop'] = self.in_stop
-            json_dict['inner_sweep']['step'] = self.in_step
-            json_dict['outer_sweep'] = {}
-            json_dict['outer_sweep']['param'] = self.set_param.name
-            json_dict['outer_sweep']['instr_module'] = self.set_param.instrument.__class__.__module__
-            json_dict['outer_sweep']['instr_class'] = self.set_param.instrument.__class__.__name__
-            json_dict['outer_sweep']['instr_name'] = self.set_param.instrument.name
-            json_dict['outer_sweep']['start'] = self.out_start
-            json_dict['outer_sweep']['stop'] = self.out_stop
-            json_dict['outer_sweep']['step'] = self.out_step
-        elif 'SimulSweep' in json_dict['class']:
-            json_dict['attributes']['bidirectional'] = self.bidirectional
-            json_dict['attributes']['continual'] = self.continuous
+        # Allow subclasses to add sweep-specific configuration
+        json_dict = self._export_json_specific(json_dict)
 
-            json_dict['set_params'] = {}
-            for p, items in self.set_params_dict.items():
-                json_dict['set_params'][p.name] = items
-                json_dict['set_params'][p.name]['instr_module'] = p.instrument.__class__.__module__
-                json_dict['set_params'][p.name]['instr_class'] = p.instrument.__class__.__name__
-                json_dict['set_params'][p.name]['instr_name'] = p.instrument.name
-
+        # Always include followed params (instrument-qualified keys for uniqueness)
         json_dict['follow_params'] = {}
-
         for p in self._params:
-            json_dict['follow_params'][p.name] = (p.instrument.name, p.instrument.__class__.__module__,
-                                                  p.instrument.__class__.__name__)
+            key = f"{p.instrument.name}.{p.name}"
+            json_dict['follow_params'][key] = (
+                p.instrument.name,
+                p.instrument.__class__.__module__,
+                p.instrument.__class__.__name__,
+            )
 
         if fn is not None:
             with open(fn, 'w') as outfile:
@@ -699,83 +652,45 @@ class BaseSweep(QObject):
 
         return json_dict
 
+    # --- Hooks for subclasses ---
+    def _export_json_specific(self, json_dict: dict) -> dict:
+        """Subclasses override to add their configuration to json_dict."""
+        return json_dict
+
+    @staticmethod
+    def _load_parameter_by_type(name: str, instr_name: str, instr_module: str, instr_class: str, station: Station):
+        """Resolve a QCoDeS parameter by instrument identity and parameter name."""
+        mod = importlib.import_module(instr_module)
+        instr_type = getattr(mod, instr_class)
+
+        # Prefer exact instrument name match
+        if instr_name in station.components:
+            inst = station.components[instr_name]
+            if isinstance(inst, instr_type):
+                return inst.parameters[name]
+        # Fallback: any instrument of that type
+        for inst in station.components.values():
+            if isinstance(inst, instr_type) and name in inst.parameters:
+                return inst.parameters[name]
+        raise KeyError(f"Parameter {name} on instrument {instr_name} of type {instr_class} not found in station")
+
     @classmethod
     def import_json(cls, json_dict, station=Station()):
-        """
-        Loads previously exported Station setup.
-        
-        Reassigns all dictionary values exported as JSON to their appropriate
-        objects.
-        """
-        
-        def load_parameter(name, instr_name, instr_type, station):
-            if instr_name in station.components.keys():
-                if isinstance(station.components[instr_name], instr_type):
-                    return station.components[instr_name].parameters[name]
-
-            for i_name, instr in station.components.items():
-                if isinstance(instr, instr_type):
-                    return instr.parameters[name]
-
-        sweep_class = json_dict['class']
+        """Factory: delegate to subclass from_json, then attach follow_params."""
         sweep_module = json_dict['module']
+        sweep_class = json_dict['class']
 
-        if 'Sweep1D' in sweep_class:
-            sp = json_dict['set_param']
-
-            module = importlib.import_module(sweep_module)
-            sc = getattr(module, sweep_class)
-            instr_module = importlib.import_module(sp['instr_module'])
-            instrument = getattr(instr_module, sp['instr_class'])
-
-            set_param = load_parameter(sp['param'], sp['instr_name'], instrument, station)
-            sweep = sc(set_param, sp['start'], sp['stop'], sp['step'], **json_dict['attributes'])
-        elif 'Sweep0D' in sweep_class:
-            module = importlib.import_module(sweep_module)
-            sc = getattr(module, sweep_class)
-            sweep = sc(**json_dict['attributes'])
-        elif 'Sweep2D' in sweep_class:
-            module = importlib.import_module(sweep_module)
-            sc = getattr(module, sweep_class)
-
-            in_param = json_dict['inner_sweep']
-            in_instr_module = importlib.import_module(in_param['instr_module'])
-            in_instrument = getattr(in_instr_module, in_param['instr_class'])
-            inner_param = load_parameter(in_param['param'], in_param['instr_name'], in_instrument, station)
-
-            out_param = json_dict['outer_sweep']
-            out_instr_module = importlib.import_module(out_param['instr_module'])
-            out_instrument = getattr(out_instr_module, out_param['instr_class'])
-            outer_param = load_parameter(out_param['param'], out_param['instr_name'], out_instrument, station)
-
-            inner_list = [inner_param, in_param['start'], in_param['stop'], in_param['step']]
-            outer_list = [outer_param, out_param['start'], out_param['stop'], out_param['step']]
-
-            sweep = sc(inner_list, outer_list, **json_dict['attributes'])
-        elif 'SimulSweep' in sweep_class:
-            module = importlib.import_module(sweep_module)
-            sc = getattr(module, sweep_class)
-
-            set_params_dict = {}
-            for p, items in json_dict['set_params'].items():
-                instr_module = importlib.import_module(items['instr_module'])
-                instrument = getattr(instr_module, items['instr_class'])
-
-                param = load_parameter(p, items['instr_name'], instrument, station)
-                set_params_dict[param] = {}
-                set_params_dict[param]['start'] = items['start']
-                set_params_dict[param]['stop'] = items['stop']
-                set_params_dict[param]['step'] = items['step']
-
-            sweep = sc(set_params_dict, **json_dict['attributes'])
+        module = importlib.import_module(sweep_module)
+        sc = getattr(module, sweep_class)
+        if hasattr(sc, 'from_json') and callable(getattr(sc, 'from_json')):
+            sweep = sc.from_json(json_dict, station)
         else:
-            return
+            raise NotImplementedError(f"Class {sweep_class} does not implement from_json")
 
-        for p, instr in json_dict['follow_params'].items():
-            instr_module = importlib.import_module(instr[1])
-            instrument = getattr(instr_module, instr[2])
-
-            param = load_parameter(p, instr[0], instrument, station)
+        # Attach followed parameters (supports both qualified and legacy keys)
+        for p, instr in json_dict.get('follow_params', {}).items():
+            param_name = p.split('.', 1)[1] if '.' in p else p
+            param = BaseSweep._load_parameter_by_type(param_name, instr[0], instr[1], instr[2], station)
             sweep.follow_param(param)
 
         return sweep

@@ -8,6 +8,7 @@ from .sweep2d import Sweep2D
 from .sweep_queue import SweepQueue, DatabaseEntry
 from .simul_sweep import SimulSweep
 from .sweep_ips import SweepIPS
+from .helper import print_metadata, print_all_metadata
 
 config.logger.start_logging_on_import = "always"
 config.logger.console_level = "WARNING"
@@ -15,4 +16,4 @@ config.station.enable_forced_reconnect = False
 
 modules = glob.glob(join(dirname(__file__), "*.py"))
 __all__ = [basename(f)[:-3] for f in modules if isfile(f) and not f.endswith("__init__.py")]
-
+__all__ += ["print_metadata", "print_all_metadata"]

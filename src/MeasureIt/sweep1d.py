@@ -543,6 +543,33 @@ class Sweep1D(BaseSweep, QObject):
 
         return t_est
 
+    # --- JSON export/import hooks ---
+    def _export_json_specific(self, json_dict: dict) -> dict:
+        json_dict['set_param'] = {
+            'param': self.set_param.name,
+            'instr_module': self.set_param.instrument.__class__.__module__,
+            'instr_class': self.set_param.instrument.__class__.__name__,
+            'instr_name': self.set_param.instrument.name,
+            'start': self.begin,
+            'stop': self.end,
+            'step': self.step,
+        }
+        json_dict['attributes']['bidirectional'] = self.bidirectional
+        json_dict['attributes']['continual'] = self.continuous
+        json_dict['attributes']['x_axis_time'] = self.x_axis
+        return json_dict
+
+    @classmethod
+    def from_json(cls, json_dict, station):
+        attrs = dict(json_dict.get('attributes', {}))
+        bidirectional = attrs.pop('bidirectional', False)
+        continual = attrs.pop('continual', False)
+        x_axis_time = attrs.pop('x_axis_time', 0)
+
+        sp = json_dict['set_param']
+        p = BaseSweep._load_parameter_by_type(sp['param'], sp['instr_name'], sp['instr_module'], sp['instr_class'], station)
+        return cls(p, sp['start'], sp['stop'], sp['step'], bidirectional=bidirectional, continual=continual, x_axis_time=x_axis_time, **attrs)
+
     def __del__(self):
         """
         Destructor. Should delete all child threads and close all figures when the sweep object is deleted.

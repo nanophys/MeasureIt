@@ -3,7 +3,25 @@ import sys
 from pathlib import Path
 import tempfile
 import shutil
+import types
 import pytest
+
+# Provide a lightweight stub for pandas to avoid binary-compat issues in CI/dev envs
+if 'pandas' not in sys.modules:
+    pandas_stub = types.ModuleType('pandas')
+
+    class _StubDataFrame:  # minimal stub used only if code paths touch save_to_csv
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def to_csv(self, *args, **kwargs):
+            pass
+
+        def __setitem__(self, key, value):
+            pass
+
+    pandas_stub.DataFrame = _StubDataFrame
+    sys.modules['pandas'] = pandas_stub
 
 
 @pytest.fixture(scope="session", autouse=True)

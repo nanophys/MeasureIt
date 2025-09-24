@@ -615,3 +615,40 @@ class Sweep2D(BaseSweep, QObject):
         if verbose is True:
             self.print_main.emit(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
         return t_est
+
+    # --- JSON export/import hooks ---
+    def _export_json_specific(self, json_dict: dict) -> dict:
+        json_dict['attributes']['outer_delay'] = self.outer_delay
+        json_dict['inner_sweep'] = {
+            'param': self.in_param.name,
+            'instr_module': self.in_param.instrument.__class__.__module__,
+            'instr_class': self.in_param.instrument.__class__.__name__,
+            'instr_name': self.in_param.instrument.name,
+            'start': self.in_start,
+            'stop': self.in_stop,
+            'step': self.in_step,
+        }
+        json_dict['outer_sweep'] = {
+            'param': self.set_param.name,
+            'instr_module': self.set_param.instrument.__class__.__module__,
+            'instr_class': self.set_param.instrument.__class__.__name__,
+            'instr_name': self.set_param.instrument.name,
+            'start': self.out_start,
+            'stop': self.out_stop,
+            'step': self.out_step,
+        }
+        return json_dict
+
+    @classmethod
+    def from_json(cls, json_dict, station):
+        attrs = dict(json_dict.get('attributes', {}))
+        inner = json_dict['inner_sweep']
+        outer = json_dict['outer_sweep']
+
+        in_p = BaseSweep._load_parameter_by_type(inner['param'], inner['instr_name'], inner['instr_module'], inner['instr_class'], station)
+        out_p = BaseSweep._load_parameter_by_type(outer['param'], outer['instr_name'], outer['instr_module'], outer['instr_class'], station)
+
+        inner_list = [in_p, inner['start'], inner['stop'], inner['step']]
+        outer_list = [out_p, outer['start'], outer['stop'], outer['step']]
+
+        return cls(inner_list, outer_list, **attrs)

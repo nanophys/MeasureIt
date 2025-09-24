@@ -394,4 +394,32 @@ class SimulSweep(BaseSweep, QObject):
             self.print_main.emit(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
         return t_est
 
+    # --- JSON export/import hooks ---
+    def _export_json_specific(self, json_dict: dict) -> dict:
+        json_dict['attributes']['bidirectional'] = self.bidirectional
+        json_dict['attributes']['continual'] = self.continuous
+        json_dict['set_params'] = {}
+        for p, items in self.set_params_dict.items():
+            key = f"{p.instrument.name}.{p.name}"
+            entry = dict(items)
+            entry['instr_module'] = p.instrument.__class__.__module__
+            entry['instr_class'] = p.instrument.__class__.__name__
+            entry['instr_name'] = p.instrument.name
+            json_dict['set_params'][key] = entry
+        return json_dict
+
+    @classmethod
+    def from_json(cls, json_dict, station):
+        attrs = dict(json_dict.get('attributes', {}))
+        # Pull SimulSweep-specific attributes but keep BaseSweep kwargs
+        bidirectional = attrs.pop('bidirectional', False)
+        continual = attrs.pop('continual', False)
+
+        set_params_dict = {}
+        for key, items in json_dict.get('set_params', {}).items():
+            param_name = key.split('.', 1)[1] if '.' in key else key
+            p = BaseSweep._load_parameter_by_type(param_name, items['instr_name'], items['instr_module'], items['instr_class'], station)
+            set_params_dict[p] = {'start': items['start'], 'stop': items['stop'], 'step': items['step']}
+
+        return cls(set_params_dict, bidirectional=bidirectional, continual=continual, **attrs)
 
