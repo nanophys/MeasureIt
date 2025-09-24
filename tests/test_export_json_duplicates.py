@@ -39,8 +39,9 @@ def test_export_json_simulsweep_set_params_duplicate_names(fast_sweep_kwargs):
     x2 = MockParabola(name="sx2")
 
     set_params = {
-        x1.x: {"start": 0.0, "stop": 0.2, "step": 0.1},
-        x2.x: {"start": 0.0, "stop": 0.2, "step": 0.1},
+        # Use integer-friendly values to avoid float rounding mismatches
+        x1.x: {"start": 0.0, "stop": 2.0, "step": 1.0},
+        x2.x: {"start": 0.0, "stop": 2.0, "step": 1.0},
     }
     s = SimulSweep(set_params, **fast_sweep_kwargs)
 
@@ -60,3 +61,22 @@ def test_export_json_simulsweep_set_params_duplicate_names(fast_sweep_kwargs):
     assert inst_names == {"sx1", "sx2"}
     assert param_names == {"x"}
 
+
+def test_simulsweep_follow_excludes_set_params(fast_sweep_kwargs):
+    from MeasureIt.simul_sweep import SimulSweep
+    a = MockParabola(name="sxA")
+    b = MockParabola(name="sxB")
+
+    set_params = {
+        # Both have exactly two steps using integer-friendly values
+        a.x: {"start": 0.0, "stop": 2.0, "step": 1.0},
+        b.x: {"start": 10.0, "stop": 12.0, "step": 1.0},
+    }
+    s = SimulSweep(set_params, **fast_sweep_kwargs)
+    # follow some extra params to simulate real usage
+    s.follow_param(a.parabola, b.parabola)
+
+    j = s.export_json(fn=None)
+    sp_keys = set(j["set_params"].keys())
+    fp_keys = set(j["follow_params"].keys())
+    assert sp_keys.isdisjoint(fp_keys), "set_params must not overlap follow_params"

@@ -423,3 +423,9 @@ class SimulSweep(BaseSweep, QObject):
 
         return cls(set_params_dict, bidirectional=bidirectional, continual=continual, **attrs)
 
+    def _params_to_exclude_from_follow(self) -> set:
+        """Exclude all simultaneously-swept params from follow_params."""
+        try:
+            return {f"{p.instrument.name}.{p.name}" for p in self.set_params_dict.keys()}
+        except Exception:
+            return set()

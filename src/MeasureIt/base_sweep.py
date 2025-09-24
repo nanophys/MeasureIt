@@ -638,8 +638,11 @@ class BaseSweep(QObject):
 
         # Always include followed params (instrument-qualified keys for uniqueness)
         json_dict['follow_params'] = {}
+        exclude = self._params_to_exclude_from_follow()
         for p in self._params:
             key = f"{p.instrument.name}.{p.name}"
+            if key in exclude:
+                continue
             json_dict['follow_params'][key] = (
                 p.instrument.name,
                 p.instrument.__class__.__module__,
@@ -656,6 +659,10 @@ class BaseSweep(QObject):
     def _export_json_specific(self, json_dict: dict) -> dict:
         """Subclasses override to add their configuration to json_dict."""
         return json_dict
+
+    def _params_to_exclude_from_follow(self) -> set:
+        """Subclasses can override to exclude params from follow_params export."""
+        return set()
 
     @staticmethod
     def _load_parameter_by_type(name: str, instr_name: str, instr_module: str, instr_class: str, station: Station):

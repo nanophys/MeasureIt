@@ -6,6 +6,7 @@ src/MeasureIt/base_sweep.py
 src/MeasureIt/gate_leakage.py
 src/MeasureIt/heatmap_thread.py
 src/MeasureIt/heatmap_thread_matplotlib.py
+src/MeasureIt/helper.py
 src/MeasureIt/plotter_thread.py
 src/MeasureIt/plotter_thread_matplotlib.py
 src/MeasureIt/runner_thread.py
@@ -63,4 +64,5 @@ src/MeasureIt/GUI/remove_instrument_ui.py
 src/MeasureIt/GUI/save_data_ui.py
 src/MeasureIt/GUI/save_station_ui.py
 src/MeasureIt/GUI/view_dataset_ui.py
+tests/test_export_json_duplicates.py
 tests/test_quickstart_sweeps.py
