@@ -570,6 +570,13 @@ class Sweep1D(BaseSweep, QObject):
         p = BaseSweep._load_parameter_by_type(sp['param'], sp['instr_name'], sp['instr_module'], sp['instr_class'], station)
         return cls(p, sp['start'], sp['stop'], sp['step'], bidirectional=bidirectional, continual=continual, x_axis_time=x_axis_time, **attrs)
 
+    def _params_to_exclude_from_follow(self) -> set:
+        """Exclude the set_param from follow_params export for 1D sweeps."""
+        try:
+            return {f"{self.set_param.instrument.name}.{self.set_param.name}"}
+        except Exception:
+            return set()
+
     def __del__(self):
         """
         Destructor. Should delete all child threads and close all figures when the sweep object is deleted.

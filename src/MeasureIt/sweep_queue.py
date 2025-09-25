@@ -101,6 +101,69 @@ class SweepQueue(QObject):
         self.sample_name = ""
         self.rts = True
 
+    def _exec_in_kernel(self, fn):
+        """Schedule a callable to run on the Jupyter kernel thread (asyncio loop) if present.
+
+        - In a notebook/JupyterLab, ipykernel runs an asyncio loop; we schedule via
+          loop.call_soon_threadsafe so that print() and logging appear in the notebook output.
+        - If no running loop is detected (e.g., plain Python), execute inline.
+        - If the callable raises in the scheduled path, we print the traceback and DO NOT
+          advance the queue; in the inline path, the exception propagates naturally.
+        """
+        try:
+            import asyncio
+            import traceback
+
+            # Prefer running loop (kernel thread); this raises in non-kernel threads
+            loop = asyncio.get_running_loop()
+
+            def _runner():
+                try:
+                    fn()
+                except Exception:
+                    traceback.print_exc()
+                    return
+                self.begin_next()
+
+            # Schedule onto the kernel loop from any thread
+            loop.call_soon_threadsafe(_runner)
+        except Exception:
+            # Fallback: no running loop in this thread/environment; execute inline
+            fn()
+            self.begin_next()
+
+    def _attach_queue_metadata_provider(self, sweep: BaseSweep):
+        """Attach a metadata provider wrapper so datasets record they were launched by SweepQueue.
+
+        The wrapper delegates to the sweep's current provider (if any) and injects
+        attributes['launched_by'] = 'SweepQueue' into the exported JSON.
+        """
+        try:
+            # Resolve the current provider before wrapping
+            provider_fn = getattr(sweep, 'get_metadata_provider', None)
+            base_provider = provider_fn() if callable(provider_fn) else getattr(sweep, 'metadata_provider', None)
+            if base_provider is None:
+                base_provider = sweep
+
+            class _QueueMetaProvider:
+                def __init__(self, inner):
+                    self._inner = inner
+
+                def export_json(self, fn=None):
+                    meta = self._inner.export_json(fn=None)
+                    try:
+                        attrs = meta.setdefault('attributes', {})
+                        if isinstance(attrs, dict):
+                            attrs['launched_by'] = 'SweepQueue'
+                    except Exception:
+                        pass
+                    return meta
+
+            sweep.metadata_provider = _QueueMetaProvider(base_provider)
+        except Exception:
+            # Non-fatal; do not block the queue on metadata decoration issues
+            pass
+
     def __iter__(self):
         """
         Makes sweep_queue objects iterable.
@@ -248,13 +311,8 @@ class SweepQueue(QObject):
             Keyword arguments to be passed to the function
         """
 
-        # Wrapper around the function to ensure 'begin_next()' is called upon function completion
-        def wrap(fn, *w_args, **w_kwargs):
-            fn(*w_args, **w_kwargs)
-            self.begin_next()
-
-        # Add the wrapped function to the queue
-        self.queue.append(partial(wrap, fn_handle, *args, **kwargs))
+        # Store a partial to be executed on the main thread by our executor slot
+        self.queue.append(partial(fn_handle, *args, **kwargs))
 
     def delete(self, item):
         """
@@ -344,6 +402,8 @@ class SweepQueue(QObject):
         self.current_action = self.queue.popleft()
         if isinstance(self.current_action, BaseSweep):
             self.current_sweep = self.current_action
+            # Ensure metadata shows this sweep was launched by SweepQueue
+            self._attach_queue_metadata_provider(self.current_sweep)
             if isinstance(self.current_sweep, Sweep1D):
                 print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
                       f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
@@ -355,7 +415,8 @@ class SweepQueue(QObject):
         elif isinstance(self.current_action, DatabaseEntry):
             self.current_action.start()
         elif callable(self.current_action):
-            self.current_action()
+            # Schedule onto the Jupyter kernel thread if available
+            self._exec_in_kernel(self.current_action)
         else:
             print(f"Invalid action found in the queue!: {str(self.current_action)}"
                   f"Stopping execution of the queue.")
@@ -407,6 +468,8 @@ class SweepQueue(QObject):
             self.current_action = self.queue.popleft()
             if isinstance(self.current_action, BaseSweep):
                 self.current_sweep = self.current_action
+                # Ensure metadata shows this sweep was launched by SweepQueue
+                self._attach_queue_metadata_provider(self.current_sweep)
                 if isinstance(self.current_sweep, Sweep1D):
                     print(f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
                           f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
@@ -419,7 +482,8 @@ class SweepQueue(QObject):
             elif isinstance(self.current_action, DatabaseEntry):
                 self.current_action.start()
             elif callable(self.current_action):
-                self.current_action()
+                # Schedule onto the Jupyter kernel thread if available
+                self._exec_in_kernel(self.current_action)
             else:
                 print(f"Invalid action found in the queue!: {str(self.current_action)}"
                       f"Stopping execution of the queue.")

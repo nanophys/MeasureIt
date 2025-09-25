@@ -183,6 +183,11 @@ class BaseSweep(QObject):
 
         self.persist_data = None
         self.datasaver = datasaver
+        # Metadata provider: by default, each sweep provides its own metadata.
+        # For composite sweeps (e.g., Sweep2D with inner Sweep1D), the inner
+        # sweep can point this to the outer sweep to ensure the correct class
+        # is recorded in the dataset metadata.
+        self.metadata_provider = None
 
         # Set the function to call when we are finished
         self.complete_func = complete_func
@@ -520,6 +525,10 @@ class BaseSweep(QObject):
         
         if self.plotter is not None:
             self.reset_plot.emit()
+
+    def get_metadata_provider(self):
+        """Return the sweep to use when exporting metadata for the current run."""
+        return self.metadata_provider if self.metadata_provider is not None else self
 
     def close_plots(self):
         """ Resets the plotter and closes all displayed plots. """

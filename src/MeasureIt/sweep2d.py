@@ -170,12 +170,23 @@ class Sweep2D(BaseSweep, QObject):
                                 plot_data=self.plot_data, back_multiplier=self.back_multiplier, plot_bin=self.plot_bin)
         # Set parent reference so UI actions (e.g., ESC) can stop both inner and outer sweeps
         self.in_sweep.parent = self
+        # Ensure the inner sweep writes metadata for the composite (outer) sweep
+        self.in_sweep.metadata_provider = self
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
         self.in_sweep.follow_param(self.set_param)
         # Our update_values() function iterates the outer sweep, so when the inner sweep
         # is done, call that function automatically
         self.in_sweep.set_complete_func(self.update_values)
+        # Bubble dataset info through the outer sweep signal for convenience
+        try:
+            self.in_sweep.dataset_signal.connect(self.dataset_signal)
+        except Exception:
+            # Fallback: emit directly if connecting signals is unsupported
+            try:
+                self.in_sweep.dataset_signal.connect(self.dataset_signal.emit)
+            except Exception:
+                pass
 
         self.outer_delay = outer_delay
 
@@ -621,6 +632,8 @@ class Sweep2D(BaseSweep, QObject):
         json_dict['attributes']['outer_delay'] = self.outer_delay
         json_dict['inner_sweep'] = {
             'param': self.in_param.name,
+            # Include instrument-qualified key for uniqueness/debugging
+            'param_key': f"{self.in_param.instrument.name}.{self.in_param.name}",
             'instr_module': self.in_param.instrument.__class__.__module__,
             'instr_class': self.in_param.instrument.__class__.__name__,
             'instr_name': self.in_param.instrument.name,
@@ -630,6 +643,8 @@ class Sweep2D(BaseSweep, QObject):
         }
         json_dict['outer_sweep'] = {
             'param': self.set_param.name,
+            # Include instrument-qualified key for uniqueness/debugging
+            'param_key': f"{self.set_param.instrument.name}.{self.set_param.name}",
             'instr_module': self.set_param.instrument.__class__.__module__,
             'instr_class': self.set_param.instrument.__class__.__name__,
             'instr_name': self.set_param.instrument.name,
@@ -645,10 +660,25 @@ class Sweep2D(BaseSweep, QObject):
         inner = json_dict['inner_sweep']
         outer = json_dict['outer_sweep']
 
-        in_p = BaseSweep._load_parameter_by_type(inner['param'], inner['instr_name'], inner['instr_module'], inner['instr_class'], station)
-        out_p = BaseSweep._load_parameter_by_type(outer['param'], outer['instr_name'], outer['instr_module'], outer['instr_class'], station)
+        # Support qualified names "instr.param" in 'param' field
+        in_param_name = inner['param'].split('.', 1)[1] if '.' in inner['param'] else inner['param']
+        out_param_name = outer['param'].split('.', 1)[1] if '.' in outer['param'] else outer['param']
+
+        in_p = BaseSweep._load_parameter_by_type(in_param_name, inner['instr_name'], inner['instr_module'], inner['instr_class'], station)
+        out_p = BaseSweep._load_parameter_by_type(out_param_name, outer['instr_name'], outer['instr_module'], outer['instr_class'], station)
 
         inner_list = [in_p, inner['start'], inner['stop'], inner['step']]
         outer_list = [out_p, outer['start'], outer['stop'], outer['step']]
 
         return cls(inner_list, outer_list, **attrs)
+
+    def _params_to_exclude_from_follow(self) -> set:
+        """Exclude inner and outer sweep parameters from follow_params export."""
+        try:
+            keys = {
+                f"{self.set_param.instrument.name}.{self.set_param.name}",
+                f"{self.in_param.instrument.name}.{self.in_param.name}",
+            }
+            return keys
+        except Exception:
+            return set()
