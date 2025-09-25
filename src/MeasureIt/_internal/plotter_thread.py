@@ -18,7 +18,7 @@ pg.setConfigOption('background', 'w')  # White background
 pg.setConfigOption('foreground', 'k')  # Black foreground
 
 
-class Plotter(QObject):
+class Plotter(QObject):  # moved to _internal
     """
     PyQtGraph-based plotter for MeasureIt sweeps.
 

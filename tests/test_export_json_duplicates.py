@@ -3,9 +3,8 @@ import pytest
 import qcodes as qc
 from qcodes.instrument_drivers.mock_instruments import MockParabola
 
-from MeasureIt.base_sweep import BaseSweep
-from MeasureIt.sweep0d import Sweep0D
-from MeasureIt.simul_sweep import SimulSweep
+from MeasureIt.sweep.base_sweep import BaseSweep
+from MeasureIt import Sweep0D, SimulSweep
 from qcodes import Station
 
 
@@ -63,7 +62,6 @@ def test_export_json_simulsweep_set_params_duplicate_names(fast_sweep_kwargs):
 
 
 def test_simulsweep_follow_excludes_set_params(fast_sweep_kwargs):
-    from MeasureIt.simul_sweep import SimulSweep
     a = MockParabola(name="sxA")
     b = MockParabola(name="sxB")
 

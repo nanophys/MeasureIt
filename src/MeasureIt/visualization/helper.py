@@ -1,5 +1,5 @@
 import json
-from qcodes.dataset import load_by_id, experiments
+from qcodes.dataset import load_by_id, experiments  # moved to visualization
 
 try:
     # Optional dependency; only needed when displaying in Jupyter

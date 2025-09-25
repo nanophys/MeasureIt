@@ -82,3 +82,26 @@ def fast_sweep_kwargs():
         plot_data=False,
         suppress_output=True,
     )
+
+
+@pytest.fixture(autouse=True, scope="function")
+def close_qcodes_instruments_between_tests():
+    """Ensure QCoDeS instrument registry is clean between tests.
+
+    Prevents KeyError: 'Another instrument has the name: <name>' when tests
+    create mock instruments with the same names across functions.
+    """
+    # Best effort pre-clean in case a prior test failed mid-way
+    try:
+        import qcodes as qc
+        qc.Instrument.close_all()
+    except Exception:
+        pass
+    try:
+        yield
+    finally:
+        try:
+            import qcodes as qc
+            qc.Instrument.close_all()
+        except Exception:
+            pass

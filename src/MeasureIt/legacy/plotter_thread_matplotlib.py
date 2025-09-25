@@ -8,7 +8,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 
-class Plotter(QObject):
+class Plotter(QObject):  # moved to legacy
     """
     Controls the plotting of all sweeps parented by BaseSweep. 
     
@@ -320,4 +320,3 @@ class Plotter(QObject):
             self.reset()
             self.figs_set = False
             matplotlib.pyplot.close(self.fig)
-

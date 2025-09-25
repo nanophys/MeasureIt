@@ -3,10 +3,8 @@ import pytest
 import qcodes as qc
 from qcodes.instrument_drivers.mock_instruments import MockParabola
 
-from MeasureIt.sweep0d import Sweep0D
-from MeasureIt.sweep1d import Sweep1D
-from MeasureIt.sweep2d import Sweep2D
-from MeasureIt.util import init_database
+from MeasureIt.sweep import Sweep0D, Sweep1D, Sweep2D
+from MeasureIt.tools import init_database
 
 
 def test_sweep0d_runs_headless(qtbot, fast_sweep_kwargs):

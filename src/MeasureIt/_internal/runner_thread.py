@@ -1,7 +1,7 @@
 # runner_thread.py
 
 from PyQt5.QtCore import QThread, pyqtSignal
-from .util import ParameterException
+from ..tools.util import ParameterException
 import time
 import json
 

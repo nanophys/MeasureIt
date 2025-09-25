@@ -1,19 +1,30 @@
-from os.path import dirname, basename, isfile, join
-import glob
 from qcodes import config
 
-from .sweep0d import Sweep0D
-from .sweep1d import Sweep1D
-from .sweep2d import Sweep2D
-from .sweep_queue import SweepQueue, DatabaseEntry
-from .simul_sweep import SimulSweep
-from .sweep_ips import SweepIPS
-from .helper import print_metadata, print_all_metadata
+# Phase 2: stable top-level re-exports from subpackages
+from .sweep.sweep0d import Sweep0D  # noqa: F401
+from .sweep.sweep1d import Sweep1D  # noqa: F401
+from .sweep.sweep2d import Sweep2D  # noqa: F401
+from .sweep.simul_sweep import SimulSweep  # noqa: F401
+from .sweep.sweep_ips import SweepIPS  # noqa: F401
+from .sweep.gate_leakage import GateLeakage  # noqa: F401
+
+from .tools.sweep_queue import SweepQueue, DatabaseEntry  # noqa: F401
+from .tools.util import init_database  # noqa: F401
+
+# Visualization helpers are available under MeasureIt.visualization
 
 config.logger.start_logging_on_import = "always"
 config.logger.console_level = "WARNING"
 config.station.enable_forced_reconnect = False
 
-modules = glob.glob(join(dirname(__file__), "*.py"))
-__all__ = [basename(f)[:-3] for f in modules if isfile(f) and not f.endswith("__init__.py")]
-__all__ += ["print_metadata", "print_all_metadata"]
+__all__ = [
+    "Sweep0D",
+    "Sweep1D",
+    "Sweep2D",
+    "SimulSweep",
+    "SweepIPS",
+    "GateLeakage",
+    "SweepQueue",
+    "DatabaseEntry",
+    "init_database",
+]

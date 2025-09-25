@@ -1,4 +1,4 @@
-from .sweep1d import Sweep1D
+from ..sweep.sweep1d import Sweep1D
 
 def safe_ramp(param, setpoint, rate = 0.01, plot_data = True):
     #Rate is by default 0.01 V/s

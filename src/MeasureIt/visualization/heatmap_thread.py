@@ -1,6 +1,6 @@
 # heatmap_thread.py
 
-from PyQt5.QtCore import QObject, pyqtSlot, QTimer
+from PyQt5.QtCore import QObject, pyqtSlot, QTimer  # moved to visualization
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
