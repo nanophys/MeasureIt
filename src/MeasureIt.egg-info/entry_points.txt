@@ -1,0 +1,2 @@
+[console_scripts]
+measureit-gui = MeasureIt.GUI.GUI_Measureit:main

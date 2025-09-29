@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-class Heatmap(QObject):
+class Heatmap(QObject):  # moved to legacy
     """
     Thread to control the plotting for Sweep2D. 
     

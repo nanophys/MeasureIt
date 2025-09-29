@@ -2,7 +2,13 @@ __pycache__/
 .ipynb_checkpoints/
 .idea/
 docs/source/_build/
-src/MeasureIt/MeasureIt.egg-info
+# Python packaging artifacts
+*.egg-info/
+*.egg
+dist/
+.eggs/
+# In-tree egg-info (PEP 517 backends may write here)
+src/*.egg-info/
 .DS_Store
 .vscode/settings.json
 *.pyc
@@ -23,3 +29,5 @@ build/
 .coverage.*
 .venv/
 htmlcov/
+# macOS clutter
+.DS_Store

@@ -698,13 +698,14 @@ License-File: LICENSE
 Requires-Dist: numpy>=1.20.0
 Requires-Dist: scipy>=1.7.0
 Requires-Dist: matplotlib>=3.5.0
+Requires-Dist: ruamel.yaml>=0.17.0
 Requires-Dist: pandas>=1.3.0
 Requires-Dist: qcodes>=0.37.0
 Requires-Dist: qcodes_contrib_drivers>=0.18.0
 Requires-Dist: PyQt5>=5.15.0
-Requires-Dist: nidaqmx>=0.6.0
-Requires-Dist: zhinst>=21.8.0
+Requires-Dist: pyqtgraph>=0.13.0
 Requires-Dist: multipyvu>=1.2.0; platform_system == "Windows"
+Requires-Dist: platformdirs>=3.0.0
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0.0; extra == "dev"
 Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
@@ -728,8 +729,32 @@ Requires-Dist: traitlets>=5.3.0; extra == "jupyter"
 Requires-Dist: ipython_genutils>=0.2.0; extra == "jupyter"
 Provides-Extra: windows
 Requires-Dist: pywin32>=304; platform_system == "Windows" and extra == "windows"
+Provides-Extra: drivers
+Requires-Dist: nidaqmx>=0.6.0; extra == "drivers"
+Requires-Dist: zhinst>=21.8.0; extra == "drivers"
+Provides-Extra: gui
 Provides-Extra: all
-Requires-Dist: MeasureIt[dev,docs,jupyter,windows]; extra == "all"
+Requires-Dist: pytest>=7.0.0; extra == "all"
+Requires-Dist: pytest-cov>=4.0.0; extra == "all"
+Requires-Dist: pytest-qt>=4.2.0; extra == "all"
+Requires-Dist: mypy>=1.0.0; extra == "all"
+Requires-Dist: ruff>=0.1.0; extra == "all"
+Requires-Dist: pre-commit>=2.20.0; extra == "all"
+Requires-Dist: sphinx>=5.0.0; extra == "all"
+Requires-Dist: sphinx-rtd-theme>=1.2.0; extra == "all"
+Requires-Dist: sphinx-autodoc-typehints>=1.19.0; extra == "all"
+Requires-Dist: myst-parser>=0.18.0; extra == "all"
+Requires-Dist: jupyterlab>=3.4.0; extra == "all"
+Requires-Dist: notebook>=6.4.0; extra == "all"
+Requires-Dist: ipykernel>=6.15.0; extra == "all"
+Requires-Dist: ipython<8.16,>=8.0.0; extra == "all"
+Requires-Dist: jupyter_client>=7.3.0; extra == "all"
+Requires-Dist: jupyter_core>=4.11.0; extra == "all"
+Requires-Dist: traitlets>=5.3.0; extra == "all"
+Requires-Dist: ipython_genutils>=0.2.0; extra == "all"
+Requires-Dist: pywin32>=304; platform_system == "Windows" and extra == "all"
+Requires-Dist: nidaqmx>=0.6.0; extra == "all"
+Requires-Dist: zhinst>=21.8.0; extra == "all"
 Dynamic: license-file
 
 # MeasureIt [![Documentation Status](https://readthedocs.org/projects/measureituw/badge/?version=latest)](https://measureituw.readthedocs.io/en/latest/?badge=latest)

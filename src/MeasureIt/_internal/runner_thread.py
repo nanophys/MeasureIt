@@ -1,8 +1,9 @@
 # runner_thread.py
 
 from PyQt5.QtCore import QThread, pyqtSignal
-from .util import ParameterException
+from ..tools.util import ParameterException
 import time
+import json
 
 
 class RunnerThread(QThread):
@@ -125,6 +126,22 @@ class RunnerThread(QThread):
             self.runner = self.sweep.meas.run()
             self.datasaver = self.runner.__enter__()
             self.dataset = self.datasaver.dataset
+            # Attach MeasureIt sweep metadata once per dataset, using provider if set
+            try:
+                provider = getattr(self.sweep, 'get_metadata_provider', None)
+                provider = provider() if callable(provider) else None
+                if provider is None:
+                    provider = getattr(self.sweep, 'metadata_provider', None) or self.sweep
+                meta = provider.export_json(fn=None)
+                try:
+                    # Preferred signature used historically in this project
+                    self.dataset.add_metadata(tag="measureit", metadata=json.dumps(meta))
+                except TypeError:
+                    # Fallback for older qcodes versions
+                    self.dataset.add_metadata("measureit", json.dumps(meta))
+            except Exception:
+                # Never break the run on metadata errors
+                pass
             ds_dict = {}
             ds_dict['db'] = self.dataset.path_to_db
             ds_dict['run id'] = self.dataset.run_id
@@ -177,5 +194,3 @@ class RunnerThread(QThread):
 
             self.runner.__exit__(None, None, None)
             self.datasaver = None
-
-
