@@ -96,6 +96,11 @@ git pull
 uv pip install -e ".[all]" --upgrade  # or pip install -e ".[all]" --upgrade
 ```
 
+### Known Issues
+
+- `ipykernel` 7.0.x has a dormant event-loop bug that prevents the Qt/pyqtgraph
+  plotter from updating. Stick to `ipykernel>=6.29` (or the newer 7.1+ series).
+
 ## Installation & Updating
 
 It is useful to first create a conda environment to manage all the required 
