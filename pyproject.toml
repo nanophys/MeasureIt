@@ -77,8 +77,8 @@ docs = [
 jupyter = [
     "jupyterlab>=3.4.0",
     "notebook>=6.4.0",
-    "ipykernel>=6.15.0",
-    "ipython>=8.0.0,<8.16",  # Pin to avoid compatibility issues
+    "ipykernel>=6.29.0,!=7.*",
+    "ipython>=8.0.0,<10",  # Tested with 8.x and 9.6
     "jupyter_client>=7.3.0",
     "jupyter_core>=4.11.0",
     "traitlets>=5.3.0",
