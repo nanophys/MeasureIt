@@ -1,6 +1,9 @@
 from Drivers.daq_driver import Daq
 from qcodes.instrument_drivers.Lakeshore.Model_372 import Model_372
-from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
+try:
+    from qcodes.instrument_drivers.american_magnetics import AMIModel430 as AMI430
+except ImportError:  # pragma: no cover - fallback for older QCoDeS versions
+    from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes.instrument_drivers.stanford_research.SR860 import SR860
 from qcodes.instrument_drivers.stanford_research.SR830 import SR830
 from qcodes.instrument_drivers.tektronix.Keithley_2450 import Keithley2450

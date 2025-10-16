@@ -4,7 +4,10 @@ import time
 from .base_sweep import BaseSweep
 from ..tools.util import safe_set, safe_get
 from PyQt5.QtCore import QObject, pyqtSlot
-from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
+try:
+    from qcodes.instrument_drivers.american_magnetics import AMIModel430 as AMI430
+except ImportError:  # pragma: no cover - fallback for older QCoDeS versions
+    from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes_contrib_drivers.drivers.OxfordInstruments.IPS120 import OxfordInstruments_IPS120
 from ..Drivers.M4G import M4G
 from functools import partial

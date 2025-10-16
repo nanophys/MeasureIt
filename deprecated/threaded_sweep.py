@@ -11,7 +11,10 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal
 from collections import deque
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from util import _autorange_srs
-from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
+try:
+    from qcodes.instrument_drivers.american_magnetics import AMIModel430 as AMI430
+except ImportError:  # pragma: no cover - fallback for older QCoDeS versions
+    from qcodes.instrument_drivers.american_magnetics.AMI430 import AMI430
 from qcodes.instrument_drivers.oxford.IPS120 import OxfordInstruments_IPS120
 
 
