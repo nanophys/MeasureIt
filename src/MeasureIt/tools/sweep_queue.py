@@ -1,12 +1,12 @@
 # sweep_queue.py
 import importlib
 import json
-import os
 import time
 import types
 from collections import deque
 from collections.abc import Iterable
 from functools import partial
+from pathlib import Path
 
 import qcodes as qc
 from qcodes import initialise_or_create_database_at, Station
@@ -15,6 +15,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from ..sweep.base_sweep import BaseSweep
 from ..sweep.sweep0d import Sweep0D
 from ..sweep.sweep1d import Sweep1D
+from ..config import get_path
 
 
 class SweepQueue(QObject):
@@ -595,9 +596,14 @@ class SweepQueue(QObject):
 
         # Initialize the database
         try:
-            initialise_or_create_database_at(os.environ['MeasureItHome'] + '\\Databases\\' + db + '.db')
+            db_path = Path(db)
+            if db_path.suffix != ".db":
+                db_path = db_path.with_suffix(".db")
+            if not db_path.is_absolute():
+                db_path = get_path("databases") / db_path
+            initialise_or_create_database_at(str(db_path))
             qc.new_experiment(name=exp, sample_name=sample)
-        except:
+        except Exception:
             print("Database info loaded incorrectly!")
 
 

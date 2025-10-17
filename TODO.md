@@ -27,20 +27,20 @@ The `src/MeasureIt/GUI/` directory can be safely deleted:
 ## Main Tasks
 
 ### 1. Package Renaming
-- [ ] Rename `src/MeasureIt/` → `src/measureit/`
-- [ ] Update all imports: `from MeasureIt` → `from measureit`
-- [ ] Update imports in:
-  - [ ] All sweep files (sweep0d.py, sweep1d.py, sweep2d.py, etc.)
-  - [ ] util.py
-  - [ ] sweep_queue.py
-  - [ ] All driver files in `Drivers/`
-  - [ ] Test files in `tests/`
-  - [ ] Example notebooks in `examples/`
-- [ ] Update `pyproject.toml` package name: `name = "measureit"`
+- [x] Rename `src/MeasureIt/` → `src/measureit/`
+- [x] Update all imports: `from MeasureIt` → `from measureit`
+- [x] Update imports in:
+  - [x] All sweep files (sweep0d.py, sweep1d.py, sweep2d.py, etc.)
+  - [x] util.py
+  - [x] sweep_queue.py
+  - [x] All driver files in `Drivers/`
+  - [x] Test files in `tests/`
+  - [x] Example notebooks in `examples/`
+- [x] Update `pyproject.toml` package name: `name = "measureit"`
 
 ### 2. Remove GUI Code
-- [ ] Delete `src/MeasureIt/GUI/` directory entirely
-- [ ] Verify no core files import from GUI:
+- [x] Delete `src/MeasureIt/GUI/` directory entirely
+- [x] Verify no core files import from GUI:
   ```bash
   grep -r "from.*GUI" src/ --include="*.py" --exclude-dir=GUI
   grep -r "import.*GUI" src/ --include="*.py" --exclude-dir=GUI
@@ -49,71 +49,71 @@ The `src/MeasureIt/GUI/` directory can be safely deleted:
 ### 3. Create Configuration System
 
 #### 3.1 Create `src/measureit/config.py`
-- [ ] Import `platformdirs` and `pathlib.Path`
-- [ ] Implement `set_data_dir(path)` function
-- [ ] Implement `get_path(subdir)` function with:
-  - [ ] Support for subdirs: `'databases'`, `'logs'`, `'cfg'`, `'origin_files'`
-  - [ ] Priority order:
+- [x] Import `platformdirs` and `pathlib.Path`
+- [x] Implement `set_data_dir(path)` function
+- [x] Implement `get_path(subdir)` function with:
+  - [x] Support for subdirs: `'databases'`, `'logs'`, `'cfg'`, `'origin_files'`
+  - [x] Priority order:
     1. Programmatically set path via `set_data_dir()`
     2. `MEASUREIT_HOME` environment variable
     3. `MeasureItHome` environment variable (legacy compatibility)
     4. platformdirs default: `user_data_dir('measureit', 'measureit')`
-  - [ ] **Lazy directory creation**: only create directories when accessed
-  - [ ] Return `pathlib.Path` objects
-  - [ ] Add docstrings with examples
+  - [x] **Lazy directory creation**: only create directories when accessed
+  - [x] Return `pathlib.Path` objects
+  - [x] Add docstrings with examples
 
 #### 3.2 Expose in `src/measureit/__init__.py`
-- [ ] Add: `from .config import get_path, set_data_dir`
-- [ ] Update `__all__` to export these functions
-- [ ] Users can do: `import measureit; measureit.set_data_dir('/my/data')`
+- [x] Add: `from .config import get_path, set_data_dir`
+- [x] Update `__all__` to export these functions
+- [x] Users can do: `import measureit; measureit.set_data_dir('/my/data')`
 
 ### 4. Replace Hardcoded Paths
 
 #### 4.1 Files with `os.environ['MeasureItHome']` (15 occurrences)
-- [ ] **util.py** (~6 occurrences):
-  - [ ] Line 103-104: Config file path → `get_path('cfg') / 'qcodesrc.json'`
-  - [ ] Line 184: Origin Files → `get_path('origin_files') / db`
-  - [ ] Line 248-251: Database initialization → `get_path('databases') / db`
-  - [ ] Line 261-263: Database initialization → `get_path('databases') / db_fn`
-  - [ ] Line 268: Origin Files → `get_path('origin_files') / exp.name`
-  - [ ] Add `from .config import get_path` at top
+- [x] **util.py** (~6 occurrences):
+  - [x] Line 103-104: Config file path → `get_path('cfg') / 'qcodesrc.json'`
+  - [x] Line 184: Origin Files → `get_path('origin_files') / db`
+  - [x] Line 248-251: Database initialization → `get_path('databases') / db`
+  - [x] Line 261-263: Database initialization → `get_path('databases') / db_fn`
+  - [x] Line 268: Origin Files → `get_path('origin_files') / exp.name`
+  - [x] Add `from .config import get_path` at top
 
-- [ ] **sweep_queue.py**:
-  - [ ] Line 534: Database path → `get_path('databases') / f'{db}.db'`
-  - [ ] Add `from .config import get_path` at top
+- [x] **sweep_queue.py**:
+  - [x] Line 534: Database path → `get_path('databases') / f'{db}.db'`
+  - [x] Add `from .config import get_path` at top
 
-- [ ] Remove all uses of `os.environ['MeasureItHome']` from:
-  - [ ] GUI files (being deleted anyway)
-  - [ ] Example notebooks
-  - [ ] Tests
+- [x] Remove all uses of `os.environ['MeasureItHome']` from:
+  - [x] GUI files (being deleted anyway)
+  - [x] Example notebooks
+  - [x] Tests
 
 #### 4.2 Fix Windows Path Separators
 Replace all `\\` with `pathlib.Path` `/` operator:
-- [ ] util.py: `'\\Databases\\'`, `'\\Origin Files\\'`, `'\\cfg\\'`
-- [ ] sweep_queue.py: `'\\Databases\\'`
-- [ ] Any other hardcoded path strings
+- [x] util.py: `'\\Databases\\'`, `'\\Origin Files\\'`, `'\\cfg\\'`
+- [x] sweep_queue.py: `'\\Databases\\'`
+- [x] Any other hardcoded path strings
 
 #### 4.3 Use `pathlib.Path` consistently
-- [ ] Ensure all path operations use `Path` objects
-- [ ] Replace `os.path.isfile()` with `Path.is_file()`
-- [ ] Replace `os.path.isdir()` with `Path.is_dir()`
-- [ ] Replace `os.path.exists()` with `Path.exists()`
-- [ ] Replace `os.mkdir()` with `Path.mkdir(parents=True, exist_ok=True)`
+- [x] Ensure all path operations use `Path` objects
+- [x] Replace `os.path.isfile()` with `Path.is_file()`
+- [x] Replace `os.path.isdir()` with `Path.is_dir()`
+- [x] Replace `os.path.exists()` with `Path.exists()`
+- [x] Replace `os.mkdir()` with `Path.mkdir(parents=True, exist_ok=True)`
 
 ### 5. Update Dependencies
 
 #### 5.1 Update `pyproject.toml`
-- [ ] Change `name = "measureit"` (lowercase)
-- [ ] Add to dependencies: `"platformdirs>=3.0.0",`
-- [ ] **Keep** `"PyQt5>=5.15.0",` (required for core functionality)
-- [ ] Update package find location if needed
-- [ ] Update tool configurations (pytest, ruff, mypy) to reference `measureit`
+- [x] Change `name = "measureit"` (lowercase)
+- [x] Add to dependencies: `"platformdirs>=3.0.0",`
+- [x] **Keep** `"PyQt5>=5.15.0",` (required for core functionality)
+- [x] Update package find location if needed
+- [x] Update tool configurations (pytest, ruff, mypy) to reference `measureit`
 
 ### 6. Update Documentation
 
 #### 6.1 Update `README.md`
-- [ ] Remove "Add MeasureItHome and database" section
-- [ ] Add new "Installation" section:
+- [x] Remove "Add MeasureItHome and database" section
+- [x] Add new "Installation" section:
   ```markdown
   ## Installation
 
@@ -129,7 +129,7 @@ Replace all `\\` with `pathlib.Path` `/` operator:
   pip install -e .
   ```
   ```
-- [ ] Add "Data Directory Configuration" section:
+- [x] Add "Data Directory Configuration" section:
   ```markdown
   ## Data Directory Configuration
 
@@ -158,34 +158,34 @@ Replace all `\\` with `pathlib.Path` `/` operator:
   - The `MeasureItHome` environment variable still works (backward compatible)
   - Or copy your `databases/` folder to the new location
   ```
-- [ ] Update all code examples to use `import measureit`
-- [ ] Remove GUI-related documentation
-- [ ] Update "Basic Usage" section
+- [x] Update all code examples to use `import measureit`
+- [x] Remove GUI-related documentation
+- [x] Update "Basic Usage" section
 
 #### 6.2 Update `CONTRIBUTING.md`
-- [ ] Remove MeasureItHome setup instructions (lines 41-47)
-- [ ] Update package name references to `measureit`
+- [x] Remove MeasureItHome setup instructions (lines 41-47)
+- [X] Update package name references to `measureit`
 
 ### 7. Update Examples
-- [ ] Update `examples/content/quick start.ipynb`:
-  - [ ] Remove `os.environ['MeasureItHome']` usage (lines 37, 434, 474)
-  - [ ] Update imports to `measureit`
-  - [ ] Update database path to use `measureit.get_path('databases')`
-  - [ ] Test notebook runs successfully
+- [x] Update `examples/content/quick start.ipynb`:
+  - [x] Remove `os.environ['MeasureItHome']` usage (lines 37, 434, 474)
+  - [x] Update imports to `measureit`
+  - [x] Update database path to use `measureit.get_path('databases')`
+  - [x] Test notebook runs successfully
 
 ### 8. Update Tests
-- [ ] Update `tests/test_sweep.py`:
-  - [ ] Remove commented `sys.path.append(os.environ['MeasureItHome'])` (line 9)
-  - [ ] Remove MeasureItHome usage (lines 81-82)
-  - [ ] Update imports to `measureit`
-  - [ ] Update to use `get_path()` for config and databases
+- [x] Update `tests/test_sweep.py` *(obsolete file removed; covered by `test_quickstart_sweeps.py` and related suites)*:
+  - [x] Remove commented `sys.path.append(os.environ['MeasureItHome'])` *(N/A)*
+  - [x] Remove MeasureItHome usage *(N/A)*
+  - [x] Update imports to `measureit` *(N/A)*
+  - [x] Update to use `get_path()` for config and databases *(N/A)*
 
 ---
 
 ## Testing Checklist
 
 ### Pre-Installation Testing
-- [ ] Verify no syntax errors after renaming
+- [x] Verify no syntax errors after renaming
 - [ ] Run linter: `ruff check src/measureit/`
 - [ ] Run type checker: `mypy src/measureit/` (if configured)
 
@@ -218,8 +218,8 @@ pip install --upgrade pip
 pip install -e .
 python -c "import measureit; print(measureit.get_path('databases'))"
 ```
-- [ ] Installation succeeds on Windows
-- [ ] Paths use correct Windows format
+- [x] Installation succeeds on Windows
+- [x] Paths use correct Windows format
 
 #### Test 3: Environment Variable Override
 ```bash
@@ -227,8 +227,8 @@ export MEASUREIT_HOME="/tmp/measureit_test"
 python -c "import measureit; print(measureit.get_path('databases'))"
 # Should print: /tmp/measureit_test/databases
 ```
-- [ ] Environment variable is respected
-- [ ] Directories created at custom location
+- [x] Environment variable is respected
+- [x] Directories created at custom location
 
 #### Test 4: Programmatic Configuration
 ```python
@@ -237,8 +237,8 @@ measureit.set_data_dir('/tmp/custom_measureit')
 print(measureit.get_path('databases'))
 # Should print: /tmp/custom_measureit/databases
 ```
-- [ ] Programmatic setting overrides env vars
-- [ ] Custom path is used
+- [x] Programmatic setting overrides env vars
+- [x] Custom path is used
 
 #### Test 5: Legacy Compatibility
 ```bash
@@ -247,20 +247,20 @@ unset MEASUREIT_HOME
 python -c "import measureit; print(measureit.get_path('databases'))"
 # Should print: /tmp/legacy_path/databases
 ```
-- [ ] Legacy `MeasureItHome` env var still works
-- [ ] Backward compatibility maintained
+- [x] Legacy `MeasureItHome` env var still works
+- [x] Backward compatibility maintained
 
 ### Functional Testing
 
 #### Test 6: Run Example Notebook
-- [ ] Open `examples/content/quick start.ipynb`
-- [ ] Run all cells
-- [ ] Verify:
-  - [ ] Mock instruments initialize
-  - [ ] Sweeps execute
-  - [ ] Database file created at `get_path('databases')`
-  - [ ] Plots display correctly
-  - [ ] No errors or warnings
+- [x] Open `examples/content/quick start.ipynb`
+- [x] Run all cells
+- [x] Verify:
+  - [x] Mock instruments initialize
+  - [x] Sweeps execute
+  - [x] Database file created at `get_path('databases')`
+  - [x] Plots display correctly
+  - [x] No errors or warnings
 
 #### Test 7: Core Sweep Functionality
 ```python
@@ -273,9 +273,9 @@ mock = MockParabola('mock_parabola')
 sweep = Sweep1D(mock.x, 0, 10, 0.1)
 # Should work without errors
 ```
-- [ ] Sweep classes import correctly
-- [ ] PyQt5 threading works
-- [ ] No import errors
+- [x] Sweep classes import correctly
+- [x] PyQt5 threading works
+- [x] No import errors
 
 #### Test 8: Database Creation
 ```python
@@ -286,23 +286,23 @@ import qcodes as qc
 db_path = measureit.get_path('databases') / 'test.db'
 qc.initialise_or_create_database_at(str(db_path))
 ```
-- [ ] Database directory created
-- [ ] Database file created successfully
-- [ ] Path handling works correctly
+- [x] Database directory created
+- [x] Database file created successfully
+- [x] Path handling works correctly
 
 ### Cross-Platform Testing
 - [ ] Test on Linux (Ubuntu/Debian)
 - [ ] Test on macOS
-- [ ] Test on Windows 10/11
+- [x] Test on Windows 10/11
 - [ ] Verify path separators work on all platforms
 - [ ] Verify default locations are appropriate per OS
 
 ### Dependency Testing
-- [ ] All required packages install
-- [ ] PyQt5 threading works
-- [ ] platformdirs provides correct paths
-- [ ] qcodes integration works
-- [ ] matplotlib plotting works
+- [x] All required packages install
+- [x] PyQt5 threading works
+- [x] platformdirs provides correct paths
+- [x] qcodes integration works
+- [x] matplotlib plotting works
 
 ---
 
@@ -409,8 +409,8 @@ if __name__ == '__main__':
         sys.exit(1)
 ```
 
-- [ ] Create `tests/verify_install.py` with above content
-- [ ] Run after installation to verify everything works
+- [x] Create `tests/verify_install.py` with above content
+- [x] Run after installation to verify everything works
 
 ---
 
@@ -442,10 +442,10 @@ if __name__ == '__main__':
 
 Before marking as complete:
 - [ ] All main tasks checked off
-- [ ] All tests pass
-- [ ] Package installs via `pip install -e .`
-- [ ] Example notebook runs successfully
-- [ ] README updated and clear
+- [x] All tests pass
+- [x] Package installs via `pip install -e .`
+- [x] Example notebook runs successfully
+- [x] README updated and clear
 - [ ] Works on at least 2 platforms (Linux/macOS or Windows)
-- [ ] No `os.environ['MeasureItHome']` references in core code
-- [ ] No `\\` path separators (use `Path` instead)
+- [x] No `os.environ['MeasureItHome']` references in core code
+- [x] No `\\` path separators (use `Path` instead)

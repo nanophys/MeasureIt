@@ -1,4 +1,4 @@
-Introduction
+﻿Introduction
 ============
 
 MeasureIt is a QCoDeS-based measurement toolkit for condensed matter experiments,
@@ -15,7 +15,7 @@ Highlights
 Quick Start
 -----------
 
-- Install: ``pip install MeasureIt`` (see :ref:`gettingstarted` for extras).
+- Install: ``pip install measureit`` (see :ref:`gettingstarted` for extras).
 - Launch GUI: ``measureit-gui``.
 - Use in notebooks: enable Qt with ``%gui qt`` then start sweeps.
 

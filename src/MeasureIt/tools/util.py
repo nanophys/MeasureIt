@@ -3,7 +3,6 @@
 
 import re
 import time
-import os
 import string
 from pathlib import Path
 
@@ -11,10 +10,7 @@ import qcodes as qc  # moved to tools
 import pandas as pd
 from qcodes import initialise_or_create_database_at, Station
 
-try:
-    from platformdirs import user_data_dir
-except Exception:  # pragma: no cover - platformdirs optional at runtime
-    user_data_dir = None
+from ..config import get_path
 
 unit_dict = {
     'f': 10 ** -15,
@@ -30,25 +26,12 @@ unit_dict = {
 
 
 def get_measureit_home() -> str:
-    """Return MeasureItHome directory, using environment or a platformdirs fallback.
+    """Return the root data directory used by MeasureIt (legacy helper).
 
-    - If env var `MeasureItHome` is set, return it (creating if missing).
-    - Else, use platformdirs' user data dir (e.g., ~/.local/share/MeasureIt or %APPDATA%).
-    The directory is created if it does not exist.
+    This proxies :func:`measureit.config.get_path` so older code that expects a
+    string path continues to work.
     """
-    env = os.environ.get("MeasureItHome")
-    if env:
-        home = Path(env).expanduser()
-    else:
-        base = Path(user_data_dir("MeasureIt", "UW-Physics")) if user_data_dir else Path.home() / ".measureit"
-        home = base
-        # Also set the environment for downstream code expecting it
-        os.environ["MeasureItHome"] = str(home)
-    home.mkdir(parents=True, exist_ok=True)
-    # Ensure standard subfolders exist
-    for sub in ("Databases", "Origin Files", "cfg", "logs"):
-        (home / sub).mkdir(parents=True, exist_ok=True)
-    return str(home)
+    return str(get_path("databases").parent)
 
 class ParameterException(Exception):
     def __init__(self, message, set=False):
@@ -128,10 +111,10 @@ def connect_to_station(config_file=None):
     A loaded or new QCoDeS station for conducting experiments.
     """
     
-    home = Path(get_measureit_home())
-    cfg_json = home / "cfg" / "qcodesrc.json"
+    cfg_dir = get_path("cfg")
+    cfg_json = cfg_dir / "qcodesrc.json"
     if cfg_json.is_file():
-        qc.config.update_config(str(cfg_json.parent))
+        qc.config.update_config(str(cfg_dir))
     station = Station()
     try:
         station.load_config_file(config_file)
@@ -209,8 +192,7 @@ def save_to_csv(ds, fn=None, use_labels=True):
         export_ds.to_csv(fn)
     else:
         db_name = Path(ds.path_to_db).name.split('.')[0]
-        home = Path(get_measureit_home())
-        fp = home / "Origin Files" / db_name
+        fp = get_path("origin_files") / db_name
         fp.mkdir(parents=True, exist_ok=True)
         fn_path = fp / f"{ds.run_id}_{ds.exp_name}_{ds.sample_name}.csv"
         # sanitize filename
@@ -277,8 +259,7 @@ def init_database(db, exp, samp, sweep=None):
     if db_path.suffix != ".db":
         db_path = db_path.with_suffix(".db")
     if not db_path.is_absolute():
-        home = Path(get_measureit_home())
-        db_path = home / "Databases" / db_path
+        db_path = get_path("databases") / db_path
     initialise_or_create_database_at(str(db_path))
     qc.new_experiment(exp, samp)
 
@@ -288,18 +269,17 @@ def init_database(db, exp, samp, sweep=None):
 def export_db_to_txt(db_fn, exp_name=None, sample_name=None):
     """ Prints all experiment and sample names to the console. """
     
-    home = Path(get_measureit_home())
     db_file = Path(db_fn)
     if db_file.suffix != ".db":
         db_file = db_file.with_suffix(".db")
     if not db_file.is_absolute():
-        db_file = home / "Databases" / db_file
+        db_file = get_path("databases") / db_file
     initialise_or_create_database_at(str(db_file))
     experiments = []
     for exp in qc.dataset.experiment_container.experiments():
         if exp_name is None or exp.name is exp_name:
             experiments.append(exp)
-            newpath = Path(get_measureit_home()) / "Origin Files" / exp.name
+            newpath = get_path("origin_files") / exp.name
             newpath.mkdir(parents=True, exist_ok=True)
 
     count = 0

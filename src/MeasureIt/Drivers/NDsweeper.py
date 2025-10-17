@@ -2,7 +2,7 @@ from qcodes import VisaInstrument, Instrument
 from qcodes.utils.validators import Strings, Enum
 from typing import Callable
 from qcodes.instrument_drivers.tektronix.Keithley_2450 import Keithley2450
-from MeasureIt.Drivers.daq_driver import Daq
+from measureit.Drivers.daq_driver import Daq
 
 class nDsweeper(Instrument):
     """

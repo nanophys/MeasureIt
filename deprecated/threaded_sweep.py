@@ -1544,7 +1544,7 @@ class SweepQueue(object):
         
         # Initialize the database
         try:
-            initialise_or_create_database_at('C:\\Users\\erunb\\MeasureIt\\Databases\\' + db + '.db')
+            initialise_or_create_database_at('C:\\Users\\erunb\\measureit.Databases\\' + db + '.db')
             qc.new_experiment(name=exp, sample_name=sample)
         except:
             print("Database info loaded incorrectly!")

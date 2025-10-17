@@ -6,10 +6,10 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"MeasureIt.Drivers.data" = ["*.txt"]
+"measureit.Drivers.data" = ["*.txt"]
 
 [project]
-name = "MeasureIt"
+name = "measureit"
 version = "0.0.1"
 description = "Measurement code for condensed matter groups at UW based on QCoDeS."
 readme = {file = "README.md", content-type = "text/markdown"} 
@@ -136,9 +136,6 @@ Documentation = "https://measureituw.readthedocs.io/en/latest/?badge=latest"
 "Contributing" = "https://github.com/nanophys/MeasureIt/blob/main/CONTRIBUTING.md"
 
 # Console scripts
-[project.scripts]
-measureit-gui = "MeasureIt.GUI.GUI_Measureit:main"
-
 # Tool configurations
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -146,7 +143,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
-    "--cov=src/MeasureIt",
+    "--cov=src/measureit",
     "--cov-report=html",
     "--cov-report=term-missing",
     "--strict-markers",
@@ -159,7 +156,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src/MeasureIt"]
+source = ["src/measureit"]
 omit = [
     "*/tests/*",
     "*/GUI/*_ui.py",  # Auto-generated UI files
@@ -208,7 +205,7 @@ ignore = [
 "*_ui.py" = ["ALL"]  # Ignore all rules for auto-generated UI files
 
 [tool.ruff.lint.isort]
-known-first-party = ["MeasureIt"]
+known-first-party = ["measureit"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -260,4 +257,4 @@ dev-dependencies = [
 
 [tool.uv.sources]
 # For development, use local editable install
-MeasureIt = { workspace = true }
+measureit = { workspace = true }
