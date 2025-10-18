@@ -186,8 +186,8 @@ Replace all `\\` with `pathlib.Path` `/` operator:
 
 ### Pre-Installation Testing
 - [x] Verify no syntax errors after renaming
-- [ ] Run linter: `ruff check src/measureit/`
-- [ ] Run type checker: `mypy src/measureit/` (if configured)
+- [x] Run linter: `ruff check src/measureit/`
+- [x] Run type checker: `mypy src/measureit/` (if configured)
 
 ### Installation Testing
 

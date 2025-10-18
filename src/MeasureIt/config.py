@@ -1,12 +1,11 @@
-"""
-Helpers for locating and managing the MeasureIt data directory.
+"""Helpers for locating and managing the MeasureIt data directory.
 
 The data directory stores experiment databases, log files, configuration
 snapshots, and exported origin files. Users can override the location either by
 setting the ``MEASUREIT_HOME`` environment variable, keeping the legacy
 ``MeasureItHome`` environment variable, or by calling :func:`set_data_dir`.
 
-Examples
+Examples:
 --------
 >>> from measureit.config import set_data_dir, get_path
 >>> set_data_dir("/tmp/custom_measureit")
@@ -40,7 +39,7 @@ def set_data_dir(path: os.PathLike[str] | str) -> Path:
     path
         Absolute or relative path to use as the root of all MeasureIt data.
 
-    Returns
+    Returns:
     -------
     pathlib.Path
         The normalised absolute directory that will be used going forward.
@@ -68,12 +67,12 @@ def get_path(subdir: str) -> Path:
     subdir
         One of ``\"databases\"``, ``\"logs\"``, ``\"cfg\"``, or ``\"origin_files\"``.
 
-    Returns
+    Returns:
     -------
     pathlib.Path
         The absolute path to the requested directory.
 
-    Raises
+    Raises:
     ------
     ValueError
         If *subdir* is not a recognised directory key.

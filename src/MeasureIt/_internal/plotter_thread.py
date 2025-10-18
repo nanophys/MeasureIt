@@ -1,12 +1,13 @@
 # plotter_thread.py
 
-from PyQt5.QtCore import QObject, pyqtSlot
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PyQt5.QtGui import QFont
-from collections import deque
 import math
+from collections import deque
+
 import numpy as np
 import pyqtgraph as pg
+from PyQt5.QtCore import QObject, pyqtSlot
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 # Configure PyQtGraph for better performance
 pg.setConfigOptions(
@@ -14,17 +15,16 @@ pg.setConfigOptions(
     useOpenGL=False,  # Don't use OpenGL - can cause issues
     crashWarning=True,  # Show warnings for debugging
 )
-pg.setConfigOption('background', 'w')  # White background
-pg.setConfigOption('foreground', 'k')  # Black foreground
+pg.setConfigOption("background", "w")  # White background
+pg.setConfigOption("foreground", "k")  # Black foreground
 
 
 class Plotter(QObject):  # moved to _internal
-    """
-    PyQtGraph-based plotter for MeasureIt sweeps.
+    """PyQtGraph-based plotter for MeasureIt sweeps.
 
     Provides high-performance real-time plotting using PyQtGraph.
 
-    Attributes
+    Attributes:
     ---------
     sweep:
         Defines the specific parent sweep (Sweep1D, Sweep2D, etc.).
@@ -45,7 +45,7 @@ class Plotter(QObject):  # moved to _internal
     set_plot_item:
         PlotDataItem for the set parameter.
 
-    Methods
+    Methods:
     ---------
     create_figs()
         Creates PyQtGraph plot widgets for each parameter.
@@ -64,8 +64,7 @@ class Plotter(QObject):  # moved to _internal
     """
 
     def __init__(self, sweep, plot_bin=1):
-        """
-        Initializes the PyQtGraph plotter.
+        """Initializes the PyQtGraph plotter.
 
         Parameters
         ---------
@@ -95,7 +94,7 @@ class Plotter(QObject):  # moved to _internal
         # Performance optimization: store data arrays for efficient updates
         # Use lists for fast appending, convert to numpy arrays only when plotting
         self.data_arrays = {}  # Maps parameters to {'forward': {'x': [], 'y': []}, 'backward': {'x': [], 'y': []}}
-        self.set_data_arrays = {'x': [], 'y': []}
+        self.set_data_arrays = {"x": [], "y": []}
 
     def handle_close(self, event):
         """Handle widget close event."""
@@ -103,8 +102,7 @@ class Plotter(QObject):  # moved to _internal
         event.accept()
 
     def key_pressed(self, event):
-        """
-        Handle keyboard shortcuts for sweep control.
+        """Handle keyboard shortcuts for sweep control.
         Legacy method name for compatibility.
 
         Parameters
@@ -115,8 +113,7 @@ class Plotter(QObject):  # moved to _internal
         self.handle_key_press(event)
 
     def handle_key_press(self, event):
-        """
-        Handle keyboard shortcuts for sweep control.
+        """Handle keyboard shortcuts for sweep control.
 
         Parameters
         ---------
@@ -134,8 +131,7 @@ class Plotter(QObject):  # moved to _internal
 
     @pyqtSlot(int)
     def add_break(self, direction):
-        """
-        Creates break in data by setting all parameters to have no assigned
+        """Creates break in data by setting all parameters to have no assigned
         value simultaneously.
 
         Parameters
@@ -143,7 +139,7 @@ class Plotter(QObject):  # moved to _internal
         direction:
             The direction of the sweep (0 or 1).
         """
-        break_data = [('time', np.nan)]
+        break_data = [("time", np.nan)]
         if self.sweep.set_param is not None:
             break_data.append((self.sweep.set_param, np.nan))
         for p in self.sweep._params:
@@ -152,7 +148,6 @@ class Plotter(QObject):  # moved to _internal
 
     def create_figs(self):
         """Creates PyQtGraph plot widgets for each parameter."""
-
         if self.figs_set:
             print("figs already set. returning.")
             return
@@ -168,13 +163,15 @@ class Plotter(QObject):  # moved to _internal
 
         # Create main widget and layout
         self.widget = QWidget()
-        self.widget.setWindowTitle('MeasureIt - Real-time Plots')
+        self.widget.setWindowTitle("MeasureIt - Real-time Plots")
         self.widget.resize(1200, 800)
 
         main_layout = QVBoxLayout(self.widget)
 
         # Add keyboard shortcuts info
-        info_label = QLabel("Keyboard Shortcuts: ESC: stop | Enter: resume | Spacebar: flip direction")
+        info_label = QLabel(
+            "Keyboard Shortcuts: ESC: stop | Enter: resume | Spacebar: flip direction"
+        )
         info_label.setFont(QFont("Arial", 10))
         info_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 5px; }")
         main_layout.addWidget(info_label)
@@ -196,15 +193,18 @@ class Plotter(QObject):  # moved to _internal
         # Create set parameter plot (vs time) if we have one
         if self.sweep.set_param is not None:
             self.set_plot = self.layout_widget.addPlot(
-                row=current_row, col=current_col,
-                title=f'{self.sweep.set_param.label} vs Time'
+                row=current_row,
+                col=current_col,
+                title=f"{self.sweep.set_param.label} vs Time",
             )
-            self.set_plot.setLabel('left', f'{self.sweep.set_param.label}', units=self.sweep.set_param.unit)
-            self.set_plot.setLabel('bottom', 'Time', units='s')
+            self.set_plot.setLabel(
+                "left", f"{self.sweep.set_param.label}", units=self.sweep.set_param.unit
+            )
+            self.set_plot.setLabel("bottom", "Time", units="s")
             self.set_plot.showGrid(x=True, y=True, alpha=0.3)
 
             # Create plot item for set parameter
-            self.set_plot_item = self.set_plot.plot(pen=pg.mkPen(color='blue', width=2))
+            self.set_plot_item = self.set_plot.plot(pen=pg.mkPen(color="blue", width=2))
 
             current_col += 1
             if current_col >= columns:
@@ -214,29 +214,38 @@ class Plotter(QObject):  # moved to _internal
         # Initialize data arrays for parameters
         for param in self.sweep._params:
             self.data_arrays[param] = {
-                'forward': {'x': [], 'y': []},
-                'backward': {'x': [], 'y': []}
+                "forward": {"x": [], "y": []},
+                "backward": {"x": [], "y": []},
             }
 
         # Create plots for followed parameters
         for i, param in enumerate(self.sweep._params):
             plot = self.layout_widget.addPlot(
-                row=current_row, col=current_col,
-                title=f'{param.label} vs {self.sweep.set_param.label if not self.sweep.x_axis else "Time"}'
+                row=current_row,
+                col=current_col,
+                title=f"{param.label} vs {self.sweep.set_param.label if not self.sweep.x_axis else 'Time'}",
             )
 
             # Set axis labels
-            plot.setLabel('left', f'{param.label}', units=param.unit)
+            plot.setLabel("left", f"{param.label}", units=param.unit)
             if self.sweep.x_axis:
-                plot.setLabel('bottom', 'Time', units='s')
+                plot.setLabel("bottom", "Time", units="s")
             else:
-                plot.setLabel('bottom', f'{self.sweep.set_param.label}', units=self.sweep.set_param.unit)
+                plot.setLabel(
+                    "bottom",
+                    f"{self.sweep.set_param.label}",
+                    units=self.sweep.set_param.unit,
+                )
 
             plot.showGrid(x=True, y=True, alpha=0.3)
 
             # Create forward and backward plot items
-            forward_item = plot.plot(pen=pg.mkPen(color='blue', width=2), name='Forward')
-            backward_item = plot.plot(pen=pg.mkPen(color='red', width=2), name='Backward')
+            forward_item = plot.plot(
+                pen=pg.mkPen(color="blue", width=2), name="Forward"
+            )
+            backward_item = plot.plot(
+                pen=pg.mkPen(color="red", width=2), name="Backward"
+            )
 
             self.plots.append(plot)
             self.plot_items[param] = (forward_item, backward_item)
@@ -254,8 +263,7 @@ class Plotter(QObject):  # moved to _internal
 
     @pyqtSlot(list, int)
     def add_data(self, data, direction):
-        """
-        Receives data from the Runner Thread.
+        """Receives data from the Runner Thread.
 
         Parameters
         ---------
@@ -272,8 +280,7 @@ class Plotter(QObject):  # moved to _internal
 
     @pyqtSlot(bool)
     def update_plots(self, force=False):
-        """
-        Updates all plots with new data from the queue.
+        """Updates all plots with new data from the queue.
         Optimized for high-frequency updates.
 
         Parameters
@@ -305,22 +312,28 @@ class Plotter(QObject):  # moved to _internal
                 # Add to set parameter data arrays
                 # Ensure scalars by flattening any arrays
                 time_val = time_data[1]
-                if hasattr(time_val, 'flatten'):
+                if hasattr(time_val, "flatten"):
                     time_val = float(np.array(time_val).flatten()[0])
 
                 set_val = set_param_data[1]
-                if hasattr(set_val, 'flatten'):
+                if hasattr(set_val, "flatten"):
                     set_val = float(np.array(set_val).flatten()[0])
 
-                self.set_data_arrays['x'].append(time_val)
-                self.set_data_arrays['y'].append(set_val)
+                self.set_data_arrays["x"].append(time_val)
+                self.set_data_arrays["y"].append(set_val)
 
             # Determine x-axis data for followed parameters
-            x_data_value = time_data[1] if self.sweep.x_axis == 1 else (
-                set_param_data[1] if self.sweep.set_param is not None else time_data[1]
+            x_data_value = (
+                time_data[1]
+                if self.sweep.x_axis == 1
+                else (
+                    set_param_data[1]
+                    if self.sweep.set_param is not None
+                    else time_data[1]
+                )
             )
             # Ensure x_data_value is scalar
-            if hasattr(x_data_value, 'flatten'):
+            if hasattr(x_data_value, "flatten"):
                 x_data_value = float(np.array(x_data_value).flatten()[0])
 
             # Add data to arrays for followed parameters
@@ -328,30 +341,29 @@ class Plotter(QObject):  # moved to _internal
                 param = self.sweep._params[i]
 
                 if param in self.data_arrays:
-                    direction_key = 'forward' if direction == 0 else 'backward'
+                    direction_key = "forward" if direction == 0 else "backward"
 
                     # Ensure y_data is scalar
                     y_value = data_pair[1]
-                    if hasattr(y_value, 'flatten'):
+                    if hasattr(y_value, "flatten"):
                         y_value = float(np.array(y_value).flatten()[0])
 
-                    self.data_arrays[param][direction_key]['x'].append(x_data_value)
-                    self.data_arrays[param][direction_key]['y'].append(y_value)
+                    self.data_arrays[param][direction_key]["x"].append(x_data_value)
+                    self.data_arrays[param][direction_key]["y"].append(y_value)
 
         # Now update all plots at once (much more efficient)
         self._update_plot_displays()
 
     def _update_plot_displays(self):
-        """
-        Efficiently updates all plot displays using stored data arrays.
+        """Efficiently updates all plot displays using stored data arrays.
         Optimized for large datasets - converts to numpy arrays efficiently.
         """
         # Update set parameter plot
         if self.sweep.set_param is not None and self.set_plot_item is not None:
-            if self.set_data_arrays['x'] and self.set_data_arrays['y']:
+            if self.set_data_arrays["x"] and self.set_data_arrays["y"]:
                 # Convert to numpy arrays for efficient plotting
-                x_data = np.array(self.set_data_arrays['x'], dtype=np.float64)
-                y_data = np.array(self.set_data_arrays['y'], dtype=np.float64)
+                x_data = np.array(self.set_data_arrays["x"], dtype=np.float64)
+                y_data = np.array(self.set_data_arrays["y"], dtype=np.float64)
                 self.set_plot_item.setData(x_data, y_data)
 
         # Update followed parameter plots
@@ -360,22 +372,21 @@ class Plotter(QObject):  # moved to _internal
                 forward_item, backward_item = self.plot_items[param]
 
                 # Update forward direction
-                forward_data = self.data_arrays[param]['forward']
-                if forward_data['x'] and forward_data['y']:
-                    x_data = np.array(forward_data['x'], dtype=np.float64)
-                    y_data = np.array(forward_data['y'], dtype=np.float64)
+                forward_data = self.data_arrays[param]["forward"]
+                if forward_data["x"] and forward_data["y"]:
+                    x_data = np.array(forward_data["x"], dtype=np.float64)
+                    y_data = np.array(forward_data["y"], dtype=np.float64)
                     forward_item.setData(x_data, y_data)
 
                 # Update backward direction
-                backward_data = self.data_arrays[param]['backward']
-                if backward_data['x'] and backward_data['y']:
-                    x_data = np.array(backward_data['x'], dtype=np.float64)
-                    y_data = np.array(backward_data['y'], dtype=np.float64)
+                backward_data = self.data_arrays[param]["backward"]
+                if backward_data["x"] and backward_data["y"]:
+                    x_data = np.array(backward_data["x"], dtype=np.float64)
+                    y_data = np.array(backward_data["y"], dtype=np.float64)
                     backward_item.setData(x_data, y_data)
 
     def get_plot_data(self, param_index):
-        """
-        Get x,y data arrays for a specific parameter.
+        """Get x,y data arrays for a specific parameter.
         Used by Sweep2D for heatmap visualization.
 
         Parameters
@@ -383,7 +394,7 @@ class Plotter(QObject):  # moved to _internal
         param_index:
             Index of the parameter in self.sweep._params
 
-        Returns
+        Returns:
         ---------
         dict or None:
             Dictionary with 'forward' and 'backward' data tuples (x_data, y_data)
@@ -395,14 +406,30 @@ class Plotter(QObject):  # moved to _internal
                 forward_item, backward_item = self.plot_items[param]
 
                 # Get data arrays, handling None case
-                forward_x = forward_item.xData if forward_item.xData is not None else np.array([])
-                forward_y = forward_item.yData if forward_item.yData is not None else np.array([])
-                backward_x = backward_item.xData if backward_item.xData is not None else np.array([])
-                backward_y = backward_item.yData if backward_item.yData is not None else np.array([])
+                forward_x = (
+                    forward_item.xData
+                    if forward_item.xData is not None
+                    else np.array([])
+                )
+                forward_y = (
+                    forward_item.yData
+                    if forward_item.yData is not None
+                    else np.array([])
+                )
+                backward_x = (
+                    backward_item.xData
+                    if backward_item.xData is not None
+                    else np.array([])
+                )
+                backward_y = (
+                    backward_item.yData
+                    if backward_item.yData is not None
+                    else np.array([])
+                )
 
                 return {
-                    'forward': (forward_x, forward_y),
-                    'backward': (backward_x, backward_y)
+                    "forward": (forward_x, forward_y),
+                    "backward": (backward_x, backward_y),
                 }
         return None
 
@@ -419,12 +446,12 @@ class Plotter(QObject):  # moved to _internal
             return
 
         # Clear data arrays
-        self.set_data_arrays = {'x': [], 'y': []}
+        self.set_data_arrays = {"x": [], "y": []}
         for param in self.sweep._params:
             if param in self.data_arrays:
                 self.data_arrays[param] = {
-                    'forward': {'x': [], 'y': []},
-                    'backward': {'x': [], 'y': []}
+                    "forward": {"x": [], "y": []},
+                    "backward": {"x": [], "y": []},
                 }
 
         # Reset set parameter plot
