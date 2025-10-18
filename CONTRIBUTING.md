@@ -1,6 +1,6 @@
-# Contributing to MeasureIt
+﻿# Contributing to measureit
 
-Thank you for your interest in contributing to MeasureIt! This guide will help you set up your development environment and understand our development workflow.
+Thank you for your interest in contributing to measureit! This guide will help you set up your development environment and understand our development workflow.
 
 ## Development Setup
 
@@ -36,15 +36,13 @@ We use `uv` (fast Python package manager) and `ruff` (fast Python linter and for
    uv pip install -e ".[dev,docs,jupyter]"
    ```
 
-3. **Set up environment**:
-   ```bash
-   # Set MeasureItHome environment variable
-   export MeasureItHome="/path/to/your/MeasureIt"  # Linux/macOS
-   set MeasureItHome="C:\path\to\your\MeasureIt"   # Windows
-   
-   # Create databases folder
-   mkdir -p "$MeasureItHome/databases"  # Linux/macOS
-   mkdir "%MeasureItHome%\databases"    # Windows
+3. **(Optional) Choose a custom data directory**:
+
+   measureit automatically stores databases, logs, configuration files, and exports in a per-user data directory based on your OS. Override this location in your notebooks or scripts when you need a shared or versioned path:
+
+   ```python
+   import measureit
+   measureit.set_data_dir("/path/to/measureit-data")
    ```
 
 4. **Set up pre-commit hooks**:
@@ -116,7 +114,7 @@ mypy src/
 pytest
 
 # Run tests with coverage
-pytest --cov=src/MeasureIt --cov-report=html --cov-report=term-missing
+pytest --cov=src/measureit --cov-report=html --cov-report=term-missing
 ```
 
 ## Code Quality Standards
@@ -172,7 +170,7 @@ pytest -m "not slow"
 Example test structure:
 ```python
 import pytest
-from MeasureIt import Sweep1D
+from measureit import Sweep1D
 
 def test_sweep1d_creation():
     """Test that Sweep1D can be created with valid parameters."""
@@ -231,7 +229,7 @@ def follow_param(self, *params: Parameter) -> None:
 
 ```
 MeasureIt/
-├── src/MeasureIt/           # Main package source
+├── src/measureit/           # Main package source
 │   ├── sweep0d.py          # 0D measurements (time-based)
 │   ├── sweep1d.py          # 1D parameter sweeps
 │   ├── sweep2d.py          # 2D parameter sweeps

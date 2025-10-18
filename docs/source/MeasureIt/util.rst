@@ -1,7 +1,7 @@
-MeasureIt.util module
+measureit.util module
 =====================
 
-.. automodule:: MeasureIt.util
+.. automodule:: measureit.util
    :members:
    :undoc-members:
    :show-inheritance:

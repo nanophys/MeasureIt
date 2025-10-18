@@ -1,7 +1,7 @@
-MeasureIt.Drivers.daq\_driver module
+measureit.Drivers.daq\_driver module
 ====================================
 
-.. automodule:: MeasureIt.Drivers.daq_driver
+.. automodule:: measureit.Drivers.daq_driver
    :members:
    :undoc-members:
    :show-inheritance:

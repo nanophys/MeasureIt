@@ -3,8 +3,9 @@ import pytest
 import qcodes as qc
 from qcodes.instrument_drivers.mock_instruments import MockParabola
 
-from MeasureIt.sweep import Sweep0D, Sweep1D, Sweep2D
-from MeasureIt.tools import init_database
+from measureit import get_path
+from measureit.sweep import Sweep0D, Sweep1D, Sweep2D
+from measureit.tools import init_database
 
 
 def test_sweep0d_runs_headless(qtbot, fast_sweep_kwargs):
@@ -68,7 +69,8 @@ def test_database_save_and_dataset_signal(qtbot, temp_measureit_home):
     s.kill()
 
     # Check DB path
-    db_dir = temp_measureit_home / "Databases"
+    db_dir = get_path("databases")
+    assert db_dir.parent == temp_measureit_home
     db_file = db_dir / f"{db_name}.db"
     assert db_file.exists(), f"Database file not found: {db_file}"
 

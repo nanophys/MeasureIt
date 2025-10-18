@@ -26,7 +26,7 @@ if 'pandas' not in sys.modules:
 
 @pytest.fixture(scope="session", autouse=True)
 def add_src_to_path():
-    """Ensure `src` is on sys.path so `import MeasureIt` works without install."""
+    """Ensure `src` is on sys.path so `import measureit` works without install."""
     repo_root = Path(__file__).resolve().parents[1]
     src = repo_root / "src"
     if str(src) not in sys.path:
@@ -36,10 +36,11 @@ def add_src_to_path():
 
 @pytest.fixture(scope="function")
 def temp_measureit_home(monkeypatch):
-    """Provide a temporary MeasureItHome with Databases subfolder."""
+    """Provide a temporary MEASUREIT_HOME with Databases subfolder."""
     tmpdir = Path(tempfile.mkdtemp(prefix="measureit_home_"))
     (tmpdir / "Databases").mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("MeasureItHome", str(tmpdir))
+    monkeypatch.setenv("MEASUREIT_HOME", str(tmpdir))
+    monkeypatch.delenv("MeasureItHome", raising=False)
     try:
         yield tmpdir
     finally:

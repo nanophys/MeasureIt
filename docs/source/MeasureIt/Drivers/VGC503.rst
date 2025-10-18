@@ -1,7 +1,7 @@
-MeasureIt.Drivers.VGC503 module
+measureit.Drivers.VGC503 module
 ===============================
 
-.. automodule:: MeasureIt.Drivers.VGC503
+.. automodule:: measureit.Drivers.VGC503
    :members:
    :undoc-members:
    :show-inheritance:
