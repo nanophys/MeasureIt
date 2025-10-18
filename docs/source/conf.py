@@ -24,9 +24,9 @@ if os.path.isdir(SRC):
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'MeasureIt'
-copyright = '2023, Elliott Runburg, Jiaqi Cai, Christian Rose, Jack Barlow'
-author = 'Elliott Runburg, Jiaqi Cai, Christian Rose, Jack Barlow'
-release = '0.0.1'
+copyright = '2025, Jiaqi Cai, Jack Barlow, Elliott Runburg, Christian Rose, Joshua Wang'
+author = 'Jiaqi Cai, Jack Barlow, Elliott Runburg, Christian Rose, Joshua Wang'
+release = '1.0.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

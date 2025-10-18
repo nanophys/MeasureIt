@@ -1,4 +1,4 @@
-MeasureIt.Drivers package
+measureit.Drivers package
 =========================
 
 Submodules
@@ -7,30 +7,30 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   MeasureIt.Drivers.Ametek_7230
-   MeasureIt.Drivers.Dynacool
-   MeasureIt.Drivers.HF2LI_xp
-   MeasureIt.Drivers.ITC503
-   MeasureIt.Drivers.Keithley_2450
-   MeasureIt.Drivers.Keithley_2450_DW
-   MeasureIt.Drivers.LM510
-   MeasureIt.Drivers.LR
-   MeasureIt.Drivers.Lakeshore_331
-   MeasureIt.Drivers.M4G
-   MeasureIt.Drivers.Model_340
-   MeasureIt.Drivers.Model_372
-   MeasureIt.Drivers.NDsweeper
-   MeasureIt.Drivers.SCM10
-   MeasureIt.Drivers.SWbox3499
-   MeasureIt.Drivers.VGC503
-   MeasureIt.Drivers.attodry
-   MeasureIt.Drivers.cryocon_24
-   MeasureIt.Drivers.daq_driver
+   measureit.Drivers.Ametek_7230
+   measureit.Drivers.Dynacool
+   measureit.Drivers.HF2LI_xp
+   measureit.Drivers.ITC503
+   measureit.Drivers.Keithley_2450
+   measureit.Drivers.Keithley_2450_DW
+   measureit.Drivers.LM510
+   measureit.Drivers.LR
+   measureit.Drivers.Lakeshore_331
+   measureit.Drivers.M4G
+   measureit.Drivers.Model_340
+   measureit.Drivers.Model_372
+   measureit.Drivers.NDsweeper
+   measureit.Drivers.SCM10
+   measureit.Drivers.SWbox3499
+   measureit.Drivers.VGC503
+   measureit.Drivers.attodry
+   measureit.Drivers.cryocon_24
+   measureit.Drivers.daq_driver
 
 Module contents
 ---------------
 
-.. automodule:: MeasureIt.Drivers
+.. automodule:: measureit.Drivers
    :members:
    :undoc-members:
    :show-inheritance:

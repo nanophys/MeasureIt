@@ -1,7 +1,7 @@
-MeasureIt.Drivers.NDsweeper module
+measureit.Drivers.NDsweeper module
 ==================================
 
-.. automodule:: MeasureIt.Drivers.NDsweeper
+.. automodule:: measureit.Drivers.NDsweeper
    :members:
    :undoc-members:
    :show-inheritance:
