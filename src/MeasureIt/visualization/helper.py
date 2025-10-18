@@ -1,5 +1,6 @@
 import json
-from qcodes.dataset import load_by_id, experiments  # moved to visualization
+
+from qcodes.dataset import experiments, load_by_id  # moved to visualization
 
 try:
     # Optional dependency; only needed when displaying in Jupyter
@@ -7,13 +8,14 @@ try:
 except Exception:  # pragma: no cover - environment without IPython
     HTML = None  # Fallback so importing this module never fails
 
+
 def print_all_metadata(expand_all=False):
     """Print metadata for all datasets in all experiments"""
     exp_list = experiments()
     if not exp_list:
         print("No experiments found in database")
         return
-    
+
     html = """
     <style>
     .metadata-container { font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; }
@@ -29,59 +31,63 @@ def print_all_metadata(expand_all=False):
     <div class="metadata-container">
     <h2>🗄️ All Experiments and Datasets</h2>
     """
-    
+
     for experiment in exp_list:
         run_ids = [ds.run_id for ds in experiment.data_sets()]
-        
+
         html += f"""
         <div class="experiment-header">
         🧪 Experiment: {experiment.name} | Sample: {experiment.sample_name} | Run IDs: {run_ids}
         </div>
         """
-        
+
         for run_id in run_ids:
             dataset = load_by_id(run_id)
             metadata = dataset.metadata
-            
+
             html += f'<div class="dataset-header">📊 Run ID: {run_id} | Name: {dataset.name}</div>'
-            
+
             for key, value in metadata.items():
-                if key == 'measureit' and isinstance(value, str):
+                if key == "measureit" and isinstance(value, str):
                     try:
                         parsed = json.loads(value)
                         html += f"""
-                        <details {'open' if expand_all else ''}>
+                        <details {"open" if expand_all else ""}>
                             <summary><span class="metadata-key">🔬 {key}</span></summary>
                             <div class="json-content">
-                                <strong>Class:</strong> {parsed.get('class', 'Unknown')}<br>
-                                <strong>Module:</strong> {parsed.get('module', 'Unknown')}<br>
+                                <strong>Class:</strong> {parsed.get("class", "Unknown")}<br>
+                                <strong>Module:</strong> {parsed.get("module", "Unknown")}<br>
                                 <strong>Attributes:</strong><br>
                         """
-                        for attr_key, attr_val in parsed.get('attributes', {}).items():
+                        for attr_key, attr_val in parsed.get("attributes", {}).items():
                             html += f"&nbsp;&nbsp;• {attr_key}: {attr_val}<br>"
-                        
-                        if parsed.get('follow_params'):
+
+                        if parsed.get("follow_params"):
                             html += "<strong>Follow Parameters:</strong><br>"
-                            for param_name, param_info in parsed['follow_params'].items():
+                            for param_name, param_info in parsed[
+                                "follow_params"
+                            ].items():
                                 html += f"&nbsp;&nbsp;• {param_name}: {param_info[0]} ({param_info[2]})<br>"
-                        
+
                         html += "</div></details>"
                     except json.JSONDecodeError:
                         html += f'<div><span class="metadata-key">{key}:</span> <span class="metadata-value">{value}</span></div>'
                 else:
                     html += f'<div><span class="metadata-key">{key}:</span> <span class="metadata-value">{value}</span></div>'
-    
+
     html += "</div>"
     return HTML(html) if HTML is not None else html
+
 
 # Usage:
 # print_all_metadata()
 # print_all_metadata(expand_all=True)
 
+
 def print_metadata(dataset, expand_all=False):
     """Pretty print dataset metadata in collapsible format for Jupyter Lab"""
     metadata = dataset.metadata
-    
+
     html = """
     <style>
     .metadata-container { font-family: 'Monaco', 'Menlo', monospace; font-size: 12px; }
@@ -95,35 +101,36 @@ def print_metadata(dataset, expand_all=False):
     <div class="metadata-container">
     <h3>📊 Dataset Metadata</h3>
     """
-    
+
     for key, value in metadata.items():
-        if key == 'measureit' and isinstance(value, str):
+        if key == "measureit" and isinstance(value, str):
             try:
                 parsed = json.loads(value)
                 html += f"""
-                <details {'open' if expand_all else ''}>
+                <details {"open" if expand_all else ""}>
                     <summary><span class="metadata-key">🔬 {key}</span></summary>
                     <div class="json-content">
-                        <strong>Class:</strong> {parsed.get('class', 'Unknown')}<br>
-                        <strong>Module:</strong> {parsed.get('module', 'Unknown')}<br>
+                        <strong>Class:</strong> {parsed.get("class", "Unknown")}<br>
+                        <strong>Module:</strong> {parsed.get("module", "Unknown")}<br>
                         <strong>Attributes:</strong><br>
                 """
-                for attr_key, attr_val in parsed.get('attributes', {}).items():
+                for attr_key, attr_val in parsed.get("attributes", {}).items():
                     html += f"&nbsp;&nbsp;• {attr_key}: {attr_val}<br>"
-                
-                if parsed.get('follow_params'):
+
+                if parsed.get("follow_params"):
                     html += "<strong>Follow Parameters:</strong><br>"
-                    for param_name, param_info in parsed['follow_params'].items():
+                    for param_name, param_info in parsed["follow_params"].items():
                         html += f"&nbsp;&nbsp;• {param_name}: {param_info[0]} ({param_info[2]})<br>"
-                
+
                 html += "</div></details>"
             except json.JSONDecodeError:
                 html += f'<div><span class="metadata-key">{key}:</span> <span class="metadata-value">{value}</span></div>'
         else:
             html += f'<div><span class="metadata-key">{key}:</span> <span class="metadata-value">{value}</span></div>'
-    
+
     html += "</div>"
     return HTML(html) if HTML is not None else html
+
 
 # Usage:
 # print_metadata(dataset)

@@ -1,7 +1,7 @@
-MeasureIt.gate\_leakage module
+measureit.gate\_leakage module
 ==============================
 
-.. automodule:: MeasureIt.gate_leakage
+.. automodule:: measureit.gate_leakage
    :members:
    :undoc-members:
    :show-inheritance:

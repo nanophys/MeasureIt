@@ -1,4 +1,4 @@
-.. _gettingstarted:
+﻿.. _gettingstarted:
 
 Getting Started
 ===============
@@ -6,29 +6,23 @@ Getting Started
 Installation
 ------------
 
-- Python 3.8–3.11 supported.
+- Python 3.8â€“3.11 supported.
 - Install the core package:
 
-  - ``pip install MeasureIt``
+  - ``pip install measureit``
 
 - Optional extras:
 
-  - Drivers (NI/Zurich Instruments): ``pip install "MeasureIt[drivers]"``
+  - Drivers (NI/Zurich Instruments): ``pip install "measureit[drivers]"``
   - Jupyter/Dev/Docs: see extras in ``pyproject.toml`` or README.
 
-Launch the GUI
---------------
+Data Directory
+-----------------
 
-- After install, run: ``measureit-gui``
-- The first launch creates a per-user data directory (MeasureItHome) automatically.
-
-Data Directory (MeasureItHome)
-------------------------------
-
-- If the environment variable ``MeasureItHome`` is set, that path is used.
-- Otherwise, a sensible per-user location is created using platform conventions
-  (e.g., ``~/.local/share/MeasureIt`` on Linux, ``%APPDATA%\MeasureIt`` on Windows).
-- Subfolders are prepared automatically: ``Databases/``, ``Origin Files/``, ``cfg/``, ``logs/``.
+- MeasureIt chooses a per-user location automatically using ``platformdirs`` (for example, ``~/.local/share/measureit`` on Linux, ``~/Library/Application Support/measureit`` on macOS, or ``%APPDATA%\measureit`` on Windows).
+- Override the location at runtime via ``measureit.set_data_dir("/path/to/data")`` or set the ``MEASUREIT_HOME`` environment variable before importing MeasureIt.
+- Legacy ``MeasureItHome`` environment variables continue to work, but new deployments should prefer ``MEASUREIT_HOME``.
+- Subfolders such as ``Databases/``, ``Origin Files/``, ``cfg/``, and ``logs/`` are created on demand when accessed.
 
 Jupyter Usage
 -------------
@@ -38,7 +32,7 @@ Jupyter Usage
 
   .. code-block:: python
 
-     from MeasureIt import Sweep1D
+     from measureit import Sweep1D
      from qcodes.instrument_drivers.mock_instruments import MockParabola
 
      inst = MockParabola(name="demo")

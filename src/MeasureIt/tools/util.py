@@ -2,53 +2,37 @@
 # Utility function file
 
 import re
-import time
-import os
 import string
+import time
 from pathlib import Path
 
-import qcodes as qc  # moved to tools
 import pandas as pd
-from qcodes import initialise_or_create_database_at, Station
+import qcodes as qc  # moved to tools
+from qcodes import Station, initialise_or_create_database_at
 
-try:
-    from platformdirs import user_data_dir
-except Exception:  # pragma: no cover - platformdirs optional at runtime
-    user_data_dir = None
+from ..config import get_path
 
 unit_dict = {
-    'f': 10 ** -15,
-    'p': 10 ** -12,
-    'n': 10 ** -9,
-    'u': 10 ** -6,
-    'm': 10 ** -3,
-    'k': 10 ** 3,
-    'M': 10 ** 6,
-    'G': 10 ** 9,
-    '': 10 ** 0
+    "f": 10**-15,
+    "p": 10**-12,
+    "n": 10**-9,
+    "u": 10**-6,
+    "m": 10**-3,
+    "k": 10**3,
+    "M": 10**6,
+    "G": 10**9,
+    "": 10**0,
 }
 
 
 def get_measureit_home() -> str:
-    """Return MeasureItHome directory, using environment or a platformdirs fallback.
+    """Return the root data directory used by MeasureIt (legacy helper).
 
-    - If env var `MeasureItHome` is set, return it (creating if missing).
-    - Else, use platformdirs' user data dir (e.g., ~/.local/share/MeasureIt or %APPDATA%).
-    The directory is created if it does not exist.
+    This proxies :func:`measureit.config.get_path` so older code that expects a
+    string path continues to work.
     """
-    env = os.environ.get("MeasureItHome")
-    if env:
-        home = Path(env).expanduser()
-    else:
-        base = Path(user_data_dir("MeasureIt", "UW-Physics")) if user_data_dir else Path.home() / ".measureit"
-        home = base
-        # Also set the environment for downstream code expecting it
-        os.environ["MeasureItHome"] = str(home)
-    home.mkdir(parents=True, exist_ok=True)
-    # Ensure standard subfolders exist
-    for sub in ("Databases", "Origin Files", "cfg", "logs"):
-        (home / sub).mkdir(parents=True, exist_ok=True)
-    return str(home)
+    return str(get_path("databases").parent)
+
 
 class ParameterException(Exception):
     def __init__(self, message, set=False):
@@ -61,9 +45,8 @@ class ParameterException(Exception):
 
 
 def safe_set(p, value, last_try=False):
-    """
-    Alerts the user when a parameter can not be set to the chosen value.
-    
+    """Alerts the user when a parameter can not be set to the chosen value.
+
     Parameters
     ---------
     p:
@@ -73,7 +56,6 @@ def safe_set(p, value, last_try=False):
     last_try:
         Flag to stop attempting to set the value.
     """
-    
     ret = None
     try:
         ret = p.set(value)
@@ -89,9 +71,8 @@ def safe_set(p, value, last_try=False):
 
 
 def safe_get(p, last_try=False):
-    """
-    Alerts the user when a parameter's value can not be obtained.
-    
+    """Alerts the user when a parameter's value can not be obtained.
+
     Parameters
     ---------
     p:
@@ -99,7 +80,6 @@ def safe_get(p, last_try=False):
     last_try:
         Flag to stop attempting to set the value.
     """
-    
     ret = None
     try:
         ret = p.get()
@@ -110,28 +90,26 @@ def safe_get(p, last_try=False):
             return safe_get(p, last_try=True)
         else:
             print(f"Still couldn't get {p.name}. Giving up.", e)
-            raise ParameterException(f'Could not get {p.name}.', set=False)
+            raise ParameterException(f"Could not get {p.name}.", set=False)
     return ret
 
 
 def connect_to_station(config_file=None):
-    """
-    Loads a QCoDeS station configuration file, or starts a new station.
-    
+    """Loads a QCoDeS station configuration file, or starts a new station.
+
     Parameters
     ---------
     config_file:
         The file path to the desired configuration file.
-        
-    Returns
+
+    Returns:
     ---------
     A loaded or new QCoDeS station for conducting experiments.
     """
-    
-    home = Path(get_measureit_home())
-    cfg_json = home / "cfg" / "qcodesrc.json"
+    cfg_dir = get_path("cfg")
+    cfg_json = cfg_dir / "qcodesrc.json"
     if cfg_json.is_file():
-        qc.config.update_config(str(cfg_json.parent))
+        qc.config.update_config(str(cfg_dir))
     station = Station()
     try:
         station.load_config_file(config_file)
@@ -142,34 +120,34 @@ def connect_to_station(config_file=None):
 
 
 def connect_station_instruments(station):
-    """
-    Loads the instruments from the station to be used during the experiment.
-    
+    """Loads the instruments from the station to be used during the experiment.
+
     Parameters
     ---------
     station:
         The station configuration which contains the instrument information.
-    
-    Returns
+
+    Returns:
     ---------
     The list of instruments obtained from the station.
     """
     devices = {}
-    for name, instr in station.config['instruments'].items():
+    for name, instr in station.config["instruments"].items():
         try:
             dev = station.load_instrument(name)
             devices[str(name)] = dev
         except Exception:
-            print(f'Error connecting to {name}, '
-                  'either the name is already in use or the device is unavailable.')
+            print(
+                f"Error connecting to {name}, "
+                "either the name is already in use or the device is unavailable."
+            )
 
     return devices
 
 
 def save_to_csv(ds, fn=None, use_labels=True):
-    """
-    Saves the dataset as a CSV file.
-    
+    """Saves the dataset as a CSV file.
+
     Parameters
     ---------
     ds:
@@ -180,7 +158,7 @@ def save_to_csv(ds, fn=None, use_labels=True):
     use_labels=True:
         Puts the parameter labels as the column names of the csv, as opposed to the parameter names.
     """
-    
+
     def find_param_label(name):
         use_name = name
         unit = None
@@ -191,7 +169,7 @@ def save_to_csv(ds, fn=None, use_labels=True):
                     use_name = ps.label
 
         if unit is not None:
-            use_name = f'{use_name} ({unit})'
+            use_name = f"{use_name} ({unit})"
         return use_name
 
     df = ds.to_pandas_dataframe_dict()
@@ -208,21 +186,20 @@ def save_to_csv(ds, fn=None, use_labels=True):
     if fn is not None:
         export_ds.to_csv(fn)
     else:
-        db_name = Path(ds.path_to_db).name.split('.')[0]
-        home = Path(get_measureit_home())
-        fp = home / "Origin Files" / db_name
+        db_name = Path(ds.path_to_db).name.split(".")[0]
+        fp = get_path("origin_files") / db_name
         fp.mkdir(parents=True, exist_ok=True)
         fn_path = fp / f"{ds.run_id}_{ds.exp_name}_{ds.sample_name}.csv"
         # sanitize filename
-        safe = {ord(i): '' for i in '?*<>"\''}
+        safe = {ord(i): "" for i in "?*<>\"'"}
         fn_clean = fn_path.name.translate(safe)
         fn_path = fn_path.with_name(fn_clean)
         export_ds.to_csv(str(fn_path))
 
+
 def set_magnet_ramp_ranges(magnet, ranges):
-    """ 
-    Defines the rate and maximum current for magnet sweeps.
-    
+    """Defines the rate and maximum current for magnet sweeps.
+
     Parameters
     ---------
     magnet:
@@ -230,37 +207,38 @@ def set_magnet_ramp_ranges(magnet, ranges):
     ranges:
         A list which gives the index, rate, and maximum current for ramping.
     """
-    
     if not isinstance(ranges, list):
-        print("Must pass a list of current ranges, formatted as follows:\
+        print(
+            "Must pass a list of current ranges, formatted as follows:\
              [(1, <rate>, <max applicable current>), (2, <rate>, <max applicable current>), ..., \
-             (n, <rate>, <max applicable current>]")
+             (n, <rate>, <max applicable current>]"
+        )
         return
 
-    magnet.write('CONF:RAMP:RATE:SEG {}'.format(len(ranges)))
+    magnet.write(f"CONF:RAMP:RATE:SEG {len(ranges)}")
     time.sleep(0.5)
     for r in ranges:
         if len(r) != 3:
-            print("Must pass a list of current ranges, formatted as follows:\
+            print(
+                "Must pass a list of current ranges, formatted as follows:\
              [(1, <rate>, <max applicable current>), (2, <rate>, <max applicable current>), ..., \
-             (n, <rate>, <max applicable current>]")
+             (n, <rate>, <max applicable current>]"
+            )
             return
-        magnet.write(f'CONF:RAMP:RATE:CURR {r[0]},{r[1]},{r[2]}')
+        magnet.write(f"CONF:RAMP:RATE:CURR {r[0]},{r[1]},{r[2]}")
         time.sleep(0.5)
 
 
 def set_experiment_sample_names(sweep, exp, samp):
-    """ Creates a new measurement with desired experiment and sample names. """
-    
+    """Creates a new measurement with desired experiment and sample names."""
     if sweep.save_data is True:
         qc.new_experiment(exp, samp)
     sweep._create_measurement()
 
 
 def init_database(db, exp, samp, sweep=None):
-    """
-    Initializes a new database with exp and sample names and creates a new measurement if a sweep is set.
-    
+    """Initializes a new database with exp and sample names and creates a new measurement if a sweep is set.
+
     Parameters
     ---------
     db:
@@ -277,29 +255,27 @@ def init_database(db, exp, samp, sweep=None):
     if db_path.suffix != ".db":
         db_path = db_path.with_suffix(".db")
     if not db_path.is_absolute():
-        home = Path(get_measureit_home())
-        db_path = home / "Databases" / db_path
+        db_path = get_path("databases") / db_path
     initialise_or_create_database_at(str(db_path))
     qc.new_experiment(exp, samp)
 
     if sweep is not None:
         sweep._create_measurement()
 
+
 def export_db_to_txt(db_fn, exp_name=None, sample_name=None):
-    """ Prints all experiment and sample names to the console. """
-    
-    home = Path(get_measureit_home())
+    """Prints all experiment and sample names to the console."""
     db_file = Path(db_fn)
     if db_file.suffix != ".db":
         db_file = db_file.with_suffix(".db")
     if not db_file.is_absolute():
-        db_file = home / "Databases" / db_file
+        db_file = get_path("databases") / db_file
     initialise_or_create_database_at(str(db_file))
     experiments = []
     for exp in qc.dataset.experiment_container.experiments():
         if exp_name is None or exp.name is exp_name:
             experiments.append(exp)
-            newpath = Path(get_measureit_home()) / "Origin Files" / exp.name
+            newpath = get_path("origin_files") / exp.name
             newpath.mkdir(parents=True, exist_ok=True)
 
     count = 0
@@ -310,24 +286,24 @@ def export_db_to_txt(db_fn, exp_name=None, sample_name=None):
             write_sample_to_txt(exp, count)
             count += 1
 
+
 def _value_parser(value):
-    """
-    Parses user input for a float and a unit prefix character. 
-    
-    Returns
+    """Parses user input for a float and a unit prefix character.
+
+    Returns:
     ---------
     A float and a single character.
     """
     if len(str(value)) == 0:
-        raise ParameterException('No value given.')
+        raise ParameterException("No value given.")
         return
 
     value = str(value).strip()
 
-    if value[0] == '.':
-        value = '0' + value
+    if value[0] == ".":
+        value = "0" + value
     # regex testing stripped value as valid factor string
-    # must be exactly a number followed by (space optional) single valid factor char 
+    # must be exactly a number followed by (space optional) single valid factor char
     # f = femto p = pico u = micro m = milli k = kilo M = Mega G = Giga
     regex = re.compile(r"^([-+]?[\d]*\.?[\d]*[\s]?)([fpnumkMG]?)$")
 
@@ -336,37 +312,35 @@ def _value_parser(value):
         raise ParameterException(f'Could not parse the input "{value}".')
         return
 
-    parsedNum = float(parsedVal.groups(' ')[0])
-    parsedUnit = parsedVal.groups(' ')[1]
+    parsedNum = float(parsedVal.groups(" ")[0])
+    parsedUnit = parsedVal.groups(" ")[1]
     parsedValue = parsedNum * unit_dict[parsedUnit]
 
     return parsedValue
 
 
 def _name_parser(_name):
-    """
-    Parses an instrument name. Must not lead with a numeric character.
-    """
+    """Parses an instrument name. Must not lead with a numeric character."""
     name = str(_name).strip()
 
     if len(name) == 0:
-        raise ValueError('Invalid. Must provide an instrument name.')
-        return ''
+        raise ValueError("Invalid. Must provide an instrument name.")
+        return ""
 
     if any(c in name for c in string.whitespace):
-        raise ValueError(f'Invalid name: {name}. No spaces allowed within instrument name.')
-        return ''
+        raise ValueError(
+            f"Invalid name: {name}. No spaces allowed within instrument name."
+        )
+        return ""
     elif not name[0].isalpha():
-        raise ValueError(f'Invalid name: {name}. First character must be a letter.')
-        return ''
+        raise ValueError(f"Invalid name: {name}. First character must be a letter.")
+        return ""
 
     return name
 
 
 def _autorange_srs(srs, max_changes=1):
-    """
-    Autoranges the SR lockins
-    """
+    """Autoranges the SR lockins"""
 
     def autorange_once():
         r = srs.R.get()
@@ -380,7 +354,7 @@ def _autorange_srs(srs, max_changes=1):
         return False
 
     def increment_sensitivity():
-        if srs.signal_input() == 'voltage':
+        if srs.signal_input() == "voltage":
             sense = srs._VOLT_TO_N[srs.sensitivity.get()]
             srs.sensitivity.set(srs._N_TO_VOLT[int(sense - 1)])
         else:
@@ -388,7 +362,7 @@ def _autorange_srs(srs, max_changes=1):
             srs.sensitivity.set(srs._N_TO_CURR[int(sense - 1)])
 
     def decrement_sensitivity():
-        if srs.signal_input() == 'voltage':
+        if srs.signal_input() == "voltage":
             sense = srs._VOLT_TO_N[srs.sensitivity.get()]
             srs.sensitivity.set(srs._N_TO_VOLT[int(sense + 1)])
         else:

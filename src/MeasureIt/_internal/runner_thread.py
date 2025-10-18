@@ -1,21 +1,22 @@
 # runner_thread.py
 
-from PyQt5.QtCore import QThread, pyqtSignal
-from ..tools.util import ParameterException
-import time
 import json
+import time
+
+from PyQt5.QtCore import QThread, pyqtSignal
+
+from ..tools.util import ParameterException
 
 
 class RunnerThread(QThread):
-    """
-    Thread created to manage sweep data for saving and plotting.
-    
+    """Thread created to manage sweep data for saving and plotting.
+
     The sweeping object, Runner Thread, and Plotter Thread operate
     independently to improve efficiency. The Runner Thread gathers the
     data from the sweep, saves it to a database if desired, and passes
     it to a Plotter thread for live-plotting.
-    
-    Attributes
+
+    Attributes:
     ---------
     sweep:
         Defines the specific parent sweep (Sweep1D, Sweep2D, etc.).
@@ -31,8 +32,8 @@ class RunnerThread(QThread):
         Flushes any remaining data to database if sweep is stopped.
     runner:
         Runs measurement through QCoDeS.
-        
-    Methods
+
+    Methods:
     ---------
     __del__()
         A standard destructor.
@@ -43,17 +44,16 @@ class RunnerThread(QThread):
     run()
         Iterates the sweep and sends data to the plotter.
     """
-    
+
     get_dataset = pyqtSignal(dict)
     send_data = pyqtSignal(list, int)
 
     def __init__(self, sweep):
-        """
-        Initializes the runner.
-        
-        Takes in the parent sweep object, initializes the 
+        """Initializes the runner.
+
+        Takes in the parent sweep object, initializes the
         plotter object, and calls the QThread initialization.
-        
+
         Parameters
         ---------
         sweep:
@@ -71,7 +71,6 @@ class RunnerThread(QThread):
         runner:
             Runs measurement through QCoDeS.
         """
-        
         QThread.__init__(self)
 
         self.sweep = sweep
@@ -84,43 +83,36 @@ class RunnerThread(QThread):
         self.runner = None
 
     def __del__(self):
-        """ Standard destructor. """
-
+        """Standard destructor."""
         self.wait()
 
     def add_plotter(self, plotter):
-        """
-        Adds the PlotterThread object.
-        
+        """Adds the PlotterThread object.
+
         Parameters
         ---------
-        plotter: 
+        plotter:
             Desired Plotter Thread object, created by the parent sweep.
         """
-        
         self.plotter = plotter
         self.send_data.connect(self.plotter.add_data)
 
     def _set_parent(self, sweep):
-        """
-        Sets a parent sweep if the Runner Thread is created independently.
-        
+        """Sets a parent sweep if the Runner Thread is created independently.
+
         Parameters
         ---------
-        sweep: 
+        sweep:
             Desired type of sweep for runner to gather data for.
         """
-        
         self.sweep = sweep
 
     def run(self):
-        """
-        Iterates the sweep and sends data to the plotter for live plotting.
-        
-        NOTE: start() is called externally to start the thread, but run() 
+        """Iterates the sweep and sends data to the plotter for live plotting.
+
+        NOTE: start() is called externally to start the thread, but run()
         defines the behavior of the thread.
         """
-        
         # Check database status
         if self.sweep.save_data is True:
             self.runner = self.sweep.meas.run()
@@ -128,14 +120,18 @@ class RunnerThread(QThread):
             self.dataset = self.datasaver.dataset
             # Attach MeasureIt sweep metadata once per dataset, using provider if set
             try:
-                provider = getattr(self.sweep, 'get_metadata_provider', None)
+                provider = getattr(self.sweep, "get_metadata_provider", None)
                 provider = provider() if callable(provider) else None
                 if provider is None:
-                    provider = getattr(self.sweep, 'metadata_provider', None) or self.sweep
+                    provider = (
+                        getattr(self.sweep, "metadata_provider", None) or self.sweep
+                    )
                 meta = provider.export_json(fn=None)
                 try:
                     # Preferred signature used historically in this project
-                    self.dataset.add_metadata(tag="measureit", metadata=json.dumps(meta))
+                    self.dataset.add_metadata(
+                        tag="measureit", metadata=json.dumps(meta)
+                    )
                 except TypeError:
                     # Fallback for older qcodes versions
                     self.dataset.add_metadata("measureit", json.dumps(meta))
@@ -143,10 +139,10 @@ class RunnerThread(QThread):
                 # Never break the run on metadata errors
                 pass
             ds_dict = {}
-            ds_dict['db'] = self.dataset.path_to_db
-            ds_dict['run id'] = self.dataset.run_id
-            ds_dict['exp name'] = self.dataset.exp_name
-            ds_dict['sample name'] = self.dataset.sample_name
+            ds_dict["db"] = self.dataset.path_to_db
+            ds_dict["run id"] = self.dataset.run_id
+            ds_dict["exp name"] = self.dataset.exp_name
+            ds_dict["sample name"] = self.dataset.sample_name
             self.get_dataset.emit(ds_dict)
 
         # print(f"called runner from thread: {QThread.currentThreadId()}")
@@ -159,7 +155,7 @@ class RunnerThread(QThread):
                 # Get the new data
                 try:
                     data = self.sweep.update_values()
-                except ParameterException as e:
+                except ParameterException:
                     self.sweep.stop()
                     continue
 

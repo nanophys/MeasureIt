@@ -18,7 +18,7 @@ def do_1d_sweep(_min_v, _max_v, _step, _freq, _expName, _sampleName):
     try:
         experimentName = _expName
         sampleName = _sampleName
-        initialise_or_create_database_at('C:\\Users\\erunb\\MeasureIt\\Databases\\testdatabase.db')
+        initialise_or_create_database_at('C:\\Users\\erunb\\measureit.Databases\\testdatabase.db')
         qc.new_experiment(name=experimentName, sample_name=sampleName)
     except:
         print("Error opening database")
@@ -56,7 +56,7 @@ def do_2d_sweep():
     try:
         experimentName = "testexp-2d_5"
         sampleName = "sampletest-2d"
-        initialise_or_create_database_at('C:\\Users\\erunb\\MeasureIt\\Databases\\testdatabase.db')
+        initialise_or_create_database_at('C:\\Users\\erunb\\measureit.Databases\\testdatabase.db')
         qc.new_experiment(name=experimentName, sample_name=sampleName)
     except:
         print("Error opening database")

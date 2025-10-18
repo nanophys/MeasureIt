@@ -1,7 +1,7 @@
-MeasureIt.heatmap\_thread module
+measureit.heatmap\_thread module
 ================================
 
-.. automodule:: MeasureIt.heatmap_thread
+.. automodule:: measureit.heatmap_thread
    :members:
    :undoc-members:
    :show-inheritance:

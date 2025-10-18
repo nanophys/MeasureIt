@@ -1,7 +1,7 @@
-MeasureIt.Drivers.LM510 module
+measureit.Drivers.LM510 module
 ==============================
 
-.. automodule:: MeasureIt.Drivers.LM510
+.. automodule:: measureit.Drivers.LM510
    :members:
    :undoc-members:
    :show-inheritance:

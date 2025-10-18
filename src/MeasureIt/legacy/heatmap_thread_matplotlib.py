@@ -1,23 +1,23 @@
 # heatmap_thread.py
 
-from PyQt5.QtCore import QObject, pyqtSlot
 import math
 from collections import deque
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from PyQt5.QtCore import QObject, pyqtSlot
 
 
 class Heatmap(QObject):  # moved to legacy
-    """
-    Thread to control the plotting for Sweep2D. 
-    
+    """Thread to control the plotting for Sweep2D.
+
     Gathers data from the RunnerThread. For Sweep2D, in addition to plotting
-    the followed parameters against the set parameter, the heatmap thread 
+    the followed parameters against the set parameter, the heatmap thread
     creates a 3D representation of the followed parameter against an inner
     and outer set parameter, using color to represent the third dimension.
-    
-    Attributes
+
+    Attributes:
     ---------
     sweep:
         The parent sweep object.
@@ -31,8 +31,8 @@ class Heatmap(QObject):  # moved to legacy
         The minimum value of the 'set_param' data (y).
     figs_set:
         Changes to true after figures have been created.
-        
-    Methods
+
+    Methods:
     ---------
     create_figs()
         Creates the heatmap figure for Sweep2D.
@@ -41,7 +41,7 @@ class Heatmap(QObject):  # moved to legacy
     add_to_plot(line)
         Plots the Line2D objects set to be added.
     update_data(x_out)
-        Updates outer parameter data for all inner parameters. 
+        Updates outer parameter data for all inner parameters.
     update_heatmap()
         Prepares lines to be added for plotting.
     clear()
@@ -49,13 +49,11 @@ class Heatmap(QObject):  # moved to legacy
     """
 
     def __init__(self, sweep):
-        """
-        Initializes the thread. 
-        
+        """Initializes the thread.
+
         Takes in the parent sweep and the figure information
         to use previously obtained plot if desired.
         """
-        
         self.sweep = sweep
         # Datastructure to
         self.lines_to_add = deque([])
@@ -67,19 +65,27 @@ class Heatmap(QObject):  # moved to legacy
         QObject.__init__(self)
 
     def create_figs(self):
-        """ 
-        Creates the heatmap figure for the 2D sweep. 
-        
+        """Creates the heatmap figure for the 2D sweep.
+
         If parent sweep has been previously plotted, this thread will use
         the previously created figures.
         """
-        
         if self.figs_set is True:
             return
 
         # First, determine the resolution on each axis
-        self.res_in = math.ceil(abs((self.sweep.in_stop - self.sweep.in_start) / self.sweep.in_step)) + 1
-        self.res_out = math.ceil(abs((self.sweep.out_stop - self.sweep.out_start) / self.sweep.out_step)) + 1
+        self.res_in = (
+            math.ceil(
+                abs((self.sweep.in_stop - self.sweep.in_start) / self.sweep.in_step)
+            )
+            + 1
+        )
+        self.res_out = (
+            math.ceil(
+                abs((self.sweep.out_stop - self.sweep.out_start) / self.sweep.out_step)
+            )
+            + 1
+        )
 
         # Create the heatmap data matrix - initially as all 0s
         self.heatmap_dict = {}
@@ -87,14 +93,28 @@ class Heatmap(QObject):  # moved to legacy
         self.in_keys = set([])
         self.out_step = self.sweep.out_step
         self.in_step = self.sweep.in_step
-        for x_out in np.linspace(self.sweep.out_start, self.sweep.out_stop,
-                                 int(abs(self.sweep.out_stop - self.sweep.out_start) / abs(self.sweep.out_step) + 1),
-                                 endpoint=True):
+        for x_out in np.linspace(
+            self.sweep.out_start,
+            self.sweep.out_stop,
+            int(
+                abs(self.sweep.out_stop - self.sweep.out_start)
+                / abs(self.sweep.out_step)
+                + 1
+            ),
+            endpoint=True,
+        ):
             self.heatmap_dict[x_out] = {}
             self.out_keys.add(x_out)
-            for x_in in np.linspace(self.sweep.in_start, self.sweep.in_stop,
-                                    int(abs(self.sweep.in_stop - self.sweep.in_start) / abs(self.sweep.in_step) + 1),
-                                    endpoint=True):
+            for x_in in np.linspace(
+                self.sweep.in_start,
+                self.sweep.in_stop,
+                int(
+                    abs(self.sweep.in_stop - self.sweep.in_start)
+                    / abs(self.sweep.in_step)
+                    + 1
+                ),
+                endpoint=True,
+            ):
                 self.heatmap_dict[x_out][x_in] = 0
                 self.in_keys.add(x_in)
         self.out_keys = sorted(self.out_keys)
@@ -109,8 +129,8 @@ class Heatmap(QObject):  # moved to legacy
         self.heat_ax = ax
 
         # Set our axes and ticks
-        plt.ylabel(f'{self.sweep.set_param.label} ({self.sweep.set_param.unit})')
-        plt.xlabel(f'{self.sweep.in_param.label} ({self.sweep.in_param.unit})')
+        plt.ylabel(f"{self.sweep.set_param.label} ({self.sweep.set_param.unit})")
+        plt.xlabel(f"{self.sweep.in_param.label} ({self.sweep.in_param.unit})")
         inner_tick_lbls = np.linspace(self.sweep.in_start, self.sweep.in_stop, 5)
         outer_tick_lbls = np.linspace(self.sweep.out_stop, self.sweep.out_start, 5)
 
@@ -126,38 +146,34 @@ class Heatmap(QObject):  # moved to legacy
         cbar = plt.colorbar(self.heatmap, cax=cax)
         # Create label
         plot_para = self.sweep.in_sweep._params[self.sweep.heatmap_ind]
-        cbar.set_label(f'{plot_para.label} ({plot_para.unit})')
+        cbar.set_label(f"{plot_para.label} ({plot_para.unit})")
         self.figs_set = True
 
     @pyqtSlot(list)
     def add_lines(self, lines):
-        """
-        Feeds the thread Line2D objects to add to the heatmap.
-        
+        """Feeds the thread Line2D objects to add to the heatmap.
+
         Parameters
         ---------
         lines:
-            A  dictionary of Line2D objects (backwards and forwards) 
+            A  dictionary of Line2D objects (backwards and forwards)
             to be added to the heatmap.
         """
-        
         self.lines_to_add.append(lines)
         try:
             self.update_heatmap()
         except Exception as e:
             print("Failed to update the heatmap: ", e)
-            
+
     def add_to_plot(self, line):
-        """
-        Plots forward Line2D objects from lines dictionary ('add_lines').
-        
+        """Plots forward Line2D objects from lines dictionary ('add_lines').
+
         Parameters
         ---------
         line:
             Set in 'update_heatmap' as the forward line to be added; each point
             of these lines represents two independent parameter values.
         """
-        
         in_key = 0
 
         x_raw, y_raw = line.get_data()
@@ -172,7 +188,9 @@ class Heatmap(QObject):  # moved to legacy
         start_pt = self.in_keys.index(in_key)
 
         for i, x in enumerate(x_data):
-            self.heatmap_dict[self.out_keys[self.count]][self.in_keys[start_pt + i]] = y_data[i]
+            self.heatmap_dict[self.out_keys[self.count]][self.in_keys[start_pt + i]] = (
+                y_data[i]
+            )
             if y_data[i] > self.max_datapt:
                 self.max_datapt = y_data[i]
             if y_data[i] < self.min_datapt:
@@ -182,14 +200,14 @@ class Heatmap(QObject):  # moved to legacy
         # print(f"called heatmap from thread: {QThread.currentThreadId()}")
 
     def update_data(self, x_out):
-        """ Updates outer parameter data for all inner parameters. """
-        
+        """Updates outer parameter data for all inner parameters."""
         for i, x in enumerate(self.in_keys):
-            self.heatmap_data[x_out][i] = self.heatmap_dict[self.out_keys[self.count]][x]
+            self.heatmap_data[x_out][i] = self.heatmap_dict[self.out_keys[self.count]][
+                x
+            ]
 
     def update_heatmap(self):
-        """ Prepares lines to be added for plotting. """
-        
+        """Prepares lines to be added for plotting."""
         while len(self.lines_to_add) != 0:
             # Grab the lines to add
             line_pair = self.lines_to_add.popleft()
@@ -212,6 +230,6 @@ class Heatmap(QObject):  # moved to legacy
         #        time.sleep(sleep_time)
 
     def clear(self):
-        """ Closes all active figures. """
+        """Closes all active figures."""
         plt.close(self.heat_fig)
         self.figs_set = False

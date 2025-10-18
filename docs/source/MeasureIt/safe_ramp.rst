@@ -1,7 +1,7 @@
-MeasureIt.safe\_ramp module
+measureit.safe\_ramp module
 ===========================
 
-.. automodule:: MeasureIt.safe_ramp
+.. automodule:: measureit.safe_ramp
    :members:
    :undoc-members:
    :show-inheritance:

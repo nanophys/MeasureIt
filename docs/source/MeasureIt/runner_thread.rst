@@ -1,7 +1,7 @@
-MeasureIt.runner\_thread module
+measureit.runner\_thread module
 ===============================
 
-.. automodule:: MeasureIt.runner_thread
+.. automodule:: measureit.runner_thread
    :members:
    :undoc-members:
    :show-inheritance:

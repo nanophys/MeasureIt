@@ -1,7 +1,7 @@
-MeasureIt.plotter\_thread module
+measureit.plotter\_thread module
 ================================
 
-.. automodule:: MeasureIt.plotter_thread
+.. automodule:: measureit.plotter_thread
    :members:
    :undoc-members:
    :show-inheritance:

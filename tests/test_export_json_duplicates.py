@@ -3,8 +3,8 @@ import pytest
 import qcodes as qc
 from qcodes.instrument_drivers.mock_instruments import MockParabola
 
-from MeasureIt.sweep.base_sweep import BaseSweep
-from MeasureIt import Sweep0D, SimulSweep
+from measureit.sweep.base_sweep import BaseSweep
+from measureit import Sweep0D, SimulSweep
 from qcodes import Station
 
 

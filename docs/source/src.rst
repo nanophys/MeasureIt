@@ -7,8 +7,7 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   MeasureIt.Drivers
-   MeasureIt.GUI
+   measureit.Drivers
 
 Submodules
 ----------
@@ -16,26 +15,26 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   MeasureIt.base_sweep
-   MeasureIt.gate_leakage
-   MeasureIt.heatmap_thread
-   MeasureIt.plotter_thread
-   MeasureIt.runner_thread
-   MeasureIt.safe_ramp
-   MeasureIt.simul_sweep
-   MeasureIt.sweep0d
-   MeasureIt.sweep1d
-   MeasureIt.sweep1d_listening
-   MeasureIt.sweep2d
-   MeasureIt.sweep_ips
-   MeasureIt.sweep_queue
-   MeasureIt.tracking
-   MeasureIt.util
+   measureit.base_sweep
+   measureit.gate_leakage
+   measureit.heatmap_thread
+   measureit.plotter_thread
+   measureit.runner_thread
+   measureit.safe_ramp
+   measureit.simul_sweep
+   measureit.sweep0d
+   measureit.sweep1d
+   measureit.sweep1d_listening
+   measureit.sweep2d
+   measureit.sweep_ips
+   measureit.sweep_queue
+   measureit.tracking
+   measureit.util
 
 Module contents
 ---------------
 
-.. automodule:: MeasureIt
+.. automodule:: measureit
    :members:
    :undoc-members:
    :show-inheritance:

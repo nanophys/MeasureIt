@@ -1,7 +1,7 @@
-MeasureIt.tracking module
+measureit.tracking module
 =========================
 
-.. automodule:: MeasureIt.tracking
+.. automodule:: measureit.tracking
    :members:
    :undoc-members:
    :show-inheritance:

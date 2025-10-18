@@ -1,7 +1,7 @@
-MeasureIt.Drivers.attodry module
+measureit.Drivers.attodry module
 ================================
 
-.. automodule:: MeasureIt.Drivers.attodry
+.. automodule:: measureit.Drivers.attodry
    :members:
    :undoc-members:
    :show-inheritance:

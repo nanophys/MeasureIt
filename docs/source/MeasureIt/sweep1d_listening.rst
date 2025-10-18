@@ -1,7 +1,7 @@
-MeasureIt.sweep1d\_listening module
+measureit.sweep1d\_listening module
 ===================================
 
-.. automodule:: MeasureIt.sweep1d_listening
+.. automodule:: measureit.sweep1d_listening
    :members:
    :undoc-members:
    :show-inheritance:

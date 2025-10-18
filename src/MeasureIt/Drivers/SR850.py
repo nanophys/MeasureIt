@@ -1,16 +1,16 @@
+from typing import Optional
+
 from qcodes.instrument.visa import VisaInstrument
-from qcodes.validators import Numbers, Enum
-from typing import TYPE_CHECKING, Any, ClassVar, Optional
+from qcodes.validators import Numbers
+
 
 class SR850(VisaInstrument):
-    """
-    Minimal QCoDeS driver for the Stanford Research Systems SR850 Lock-in Amplifier.
+    """Minimal QCoDeS driver for the Stanford Research Systems SR850 Lock-in Amplifier.
     Provides basic functionality.
     """
 
     def __init__(self, name: str, address: str, **kwargs):
-        """
-        Initializes the SR850 driver.
+        """Initializes the SR850 driver.
 
         Args:
             name (str): Local name for the instrument.
@@ -20,35 +20,35 @@ class SR850(VisaInstrument):
         super().__init__(name, address, **kwargs)
 
         self.X: Parameter = self.add_parameter(
-            'X',
-            get_cmd='OUTP? 1',  
+            "X",
+            get_cmd="OUTP? 1",
             get_parser=float,
-            label='X Channel',
-            unit='V',
+            label="X Channel",
+            unit="V",
         )
 
         self.Y: Parameter = self.add_parameter(
-            'Y',
-            get_cmd='OUTP? 2', 
+            "Y",
+            get_cmd="OUTP? 2",
             get_parser=float,
-            label='Y Channel',
-            unit='V',
+            label="Y Channel",
+            unit="V",
         )
 
         self.R: Parameter = self.add_parameter(
-            'R',
-            get_cmd='OUTP? 3', 
+            "R",
+            get_cmd="OUTP? 3",
             get_parser=float,
-            label='R Channel',
-            unit='V',
+            label="R Channel",
+            unit="V",
         )
 
         self.P: Parameter = self.add_parameter(
-            'P',
-            get_cmd='OUTP? 4', 
+            "P",
+            get_cmd="OUTP? 4",
             get_parser=float,
-            label='Phase Channel',
-            unit='deg',
+            label="Phase Channel",
+            unit="deg",
         )
 
         self.frequency: Parameter = self.add_parameter(
@@ -94,8 +94,8 @@ class SR850(VisaInstrument):
         self.filter_slope: Parameter = self.add_parameter(
             "filter_slope",
             label="Filter slope",
-            get_cmd='OFSL?',
-            set_cmd='OFSL {}',
+            get_cmd="OFSL?",
+            set_cmd="OFSL {}",
             unit="dB/oct",
             val_mapping={
                 6: 0,
@@ -136,7 +136,7 @@ class SR850(VisaInstrument):
             )
 
         self.connect_message()
-        
+
     def get_idn(self) -> dict[str, Optional[str]]:
         vendor = "Stanford Research Systems"
         model = "SR850"
@@ -149,4 +149,3 @@ class SR850(VisaInstrument):
             "serial": serial,
             "firmware": firmware,
         }
-

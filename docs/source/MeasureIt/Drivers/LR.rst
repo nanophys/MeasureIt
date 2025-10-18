@@ -1,7 +1,7 @@
-MeasureIt.Drivers.LR module
+measureit.Drivers.LR module
 ===========================
 
-.. automodule:: MeasureIt.Drivers.LR
+.. automodule:: measureit.Drivers.LR
    :members:
    :undoc-members:
    :show-inheritance:

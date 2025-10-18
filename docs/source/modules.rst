@@ -1,7 +1,7 @@
-src
+﻿src
 ===
 
 .. toctree::
    :maxdepth: 4
 
-   MeasureIt
+   measureit

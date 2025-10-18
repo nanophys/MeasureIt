@@ -1,7 +1,7 @@
-MeasureIt.simul\_sweep module
+measureit.simul\_sweep module
 =============================
 
-.. automodule:: MeasureIt.simul_sweep
+.. automodule:: measureit.simul_sweep
    :members:
    :undoc-members:
    :show-inheritance:

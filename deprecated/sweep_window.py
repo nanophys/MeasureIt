@@ -199,7 +199,7 @@ class Sweep1DWindow(QMainWindow):
         self.counter=0
         self.init_plot(self.daq.submodules[self.ochannel].voltage, self.daq.submodules[ichannel].voltage)
         
-        initialise_or_create_database_at('C:\\Users\\erunb\\MeasureIt\\Databases\\testdb.db')
+        initialise_or_create_database_at('C:\\Users\\erunb\\measureit.Databases\\testdb.db')
         qc.new_experiment(name='demotest3', sample_name='my best sample3')
         
         self.sweeping = True

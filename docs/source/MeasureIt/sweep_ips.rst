@@ -1,7 +1,7 @@
-MeasureIt.sweep\_ips module
+measureit.sweep\_ips module
 ===========================
 
-.. automodule:: MeasureIt.sweep_ips
+.. automodule:: measureit.sweep_ips
    :members:
    :undoc-members:
    :show-inheritance:

@@ -1,7 +1,7 @@
-MeasureIt.Drivers.Dynacool module
+measureit.Drivers.Dynacool module
 =================================
 
-.. automodule:: MeasureIt.Drivers.Dynacool
+.. automodule:: measureit.Drivers.Dynacool
    :members:
    :undoc-members:
    :show-inheritance:

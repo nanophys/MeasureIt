@@ -1,7 +1,7 @@
-MeasureIt.Drivers.SCM10 module
+measureit.Drivers.SCM10 module
 ==============================
 
-.. automodule:: MeasureIt.Drivers.SCM10
+.. automodule:: measureit.Drivers.SCM10
    :members:
    :undoc-members:
    :show-inheritance:

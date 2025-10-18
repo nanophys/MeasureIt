@@ -1,7 +1,7 @@
-MeasureIt.Drivers.M4G module
+measureit.Drivers.M4G module
 ============================
 
-.. automodule:: MeasureIt.Drivers.M4G
+.. automodule:: measureit.Drivers.M4G
    :members:
    :undoc-members:
    :show-inheritance:
