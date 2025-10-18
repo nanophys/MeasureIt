@@ -1,7 +1,7 @@
-MeasureIt.Drivers.Model\_372 module
+measureit.Drivers.Model\_372 module
 ===================================
 
-.. automodule:: MeasureIt.Drivers.Model_372
+.. automodule:: measureit.Drivers.Model_372
    :members:
    :undoc-members:
    :show-inheritance:

@@ -1,7 +1,7 @@
-MeasureIt.Drivers.ITC503 module
+measureit.Drivers.ITC503 module
 ===============================
 
-.. automodule:: MeasureIt.Drivers.ITC503
+.. automodule:: measureit.Drivers.ITC503
    :members:
    :undoc-members:
    :show-inheritance:

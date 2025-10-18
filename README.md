@@ -1,4 +1,4 @@
-# MeasureIt [![Documentation Status](https://readthedocs.org/projects/measureituw/badge/?version=latest)](https://measureituw.readthedocs.io/en/latest/?badge=latest)
+﻿# MeasureIt [![Documentation Status](https://readthedocs.org/projects/measureituw/badge/?version=latest)](https://measureituw.readthedocs.io/en/latest/?badge=latest)
 
 Measurement software based on [QCoDeS](https://qcodes.github.io/), developed in University of Washington physics.
 
@@ -13,7 +13,7 @@ MeasureIt is a measurement software package built on top of QCoDeS (Quantum Comp
 - **Sweep-based Measurement System**: The core abstraction is the `BaseSweep` class with specialized implementations (`Sweep0D`, `Sweep1D`, `Sweep2D`) for different dimensional measurements
 - **Qt-based Threading**: Uses PyQt5 with separate threads for data acquisition (`RunnerThread`) and plotting (`PlotterThread`) 
 - **Driver Layer**: Custom instrument drivers in the `Drivers/` module that interface with various lab equipment
-- **GUI Interface**: A comprehensive PyQt5-based GUI for configuring and running experiments
+- **Notebook Workflow**: Designed for Jupyter/CLI usage; PyQt5 powers background threading and signaling
 - **Data Management**: Integration with QCoDeS for data storage and experiment management
 
 ### Key Components
@@ -28,13 +28,12 @@ MeasureIt is a measurement software package built on top of QCoDeS (Quantum Comp
 
 ### Package Structure
 ```
-src/MeasureIt/
-├── sweep0d.py, sweep1d.py, sweep2d.py  # Measurement implementations
-├── base_sweep.py                        # Core sweep functionality
-├── sweep_queue.py                       # Batch experiment management
-├── GUI/                                 # PyQt5 user interface
-├── Drivers/                             # Instrument drivers
-└── util.py                             # Utility functions
+src/measureit/
+    sweep/             # Measurement implementations
+    base_sweep.py      # Core sweep functionality
+    tools/             # Data utilities and sweep helpers
+    Drivers/           # Instrument drivers
+    visualization/     # Plotting helpers
 ```
 
 ## Quick Start
@@ -46,54 +45,53 @@ src/MeasureIt/
 - NI DAQmx drivers: http://www.ni.com/en-us/support/downloads/drivers/download/unpackaged.ni-daqmx.291872.html
 - NI VISA package: http://www.ni.com/download/ni-visa-18.5/7973/en/
 
-### Installation with uv (Recommended)
+## Installation
 
-1. **Install uv**:
-   ```bash
-   # On macOS and Linux
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   
-   # On Windows
-   powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-   
-   # Or with pip
-   pip install uv
-   ```
+  ### Using pip (recommended)
+  ```bash
+  pip install measureit
+  ```
 
-2. **Clone and install**:
-   ```bash
-   git clone https://github.com/nanophys/MeasureIt
-   cd MeasureIt
-   
-   # Install with all dependencies
-   uv pip install -e ".[all]"
-   ```
+  ### From source
+  ```bash
+  git clone https://github.com/nanophys/MeasureIt.git
+  cd MeasureIt
+  pip install -e .
+  ```
 
-3. **Set up environment**:
-   ```bash
-   # Set MeasureItHome environment variable
-   export MeasureItHome="/path/to/your/MeasureIt"  # Linux/macOS
-   set MeasureItHome="C:\path\to\your\MeasureIt"   # Windows
-   
-   # Create databases folder
-   mkdir -p "$MeasureItHome/databases"  # Linux/macOS
-   mkdir "%MeasureItHome%\databases"    # Windows
-   ```
+## Data Directory Configuration
 
-### Alternative Installation with pip
+  measureit stores databases, logs, and configuration files. You have three options:
 
-```bash
-git clone https://github.com/nanophys/MeasureIt
-cd MeasureIt
-pip install -e ".[all]"
-```
+  ### Option 1: Use defaults (recommended)
+  Data is automatically stored in OS-appropriate locations:
+  - **Linux**: `~/.local/share/measureit/`
+  - **macOS**: `~/Library/Application Support/measureit/`
+  - **Windows**: `C:\Users\<username>\AppData\Local\measureit\`
+
+  ### Option 2: Set environment variable
+  ```bash
+  export MEASUREIT_HOME="/path/to/your/data"  # Linux/macOS
+  set MEASUREIT_HOME="C:\path\to\data"        # Windows
+  ```
+
+  ### Option 3: Programmatic configuration
+  ```python
+  import measureit
+  measureit.set_data_dir('/custom/path')
+  ```
+
+  ### Migration from old setup
+  If you have existing `MeasureItHome` setup:
+  - The `MeasureItHome` environment variable still works (backward compatible)
+  - Or copy your `databases/` folder to the new location
 
 ### Updating MeasureIt
 
 ```bash
 cd /path/to/MeasureIt
 git pull
-uv pip install -e ".[all]" --upgrade  # or pip install -e ".[all]" --upgrade
+pip install -e . --upgrade
 ```
 
 ### Known Issues
@@ -257,44 +255,23 @@ to match the user's path to the repository
 - Right-click 'MeasureIt.bat' and click 'Create shortcut' and drag the new 
 shortcut to the desktop
 
-### Add MeasureItHome and database
-Running examples requries a path (MeasureItHome) and a folder that saves .db file generated during the test sweeps.
-To this end, in linux-like system, add to your configuration file
-```
-export MeasureItHome="/Users/xxxx/GitHub/MeasureIt"
-```
-edit the folder to the MeasureIt installation location.
-
-In Windows, this can be done by editing the environment variable. 
-
-Finally, make a folder named databases in MeasureItHome. 
-
 ## Basic Usage
-
-### Running the GUI
-
-After installation and environment setup:
-
-```bash
-# Activate your environment (if using conda)
-conda activate qcodes  # or your environment name
-
-# Start the GUI
-python -m MeasureIt.GUI.GUI_Measureit
-```
 
 ### Programmatic Usage
 
 ```python
-import MeasureIt
+import measureit
 from qcodes import Station
 
 # Create a station and add instruments
 station = Station()
 # ... add your instruments ...
 
+# Choose where databases should be stored (optional)
+measureit.set_data_dir("/path/to/measureit-data")
+
 # Create a 1D sweep
-sweep = MeasureIt.Sweep1D(
+sweep = measureit.Sweep1D(
     set_param=dac.voltage,
     start=0,
     stop=1,

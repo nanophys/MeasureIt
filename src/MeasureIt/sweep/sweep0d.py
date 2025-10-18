@@ -1,22 +1,23 @@
 # sweep0d.py
 
 import time
-from .base_sweep import BaseSweep
+
 from PyQt5.QtCore import QObject
+
 from ..tools.util import _autorange_srs
+from .base_sweep import BaseSweep
 
 
 class Sweep0D(BaseSweep, QObject):
-    """
-    Class for the following/live plotting of one parameter against monotonic time. 
-    
-    As of now, is just an extension of BaseSweep, but has been separated for 
-    future convenience. The default independent variable for Sweep0D Measurements 
-    is time. The measured data is transferred in real-time (through QObject slot 
-    and signal connections) from the Sweep classes to the Runner and Plotter Threads 
+    """Class for the following/live plotting of one parameter against monotonic time.
+
+    As of now, is just an extension of BaseSweep, but has been separated for
+    future convenience. The default independent variable for Sweep0D Measurements
+    is time. The measured data is transferred in real-time (through QObject slot
+    and signal connections) from the Sweep classes to the Runner and Plotter Threads
     to organize, save, and live-plot the tracked parameters.
-    
-    Attributes
+
+    Attributes:
     ---------
     max_time:
         The cutoff time (in seconds) where the sweep will end itself.
@@ -26,8 +27,8 @@ class Sweep0D(BaseSweep, QObject):
         Passes any keyword arguments to BaseSweep class.
     direction:
         Not utilized in Sweep0D.
-    
-    Methods
+
+    Methods:
     ---------
     flip_direction()
         Informs user that direction can not be flipped in Sweep0D.
@@ -36,9 +37,8 @@ class Sweep0D(BaseSweep, QObject):
     """
 
     def __init__(self, max_time=1e6, *args, **kwargs):
-        """
-        Calls the BaseSweep initialization with any extra variables.
-        
+        """Calls the BaseSweep initialization with any extra variables.
+
         Parameters
         ---------
         max_time:
@@ -66,32 +66,30 @@ class Sweep0D(BaseSweep, QObject):
         return f"Sweep0D({self.max_time}, {1.0 / self.inter_delay})"
 
     def flip_direction(self):
-        """
-        The independent variable can not be flipped in Sweep0D.
-        
+        """The independent variable can not be flipped in Sweep0D.
+
         The default independent variable is time, and can not be flipped.
         The function is defined so that it will not cause an error if called.
         """
-        
-        self.print_main.emit("Can't flip the direction, as we are not sweeping a parameter.")
+        self.print_main.emit(
+            "Can't flip the direction, as we are not sweeping a parameter."
+        )
         return
 
     def update_values(self):
-        """
-        Obtains all current parameter values. 
-        
+        """Obtains all current parameter values.
+
         Data is collected in parameter-value pairs, saved to a database if
         desired, and a signal is emitted sending this data to the slots of
         the sweep.
-        
-        Returns
+
+        Returns:
         ---------
-        data: 
-            A list of tuples with the new data. Each tuple is of the format 
-            (<QCoDeS Parameter>, measurement value). The tuples are passed in order 
+        data:
+            A list of tuples with the new data. Each tuple is of the format
+            (<QCoDeS Parameter>, measurement value). The tuples are passed in order
             of time, set_param (if applicable), then all the followed parameters.
         """
-        
         t = time.monotonic() - self.t0
 
         data = []
@@ -106,7 +104,7 @@ class Sweep0D(BaseSweep, QObject):
 
             return None
         else:
-            data.append(('time', t))
+            data.append(("time", t))
 
         persist_param = None
         if self.persist_data is not None:
@@ -129,41 +127,41 @@ class Sweep0D(BaseSweep, QObject):
         return data
 
     def estimate_time(self, verbose=True):
-        """
-        Returns an estimate of the amount of time the sweep will take to complete.
+        """Returns an estimate of the amount of time the sweep will take to complete.
 
         Parameters
         ----------
         verbose:
             Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
 
-        Returns
+        Returns:
         -------
         Time estimate for the sweep, in seconds
         """
-
         if self.max_time is not None:
             hours = int(self.max_time / 3600)
             minutes = int((self.max_time % 3600) / 60)
             seconds = self.max_time % 60
             if verbose is True:
-                self.print_main.emit(f'Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s')
+                self.print_main.emit(
+                    f"Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s"
+                )
 
             return self.max_time
         else:
             if verbose is True:
-                self.print_main.emit(f'No estimated time for {repr(self)} to run.')
+                self.print_main.emit(f"No estimated time for {repr(self)} to run.")
             return 0
 
     # --- JSON export/import hooks ---
     def _export_json_specific(self, json_dict: dict) -> dict:
-        json_dict['set_param'] = None
-        json_dict['attributes']['max_time'] = self.max_time
+        json_dict["set_param"] = None
+        json_dict["attributes"]["max_time"] = self.max_time
         return json_dict
 
     @classmethod
     def from_json(cls, json_dict, station):
-        attrs = json_dict.get('attributes', {})
+        attrs = json_dict.get("attributes", {})
         # Sweep0D takes max_time plus common BaseSweep kwargs
-        max_time = attrs.pop('max_time', 1e6)
+        max_time = attrs.pop("max_time", 1e6)
         return cls(max_time=max_time, **attrs)

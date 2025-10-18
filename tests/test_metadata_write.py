@@ -4,8 +4,8 @@ import qcodes as qc
 from qcodes.instrument_drivers.mock_instruments import MockParabola
 from qcodes.dataset.data_set import load_by_run_spec
 
-from MeasureIt.sweep import Sweep0D, Sweep1D, Sweep2D
-from MeasureIt.tools import init_database
+from measureit.sweep import Sweep0D, Sweep1D, Sweep2D
+from measureit.tools import init_database
 
 
 def _load_ds(captured):
