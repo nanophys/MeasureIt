@@ -89,6 +89,29 @@ def get_path(subdir: str) -> Path:
     return target
 
 
+def get_data_dir() -> Path:
+    """Return the base directory used for all MeasureIt data files.
+
+    Returns the directory determined by (in priority order):
+    1. Runtime override via :func:`set_data_dir`
+    2. ``MEASUREIT_HOME`` environment variable
+    3. ``MeasureItHome`` environment variable (legacy)
+    4. Platform-specific default (e.g., ``~/Library/Application Support/measureit`` on macOS)
+
+    Returns:
+    -------
+    pathlib.Path
+        The absolute path to the MeasureIt data directory.
+
+    Examples:
+    --------
+    >>> from measureit import get_data_dir
+    >>> print(get_data_dir())
+    /Users/username/Library/Application Support/measureit
+    """
+    return _determine_base_dir()
+
+
 def _determine_base_dir() -> Path:
     """Determine the root directory according to overrides and environment."""
     if _DATA_DIR_OVERRIDE is not None:
@@ -111,4 +134,4 @@ def _determine_base_dir() -> Path:
     return base
 
 
-__all__ = ["get_path", "set_data_dir"]
+__all__ = ["get_path", "set_data_dir", "get_data_dir"]

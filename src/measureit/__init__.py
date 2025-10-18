@@ -1,9 +1,11 @@
 from importlib import metadata
+import os
+import sys
 
 from qcodes import config as qc_config
 
 # Phase 2: stable top-level re-exports from subpackages
-from .config import get_path, set_data_dir  # noqa: F401
+from .config import get_data_dir, get_path, set_data_dir  # noqa: F401
 from .sweep.gate_leakage import GateLeakage  # noqa: F401
 from .sweep.simul_sweep import SimulSweep  # noqa: F401
 from .sweep.sweep0d import Sweep0D  # noqa: F401
@@ -31,6 +33,7 @@ __all__ = [
     "init_database",
     "get_path",
     "set_data_dir",
+    "get_data_dir",
 ]
 
 
@@ -38,3 +41,18 @@ try:
     __version__ = metadata.version("measureit")
 except metadata.PackageNotFoundError:  # pragma: no cover - dev installs
     __version__ = "0.0.0"
+
+
+# Display data directory info on first import (only in interactive sessions)
+if hasattr(sys, "ps1") or "IPython" in sys.modules:
+    _shown_key = "_measureit_data_dir_shown"
+    if not hasattr(sys, _shown_key):
+        setattr(sys, _shown_key, True)
+
+        data_dir = get_data_dir()
+        env_set = "MEASUREIT_HOME" in os.environ or "MeasureItHome" in os.environ
+
+        print(f"\nMeasureIt data directory: {data_dir}")
+        if not env_set:
+            print("(Using platform default - set MEASUREIT_HOME to customize)")
+        print(f"To change: measureit.set_data_dir('/path')\n")

@@ -10,14 +10,13 @@ where = ["src"]
 
 [project]
 name = "measureit"
-version = "0.0.1"
+version = "1.0.0"
 description = "Measurement code for condensed matter groups at UW based on QCoDeS."
-readme = {file = "README.md", content-type = "text/markdown"} 
-license = {file = "LICENSE"}
+readme = {file = "README.md", content-type = "text/markdown"}
+license = "GPL-3.0-or-later"
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
@@ -26,10 +25,11 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 authors = [
+    {name = "Jiaqi Cai", email = "jiaqic@mit.edu"},
+    {name = "Jack Barlow", email = "barlowmj@uw.edu"},
     {name = "Elliott Runburg", email = "erunburg@uw.edu"},
-    {name = "Jiaqi Cai", email = "caidish@uw.edu"},
     {name = "Christian Rose"},
-    {name = "Jack Barlow", email = "barlowmj@uw.edu"}
+    {name = "Joshua Wang", email = "wangjo@mit.edu"},
 ]
 requires-python = ">=3.8"
 dependencies = [

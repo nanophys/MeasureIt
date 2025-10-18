@@ -10,10 +10,9 @@ from .sweep1d import Sweep1D
 class GateLeakage(Sweep1D, QObject):
     """Extension of Sweep1D to perform gate leakage measurements.
 
-    Includes additional max current safety parameter, sets the Sweep1D independent
-    variable range from 0 to infinity, and presents new methods to alert the sweep
-    to change direction. The intent is for the 'set_param' to sweep through a range
-    of voltages while the 'track_param' reports the resulting current data.
+    Sweeps 'set_param' (voltage) while monitoring 'track_param' (current) with
+    noise-immune leak detection: triggers on 2 consecutive points exceeding max_I,
+    clears after 5 consecutive safe points.
 
     Attributes:
     ---------
@@ -22,18 +21,22 @@ class GateLeakage(Sweep1D, QObject):
     track_param:
         The followed parameter to be measured during the sweep.
     max_I:
-        The maximum allowed value for the followed parameter;
-        the sweep will change directions if surpassed.
+        Maximum allowed absolute value for track_param. Sweep reverses when
+        |track_param| >= max_I for 2 consecutive points.
     step:
         The step size for the independent variable sweep.
     limit:
-        The end value for Sweep1D. Defaults to nfinity.
+        The end value for Sweep1D. Defaults to infinity.
     start:
         The start value for Sweep1D. Defaults to zero.
     flips:
         Tracks the number of times the sweep has changed direction.
-    input_trigger:
-        Increases when followed parameter value is greater than 'max_I'.
+    leak_trigger_count:
+        Consecutive points where |track_param| >= max_I.
+    safe_trigger_count:
+        Consecutive points where |track_param| < max_I.
+    leak_detected:
+        True when leak confirmed (2 consecutive triggers), clears after 5 safe points.
 
     Methods:
     ---------
@@ -51,7 +54,9 @@ class GateLeakage(Sweep1D, QObject):
         self.max_I = max_I
         self.flips = 0
         self.track_param = track_param
-        self.input_trigger = 0
+        self.leak_trigger_count = 0
+        self.safe_trigger_count = 0
+        self.leak_detected = False
 
         Sweep1D.__init__(self, set_param, start, limit, step, **kwargs)
         QObject.__init__(self)
@@ -62,9 +67,9 @@ class GateLeakage(Sweep1D, QObject):
         """Runs Sweep1D in both directions by step size.
 
         Stores data of followed 'track_param' at each setpoint of 'set_param'.
-        Changes the direction of the sweep if the 'input_trigger' reaches 2 (based
-        on breaching of max_I), or when either end of the 'set_param' range is met.
-        Sweep ends after two direction changes.
+        Changes direction when: (1) |track_param| >= max_I for 2 consecutive points,
+        or (2) set_param reaches its limit. Leak detection clears after 5 consecutive
+        safe points (|track_param| < max_I). Sweep ends after two direction changes.
 
         Returns:
         ---------
@@ -93,16 +98,22 @@ class GateLeakage(Sweep1D, QObject):
 
             v = self.track_param.get()
 
-            if (self.step > 0 and v >= abs(1.0001 * self.max_I)) or (
-                self.step < 0 and v <= (-1) * abs(1.0001 * self.max_I)
-            ):
-                self.input_trigger += 1
-                if self.input_trigger == 2:
+            # Check if current exceeds threshold
+            if abs(v) >= abs(self.max_I):
+                self.leak_trigger_count += 1
+                self.safe_trigger_count = 0
+
+                if self.leak_trigger_count >= 2 and not self.leak_detected:
+                    self.leak_detected = True
                     self.flip_direction()
                     self.setpoint += self.step
-                    self.input_trigger = 0
                     print("tripped input limit")
-                # return self.step_param()
+            else:
+                self.safe_trigger_count += 1
+                self.leak_trigger_count = 0
+
+                if self.safe_trigger_count >= 5 and self.leak_detected:
+                    self.leak_detected = False
 
             return [(self.set_param, self.setpoint), (self.track_param, v)]
 
