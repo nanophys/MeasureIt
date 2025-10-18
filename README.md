@@ -49,7 +49,12 @@ src/measureit/
 
   ### Using pip (recommended)
   ```bash
-  pip install measureit
+  pip install qmeasure
+  ```
+
+  **Note:** The package is installed as `qmeasure`, but you import it as `measureit`:
+  ```python
+  import measureit  # Import name stays the same
   ```
 
   ### From source
@@ -61,7 +66,7 @@ src/measureit/
 
 ## Data Directory Configuration
 
-  measureit stores databases, logs, and configuration files. You have three options:
+  MeasureIt (installed as `qmeasure`) stores databases, logs, and configuration files. You have three options:
 
   ### Option 1: Use defaults (recommended)
   Data is automatically stored in OS-appropriate locations:

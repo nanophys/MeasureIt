@@ -9,8 +9,8 @@ where = ["src"]
 "measureit.Drivers.data" = ["*.txt"]
 
 [project]
-name = "measureit"
-version = "1.0.1"
+name = "qmeasure"
+version = "1.0.0"
 description = "Measurement code for condensed matter groups at UW based on QCoDeS."
 readme = {file = "README.md", content-type = "text/markdown"}
 license = "GPL-3.0-or-later"
