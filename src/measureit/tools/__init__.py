@@ -1,4 +1,5 @@
 from . import tracking
+from .ipython import ensure_qt
 from .util import (
     ParameterException,
     connect_station_instruments,
@@ -16,4 +17,5 @@ __all__ = [
     "get_measureit_home",
     "ParameterException",
     "tracking",
+    "ensure_qt",
 ]

@@ -218,7 +218,7 @@ class Heatmap(QObject):
             self.param_surfaces = {}
             self.count = 0
 
-            # Ensure a QApplication exists (safe in scripts and Jupyter when %gui qt is active)
+            # Ensure a QApplication exists (safe in scripts and in notebooks once ensure_qt() has been called)
             try:
                 pg.mkQApp()
             except Exception:
