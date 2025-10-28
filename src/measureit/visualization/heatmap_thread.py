@@ -336,24 +336,29 @@ class Heatmap(QObject):
             self.image_item.setImage(self.heatmap_data)
 
             # Set the coordinate transformation for proper axis scaling
-            transform = pg.QtGui.QTransform()
+            # Use setRect as the primary method (more reliable than transform)
             try:
-                transform.translate(self.pos[0], self.pos[1])
-                transform.scale(self.scale[0], self.scale[1])
-                self.image_item.setTransform(transform)
-            except Exception:
-                # Fallback: setRect if available (older/newer pyqtgraph versions)
-                try:
-                    from PyQt5.QtCore import QRectF
-
-                    self.image_item.setRect(
-                        QRectF(
-                            self.pos[0],
-                            self.pos[1],
-                            self.scale[0] * self.res_in,
-                            self.scale[1] * self.res_out,
-                        )
+                from PyQt5.QtCore import QRectF
+                # setRect takes (x, y, width, height) in data coordinates
+                self.image_item.setRect(
+                    QRectF(
+                        self.sweep.in_start,
+                        self.sweep.out_start,
+                        self.sweep.in_stop - self.sweep.in_start,   # Total width
+                        self.sweep.out_stop - self.sweep.out_start, # Total height
                     )
+                )
+            except Exception:
+                # Fallback: use transform if setRect fails
+                try:
+                    transform = pg.QtGui.QTransform()
+                    transform.translate(self.pos[0], self.pos[1])
+                    # Use (N-1) for correct pixel spacing
+                    transform.scale(
+                        (self.sweep.in_stop - self.sweep.in_start) / (self.res_in - 1),
+                        (self.sweep.out_stop - self.sweep.out_start) / (self.res_out - 1)
+                    )
+                    self.image_item.setTransform(transform)
                 except Exception:
                     pass
 
@@ -630,8 +635,63 @@ class Heatmap(QObject):
             view_box = self.plot_item.getViewBox()
             view_range = view_box.viewRange()
             self.image_item.setImage(self.heatmap_data)
+
+            # Re-apply coordinate transformation after setImage (critical for correct axis scaling)
+            try:
+                from PyQt5.QtCore import QRectF
+                self.image_item.setRect(
+                    QRectF(
+                        self.sweep.in_start,
+                        self.sweep.out_start,
+                        self.sweep.in_stop - self.sweep.in_start,
+                        self.sweep.out_stop - self.sweep.out_start,
+                    )
+                )
+            except Exception:
+                # Fallback: use transform if setRect fails
+                try:
+                    transform = pg.QtGui.QTransform()
+                    transform.translate(self.pos[0], self.pos[1])
+                    transform.scale(
+                        (self.sweep.in_stop - self.sweep.in_start) / (self.res_in - 1),
+                        (self.sweep.out_stop - self.sweep.out_start) / (self.res_out - 1)
+                    )
+                    self.image_item.setTransform(transform)
+                except Exception:
+                    pass
+
+            # Update color levels for the newly selected parameter
+            if self._auto_levels_enabled:
+                try:
+                    current_idx = self.sweep.heatmap_ind
+                    finite = self.heatmap_data[np.isfinite(self.heatmap_data)]
+                    if finite.size > 0:
+                        lo, hi = np.nanpercentile(finite, [1, 99])
+                        if hi > lo:
+                            if self.hist_item is not None:
+                                self.hist_item.setLevels(lo, hi)
+                            else:
+                                self.image_item.setLevels([lo, hi])
+                        else:
+                            stats = self.param_surfaces[current_idx]
+                            if self.hist_item is not None:
+                                self.hist_item.setLevels(stats["min"], stats["max"])
+                            else:
+                                self.image_item.setLevels([stats["min"], stats["max"]])
+                    else:
+                        stats = self.param_surfaces[current_idx]
+                        if self.hist_item is not None:
+                            self.hist_item.setLevels(stats["min"], stats["max"])
+                        else:
+                            self.image_item.setLevels([stats["min"], stats["max"]])
+                except Exception:
+                    pass
+
             # Restore view
             view_box.setRange(xRange=view_range[0], yRange=view_range[1], padding=0)
+
+            # Mark as needing refresh to ensure display updates on Windows
+            self.needs_refresh = True
         except Exception:
             pass
 
