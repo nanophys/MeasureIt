@@ -169,6 +169,8 @@ class BaseSweep(QObject):
         """
         QObject.__init__(self)
 
+        self.IS_MEASUREIT_SWEEP = True
+
         self._params = []
         self._srs = []
         self.set_param = set_param
