@@ -1,14 +1,15 @@
 import os
-import sys
-from pathlib import Path
-import tempfile
 import shutil
+import sys
+import tempfile
 import types
+from pathlib import Path
+
 import pytest
 
 # Provide a lightweight stub for pandas to avoid binary-compat issues in CI/dev envs
-if 'pandas' not in sys.modules:
-    pandas_stub = types.ModuleType('pandas')
+if "pandas" not in sys.modules:
+    pandas_stub = types.ModuleType("pandas")
 
     class _StubDataFrame:  # minimal stub used only if code paths touch save_to_csv
         def __init__(self, *args, **kwargs):
@@ -21,7 +22,7 @@ if 'pandas' not in sys.modules:
             pass
 
     pandas_stub.DataFrame = _StubDataFrame
-    sys.modules['pandas'] = pandas_stub
+    sys.modules["pandas"] = pandas_stub
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -51,6 +52,7 @@ def temp_measureit_home(monkeypatch):
 def quiet_test_env():
     """Reduce noisy logs/warnings during tests without affecting runtime behavior."""
     import warnings
+
     # General warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     warnings.filterwarnings("ignore", category=PendingDeprecationWarning)
@@ -69,6 +71,7 @@ def quiet_test_env():
     # Tame QCoDeS console logging
     try:
         import qcodes as qc
+
         qc.config.logger.console_level = "CRITICAL"
     except Exception:
         pass
@@ -95,6 +98,7 @@ def close_qcodes_instruments_between_tests():
     # Best effort pre-clean in case a prior test failed mid-way
     try:
         import qcodes as qc
+
         qc.Instrument.close_all()
     except Exception:
         pass
@@ -103,6 +107,7 @@ def close_qcodes_instruments_between_tests():
     finally:
         try:
             import qcodes as qc
+
             qc.Instrument.close_all()
         except Exception:
             pass

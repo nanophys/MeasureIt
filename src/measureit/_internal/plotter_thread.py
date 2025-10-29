@@ -7,7 +7,7 @@ import numpy as np
 import pyqtgraph as pg
 from PyQt5.QtCore import QObject, pyqtSlot
 from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
 
 # Configure PyQtGraph for better performance
 pg.setConfigOptions(
@@ -90,6 +90,9 @@ class Plotter(QObject):  # moved to _internal
         self.plot_items = {}  # Maps parameters to (forward_item, backward_item)
         self.set_plot = None
         self.set_plot_item = None
+        self.progress_bar = None
+        self.elapsed_label = None
+        self.remaining_label = None
 
         # Performance optimization: store data arrays for efficient updates
         # Use lists for fast appending, convert to numpy arrays only when plotting
@@ -175,6 +178,27 @@ class Plotter(QObject):  # moved to _internal
         info_label.setFont(QFont("Arial", 10))
         info_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 5px; }")
         main_layout.addWidget(info_label)
+
+        if getattr(self.sweep, "progressState", None) is not None:
+            progress_info = QHBoxLayout()
+            progress_info.setContentsMargins(0, 0, 0, 0)
+            progress_info.setSpacing(8)
+
+            self.elapsed_label = QLabel("Elapsed: --")
+            self.remaining_label = QLabel("Remaining: --")
+
+            progress_info.addWidget(self.elapsed_label)
+            progress_info.addStretch(1)
+            progress_info.addWidget(self.remaining_label)
+
+            self.progress_bar = QProgressBar()
+            self.progress_bar.setRange(0, 1000)
+            self.progress_bar.setValue(0)
+            self.progress_bar.setTextVisible(True)
+
+            main_layout.addLayout(progress_info)
+            main_layout.addWidget(self.progress_bar)
+            self._update_progress_widgets()
 
         # Create PyQtGraph layout widget
         self.layout_widget = pg.GraphicsLayoutWidget()
@@ -353,6 +377,7 @@ class Plotter(QObject):  # moved to _internal
 
         # Now update all plots at once (much more efficient)
         self._update_plot_displays()
+        self._update_progress_widgets()
 
     def _update_plot_displays(self):
         """Efficiently updates all plot displays using stored data arrays.
@@ -384,6 +409,36 @@ class Plotter(QObject):  # moved to _internal
                     x_data = np.array(backward_data["x"], dtype=np.float64)
                     y_data = np.array(backward_data["y"], dtype=np.float64)
                     backward_item.setData(x_data, y_data)
+
+    def _update_progress_widgets(self):
+        if self.progress_bar is None:
+            return
+
+        state = getattr(self.sweep, "progressState", None)
+        if state is None:
+            return
+
+        progress_value = int(max(0.0, min(1.0, state.progress)) * 1000)
+        self.progress_bar.setValue(progress_value)
+
+        def _format_seconds(value):
+            if value is None:
+                return "--"
+            try:
+                if math.isinf(value):
+                    return "∞"
+            except TypeError:
+                return "--"
+            return f"{max(0.0, value):.1f} s"
+
+        if self.elapsed_label is not None:
+            self.elapsed_label.setText(
+                f"Elapsed: {_format_seconds(state.time_elapsed)}"
+            )
+        if self.remaining_label is not None:
+            self.remaining_label.setText(
+                f"Remaining: {_format_seconds(state.time_remaining)}"
+            )
 
     def get_plot_data(self, param_index):
         """Get x,y data arrays for a specific parameter.

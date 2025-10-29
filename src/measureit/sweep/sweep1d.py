@@ -5,7 +5,7 @@ import time
 from PyQt5.QtCore import QObject, pyqtSlot
 
 from ..tools.util import safe_get, safe_set
-from .base_sweep import BaseSweep
+from .base_sweep import BaseSweep, ProgressState
 
 try:
     from qcodes.instrument_drivers.american_magnetics import AMIModel430 as AMI430
@@ -163,6 +163,8 @@ class Sweep1D(BaseSweep, QObject):
         self.err = err
 
         self.magnet_initialized = False
+        self.progressState = ProgressState.zero()
+        self._progress_total_time = None
 
     def __str__(self):
         return f"1D Sweep of {self.set_param.label} from {self.begin} to {self.end}, with step size {self.step}."
@@ -191,6 +193,14 @@ class Sweep1D(BaseSweep, QObject):
             self.print_main.emit("Sweep is already running.")
             return
 
+        if self.progressState is not None:
+            estimate = self.estimate_time(verbose=False)
+            self._progress_total_time = estimate if estimate > 0 else None
+            self._update_progress_state(
+                time_elapsed=0.0,
+                total_time=self._progress_total_time,
+            )
+
         if (
             ramp_to_start is True
             and not isinstance(self.instrument, OxfordInstruments_IPS120)
@@ -211,6 +221,38 @@ class Sweep1D(BaseSweep, QObject):
                 f"Sweeping {self.set_param.label} to {self.end} ({self.set_param.unit})"
             )
             BaseSweep.start(self, persist_data=persist_data)
+
+    def update_progress(self, *, finalized: bool = False) -> None:
+        if self.progressState is None:
+            return
+
+        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
+        total = (
+            self._progress_total_time
+            if self._progress_total_time not in (None, 0)
+            else None
+        )
+        remaining = None
+        if total is not None:
+            remaining = max(total - elapsed, 0.0)
+
+        is_complete = finalized or (
+            total is not None
+            and remaining is not None
+            and remaining <= 0.0
+            and not self.is_running
+        )
+        if is_complete and remaining is None:
+            remaining = 0.0
+
+        elapsed_for_state = total if is_complete and total is not None else elapsed
+
+        self._update_progress_state(
+            time_elapsed=elapsed_for_state,
+            total_time=total,
+            time_remaining=remaining,
+            finalized=is_complete,
+        )
 
     def stop(self):
         """Stops running any currently active sweeps."""

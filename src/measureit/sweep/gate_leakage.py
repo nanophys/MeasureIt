@@ -62,6 +62,8 @@ class GateLeakage(Sweep1D, QObject):
         QObject.__init__(self)
 
         self.follow_param(self.track_param)
+        # Disable generic progress tracking; leakage sweeps do not have predictable duration
+        self.progressState = None
 
     def step_param(self):
         """Runs Sweep1D in both directions by step size.

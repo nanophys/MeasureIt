@@ -36,7 +36,9 @@ def test_config() -> bool:
         try:
             custom_db.relative_to(tmp_dir)
         except ValueError as exc:
-            raise AssertionError(f"Custom data dir {custom_db} not under {tmp_dir}") from exc
+            raise AssertionError(
+                f"Custom data dir {custom_db} not under {tmp_dir}"
+            ) from exc
         print(f"[ ok ] set_data_dir override -> {custom_db}")
         return True
     except Exception as exc:  # pragma: no cover - diagnostic script
@@ -51,16 +53,16 @@ def test_core_imports() -> bool:
     """Validate core sweep and queue classes are importable."""
     try:
         from measureit import (  # noqa: F401
+            GateLeakage,
+            SimulSweep,
             Sweep0D,
             Sweep1D,
             Sweep2D,
-            SimulSweep,
             SweepIPS,
-            GateLeakage,
             SweepQueue,
         )
-        from measureit.tools import init_database  # noqa: F401
         from measureit.base_sweep import BaseSweep  # noqa: F401
+        from measureit.tools import init_database  # noqa: F401
     except ImportError as exc:
         print(f"[fail] Core imports failed: {exc}")
         return False
@@ -72,9 +74,10 @@ def test_core_imports() -> bool:
 def test_pyqt() -> bool:
     """Smoke-test that PyQt5 can be imported alongside measureit."""
     try:
-        from measureit.base_sweep import BaseSweep  # noqa: F401
-        from measureit._internal.runner_thread import RunnerThread  # noqa: F401
         from PyQt5.QtCore import QObject  # noqa: F401
+
+        from measureit._internal.runner_thread import RunnerThread  # noqa: F401
+        from measureit.base_sweep import BaseSweep  # noqa: F401
     except ImportError as exc:
         print(f"[fail] PyQt5 test failed: {exc}")
         return False

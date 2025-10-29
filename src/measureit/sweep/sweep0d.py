@@ -1,11 +1,12 @@
 # sweep0d.py
 
+import math
 import time
 
 from PyQt5.QtCore import QObject
 
 from ..tools.util import _autorange_srs
-from .base_sweep import BaseSweep
+from .base_sweep import BaseSweep, ProgressState
 
 
 class Sweep0D(BaseSweep, QObject):
@@ -55,6 +56,14 @@ class Sweep0D(BaseSweep, QObject):
 
         # Amount of time to run
         self.max_time = max_time
+        self.progressState = ProgressState.zero()
+        self._progress_total_time = (
+            max_time
+            if isinstance(max_time, (int, float))
+            and math.isfinite(max_time)
+            and max_time > 0
+            else None
+        )
 
     def __str__(self):
         if self.max_time is None:
@@ -152,6 +161,32 @@ class Sweep0D(BaseSweep, QObject):
             if verbose is True:
                 self.print_main.emit(f"No estimated time for {repr(self)} to run.")
             return 0
+
+    def update_progress(self, *, finalized: bool = False) -> None:
+        if self.progressState is None:
+            return
+
+        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
+        total = self._progress_total_time
+        remaining = None
+
+        if total is not None:
+            remaining = max(total - elapsed, 0.0)
+
+        is_complete = finalized or (
+            total is not None and remaining is not None and remaining <= 0.0
+        )
+        if is_complete and remaining is None:
+            remaining = 0.0
+
+        elapsed_for_state = total if is_complete and total is not None else elapsed
+
+        self._update_progress_state(
+            time_elapsed=elapsed_for_state,
+            total_time=total,
+            time_remaining=remaining,
+            finalized=is_complete,
+        )
 
     # --- JSON export/import hooks ---
     def _export_json_specific(self, json_dict: dict) -> dict:

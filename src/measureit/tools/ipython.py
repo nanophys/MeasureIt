@@ -51,7 +51,7 @@ def _is_wsl() -> bool:
         return False
 
     try:
-        with open("/proc/sys/kernel/osrelease", "r", encoding="utf-8") as fh:
+        with open("/proc/sys/kernel/osrelease", encoding="utf-8") as fh:
             return "microsoft" in fh.read().lower()
     except OSError:
         return False
@@ -98,13 +98,16 @@ def _build_hint(details: str) -> Optional[str]:
             "or run `pip install PyQt5`."
         )
 
-    if "could not load the qt platform plugin \"xcb\" in \"\" even though it was found" in lower:
+    if (
+        'could not load the qt platform plugin "xcb" in "" even though it was found'
+        in lower
+    ):
         return (
             "Qt finds the XCB plugin but still cannot load it. Install the Qt GUI runtime "
             "libraries via `sudo apt install libqt5gui5 libegl1 libopengl0` and restart the kernel."
         )
 
-    if "could not load the qt platform plugin \"xcb\"" in lower:
+    if 'could not load the qt platform plugin "xcb"' in lower:
         return (
             "Qt cannot load the XCB plugin. On WSL this usually means missing X11 "
             "dependencies. Install them via `sudo apt install libxcb-xinerama0 "
@@ -154,7 +157,7 @@ def ensure_qt(
         When ``True`` (or the environment variable ``MEASUREIT_FORCE_QT`` is set to a
         truthy value) skip the safety probe and attempt to enable Qt regardless.
 
-    Returns
+    Returns:
     -------
     bool
         ``True`` if the Qt event loop was enabled, ``False`` if the probe failed.

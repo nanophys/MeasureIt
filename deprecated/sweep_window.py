@@ -1,33 +1,29 @@
-import PyQt5.Qt as qt
-from PyQt5.QtWidgets import *
+import sys
+
+import nidaqmx
+import numpy as np
+import qcodes as qc
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-
-import sys, time
-import matplotlib
-import numpy as np
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-from matplotlib.figure import Figure
-from sweep import Sweep1D, SweepThread
-from daq_driver import Daq
-from util import _value_parser
-import qcodes as qc
-import nidaqmx
-from qcodes.dataset.measurements import Measurement
+from PyQt5.QtWidgets import *
 from qcodes.dataset.database import initialise_or_create_database_at
+from sweep import Sweep1D, SweepThread
+from util import _value_parser
+
 
 class Sweep1DWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__()
-        self.parent=parent
+        self.parent = parent
         self.sweeping = False
         self.running = False
         self.daq = self.parent.daq
-        
+
         self.setupUi()
         self.create_frame()
-        
+
     def setupUi(self):
         self.setObjectName("1D Sweep")
         self.resize(640, 480)
@@ -99,12 +95,12 @@ class Sweep1DWindow(QMainWindow):
         self.pauseButton = QPushButton(self.centralwidget)
         self.pauseButton.setGeometry(QRect(10, 270, 161, 41))
         self.pauseButton.setObjectName("pauseButton")
-        
+
         self.dbfile_label = QLabel(self.centralwidget)
         self.dbfile_label.setObjectName("dbfile_label")
         self.dbfile = QLabel(self.centralwidget)
         self.dbfile.setObjectName("db file")
-        
+
         self.sample_label = QLabel(self.centralwidget)
         self.sample_label.setObjectName("sample_label")
         self.sample_label.move(10, 400)
@@ -114,7 +110,7 @@ class Sweep1DWindow(QMainWindow):
         self.edit_file_button = QPushButton(self.centralwidget)
         self.edit_file_button.setGeometry(QRect(10, 350, 161, 41))
         self.edit_file_button.setObjectName("db_button")
-        
+
         self.menubar = QMenuBar(self)
         self.menubar.setGeometry(QRect(0, 0, 640, 21))
         self.menubar.setObjectName("menubar")
@@ -137,21 +133,21 @@ class Sweep1DWindow(QMainWindow):
         self.pauseButton.clicked.connect(self.pause)
         self.edit_file_button.setText("Edit . . .")
         self.edit_file_button.clicked.connect(self.select_db_file)
-        
+
         QMetaObject.connectSlotsByName(self)
-        
+
     def select_db_file(self):
         box = QFileDialog()
         box.setFileMode(QFileDialog.AnyFile)
         box.setNameFilter("Database files (*.db)")
         box.fileSelected.connect(self.set_file)
-        
+
         box.exec_()
 
     def set_file(self, file):
         self.db_name = file
         self.dbfile_label.setText(self.db_name)
-        
+
     def create_frame(self):
         self.dpi = 100
         self.fig = Figure((5.0, 4.0), dpi=self.dpi)
@@ -159,12 +155,14 @@ class Sweep1DWindow(QMainWindow):
         self.canvas.setParent(self.centralwidget)
         self.canvas.setGeometry(QRect(250, 0, 400, 480))
         self.axes_v = self.fig.add_subplot(211, xlabel="Time (s)", ylabel="Voltage (V)")
-        self.axes_c = self.fig.add_subplot(212, xlabel="Output Voltage (V)", ylabel="Input Voltage (V)")
+        self.axes_c = self.fig.add_subplot(
+            212, xlabel="Output Voltage (V)", ylabel="Input Voltage (V)"
+        )
         self.fig.tight_layout()
-        
+
         self.setCentralWidget(self.centralwidget)
-        
-    def init_sweep(self):        
+
+    def init_sweep(self):
         if self.daq is None:
             msg = QMessageBox()
             msg.setText("DAQ is not connected!")
@@ -172,83 +170,94 @@ class Sweep1DWindow(QMainWindow):
             msg.setStandardButtons(QMessageBox.Close)
             msg.exec_()
             return
-        
+
         self.v_start = _value_parser(self.min_v_val.text())
         self.v_end = _value_parser(self.max_v_val.text())
-        
+
         try:
             self.v_step = float(self.step_v_val.text())
             if self.v_step > 0 and self.v_end < self.v_start:
-                self.v_step = -1*self.v_step
+                self.v_step = -1 * self.v_step
         except ValueError:
-            self.v_step = (self.v_end-self.v_start)/1000
+            self.v_step = (self.v_end - self.v_start) / 1000
         try:
             self.freq = float(self.steprate_val.text())
         except ValueError:
             self.freq = 10
-        
+
         ichannel = "ai" + str(int(self.in_chan_box.currentText()))
         self.ochannel = "ao" + str(int(self.out_chan_box.currentText()))
-        
+
         self.sweep_task = nidaqmx.Task()
         self.daq.submodules[self.ochannel].add_self_to_task(self.sweep_task)
-        self.s = Sweep1D(self.daq.submodules[self.ochannel].voltage, self.v_start, self.v_end, self.v_step, self.freq)
+        self.s = Sweep1D(
+            self.daq.submodules[self.ochannel].voltage,
+            self.v_start,
+            self.v_end,
+            self.v_step,
+            self.freq,
+        )
         self.s.follow_param(self.daq.submodules[ichannel].voltage)
         self.meas = self.s.get_measurement()
-        
-        self.counter=0
-        self.init_plot(self.daq.submodules[self.ochannel].voltage, self.daq.submodules[ichannel].voltage)
-        
-        initialise_or_create_database_at('C:\\Users\\erunb\\measureit.Databases\\testdb.db')
-        qc.new_experiment(name='demotest3', sample_name='my best sample3')
-        
+
+        self.counter = 0
+        self.init_plot(
+            self.daq.submodules[self.ochannel].voltage,
+            self.daq.submodules[ichannel].voltage,
+        )
+
+        initialise_or_create_database_at(
+            "C:\\Users\\erunb\\measureit.Databases\\testdb.db"
+        )
+        qc.new_experiment(name="demotest3", sample_name="my best sample3")
+
         self.sweeping = True
         self.running = True
         self.curr_val = self.v_start
         self.run()
-        
+
     def run(self):
         self.pauseButton.setText("Pause Sweep")
         self.sweepThread = SweepThread(self, self.s)
         self.sweepThread.start()
-        
+
     def init_plot(self, set_param, p):
-        self.axes_v.set_xlabel('Time (s)')
-        self.axes_v.set_ylabel(f'{set_param.label} ({set_param.unit})')
+        self.axes_v.set_xlabel("Time (s)")
+        self.axes_v.set_ylabel(f"{set_param.label} ({set_param.unit})")
         self.setaxline = self.axes_v.plot([], [])[0]
-        
-        self.axes_c.set_xlabel(f'{set_param.label} ({set_param.unit})')
-        self.axes_c.set_ylabel(f'{p.label} ({p.unit})')
+
+        self.axes_c.set_xlabel(f"{set_param.label} ({set_param.unit})")
+        self.axes_c.set_ylabel(f"{p.label} ({p.unit})")
 
         self.plines = self.axes_c.plot([], [])[0]
-        
+
     def update_plot(self, data):
         self.setaxline.set_xdata(np.append(self.setaxline.get_xdata(), data[1][1]))
         self.setaxline.set_ydata(np.append(self.setaxline.get_ydata(), data[0][1]))
         self.axes_v.relim()
         self.axes_v.autoscale_view()
-        
+
         self.plines.set_xdata(np.append(self.plines.get_xdata(), data[0][1]))
         self.plines.set_ydata(np.append(self.plines.get_ydata(), data[2][1]))
         self.axes_c.relim()
         self.axes_c.autoscale_view()
-        
-        if self.counter % int(self.freq/2) == 0:
+
+        if self.counter % int(self.freq / 2) == 0:
             self.fig.tight_layout()
             self.fig.canvas.draw()
         self.counter += 1
-        
+
     def thread_finished(self):
         self.daq.submodules[self.ochannel].clear_task()
         self.sweeping = False
         self.running = False
-        
+
         msg = QMessageBox()
         msg.setText("Sweep finished")
         msg.setWindowTitle("Info")
         msg.setStandardButtons(QMessageBox.Close)
         msg.exec_()
-        
+
     def pause(self):
         if self.sweeping == True and self.running == True:
             self.pauseButton.setText("Resume Sweep")
@@ -258,17 +267,16 @@ class Sweep1DWindow(QMainWindow):
             self.sweepThread.wait()
             self.running = True
             self.run()
-    
+
+
 def main():
     app = QApplication(sys.argv)
-    
+
     window = Sweep1DWindow()
     window.show()
-    
+
     app.exec_()
-    
-    
+
+
 if __name__ == "__main__":
     main()
-    
-    

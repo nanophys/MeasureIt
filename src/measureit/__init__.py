@@ -1,6 +1,6 @@
-from importlib import metadata
 import os
 import sys
+from importlib import metadata
 
 from qcodes import config as qc_config
 
@@ -55,4 +55,4 @@ if hasattr(sys, "ps1") or "IPython" in sys.modules:
         print(f"\nMeasureIt data directory: {data_dir}")
         if not env_set:
             print("(Using platform default - set MEASUREIT_HOME to customize)")
-        print(f"To change: measureit.set_data_dir('/path')\n")
+        print("To change: measureit.set_data_dir('/path')\n")

@@ -1,11 +1,8 @@
-import pytest
-
-import qcodes as qc
+from qcodes import Station
 from qcodes.instrument_drivers.mock_instruments import MockParabola
 
+from measureit import SimulSweep, Sweep0D
 from measureit.sweep.base_sweep import BaseSweep
-from measureit import Sweep0D, SimulSweep
-from qcodes import Station
 
 
 def test_export_json_follow_params_duplicate_names(fast_sweep_kwargs):
