@@ -377,6 +377,9 @@ class BaseSweep(QObject):
             self.close_plots()
             self.plotter = None
 
+        # Reset measurement object to ensure fresh measurement for next run
+        self.meas = None
+
     def check_running(self):
         """Returns the status of the sweep."""
         return self.is_running
@@ -638,6 +641,14 @@ class BaseSweep(QObject):
         **kwargs:
             Arbitrary keyword arguments to be passed to the callback function
         """
+        # Disconnect any existing complete_func to prevent duplicate connections
+        if hasattr(self, 'complete_func') and self.complete_func is not None:
+            try:
+                self.completed.disconnect(self.complete_func)
+            except (TypeError, RuntimeError):
+                # No connection existed or already disconnected
+                pass
+
         self.complete_func = partial(func, *args, **kwargs)
         self.completed.connect(self.complete_func)
 

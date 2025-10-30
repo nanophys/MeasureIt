@@ -23,7 +23,7 @@ class SweepQueue(QObject):
 
     'newSweepSignal' is used to send the current sweep information to the BaseSweep
     parent each time that a new sweep is to begin. Data can be saved to different
-    databases for each sweep, allowing simple organization of experiments.
+    databases for each sweep using DatabaseEntry objects.
 
     Attributes:
     ---------
@@ -35,13 +35,6 @@ class SweepQueue(QObject):
         The most recent sweep pulled from the queue.
     current_action:
         The most recent action, sweep or callable, pulled from the queue.
-    database:
-        Path used for saving the sweep data; able to store different databases
-        for individual sweeps.
-    exp_name:
-        User-defined experiment name.
-    sample_name:
-        User-defined sample name.
     rts:
         Defaults to true when sweep is started.
 
@@ -71,10 +64,6 @@ class SweepQueue(QObject):
         Flag to determine whether a sweep is currently running.
     begin_next()
         Begins the next sweep in the queue upon the completion of a sweep.
-    load_database_info(db, exps, samples):
-        Loads the database information for each sweep in the queue.
-    set_database(self):
-        Sets the loaded database information for each sweep before running.
     """
 
     newSweepSignal = pyqtSignal(BaseSweep)
@@ -92,12 +81,10 @@ class SweepQueue(QObject):
         # Pointer to the sweep currently running
         self.current_sweep = None
         self.current_action = None
-        # Database information. Can be updated for each run.
-        self.database = None
         self.inter_delay = inter_delay
-        self.exp_name = ""
-        self.sample_name = ""
         self.rts = True
+        # Flag to prevent concurrent begin_next() calls
+        self._processing = False
 
     def _exec_in_kernel(self, fn):
         """Schedule a callable to run on the Jupyter kernel thread (asyncio loop) if present.
@@ -255,7 +242,7 @@ class SweepQueue(QObject):
                 sweep.set_complete_func(self.begin_next)
                 self.queue.append(sweep)
             elif isinstance(sweep, DatabaseEntry):
-                sweep.set_complete_func(self.begin_next)
+                # DatabaseEntry doesn't need a complete_func since it executes synchronously
                 self.queue.append(sweep)
             else:
                 print(
@@ -398,7 +385,10 @@ class SweepQueue(QObject):
             self.newSweepSignal.emit(self.current_sweep)
             self.current_sweep.start(ramp_to_start=rts)
         elif isinstance(self.current_action, DatabaseEntry):
+            # DatabaseEntry changes the database and continues to next item
             self.current_action.start()
+            # Continue with the next item in the queue
+            self.begin_next()
         elif callable(self.current_action):
             # Schedule onto the Jupyter kernel thread if available
             self._exec_in_kernel(self.current_action)
@@ -435,91 +425,63 @@ class SweepQueue(QObject):
 
         Connected to completed pyqtSignals in the sweeps.
         """
-        if isinstance(self.current_action, Sweep1D):
-            print(
-                f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
-                f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
-                f"({self.current_sweep.set_param.unit})"
-            )
-        elif isinstance(self.current_action, Sweep0D):
-            print(f"Finished 0D Sweep of {self.current_sweep.max_time} (s).")
+        # Prevent concurrent executions of begin_next()
+        if self._processing:
+            return
+        self._processing = True
 
-        if isinstance(self.current_action, BaseSweep):
-            self.current_sweep.kill()
-            self.current_sweep = None
-
-        if len(self.queue) > 0:
-            self.current_action = self.queue.popleft()
-            if isinstance(self.current_action, BaseSweep):
-                self.current_sweep = self.current_action
-                # Ensure metadata shows this sweep was launched by SweepQueue
-                self._attach_queue_metadata_provider(self.current_sweep)
-                if isinstance(self.current_sweep, Sweep1D):
-                    print(
-                        f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
-                        f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
-                        f"({self.current_sweep.set_param.unit})"
-                    )
-                elif isinstance(self.current_sweep, Sweep0D):
-                    print(
-                        f"Starting 0D Sweep for {self.current_sweep.max_time} seconds."
-                    )
-                time.sleep(self.inter_delay)
-                self.newSweepSignal.emit(self.current_sweep)
-                self.current_sweep.start()
-            elif isinstance(self.current_action, DatabaseEntry):
-                self.current_action.start()
-            elif callable(self.current_action):
-                # Schedule onto the Jupyter kernel thread if available
-                self._exec_in_kernel(self.current_action)
-            else:
+        try:
+            if isinstance(self.current_action, Sweep1D):
                 print(
-                    f"Invalid action found in the queue!: {str(self.current_action)}"
-                    f"Stopping execution of the queue."
+                    f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
+                    f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
+                    f"({self.current_sweep.set_param.unit})"
                 )
-        else:
-            print("Finished all sweeps!")
+            elif isinstance(self.current_action, Sweep0D):
+                print(f"Finished 0D Sweep of {self.current_sweep.max_time} (s).")
 
-    def load_database_info(self, db, exps, samples):
-        """Loads the database information for each sweep in the queue.
+            if isinstance(self.current_action, BaseSweep):
+                self.current_sweep.kill()
+                self.current_sweep = None
 
-        Can take in either (1) a single value for all database, experiment name,
-        and sample name arguments, or (2) a list of values, with length equal to
-        the number of sweeps loaded into the queue.
+            if len(self.queue) > 0:
+                self.current_action = self.queue.popleft()
+                if isinstance(self.current_action, BaseSweep):
+                    self.current_sweep = self.current_action
+                    # Ensure metadata shows this sweep was launched by SweepQueue
+                    self._attach_queue_metadata_provider(self.current_sweep)
+                    if isinstance(self.current_sweep, Sweep1D):
+                        print(
+                            f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
+                            f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
+                            f"({self.current_sweep.set_param.unit})"
+                        )
+                    elif isinstance(self.current_sweep, Sweep0D):
+                        print(
+                            f"Starting 0D Sweep for {self.current_sweep.max_time} seconds."
+                        )
+                    time.sleep(self.inter_delay)
+                    self.newSweepSignal.emit(self.current_sweep)
+                    self.current_sweep.start()
+                elif isinstance(self.current_action, DatabaseEntry):
+                    # DatabaseEntry changes the database and continues to next item
+                    self.current_action.start()
+                    # Recursively call begin_next to process the next item
+                    self._processing = False  # Reset flag before recursive call
+                    self.begin_next()
+                elif callable(self.current_action):
+                    # Schedule onto the Jupyter kernel thread if available
+                    self._exec_in_kernel(self.current_action)
+                else:
+                    print(
+                        f"Invalid action found in the queue!: {str(self.current_action)}"
+                        f"Stopping execution of the queue."
+                    )
+            else:
+                print("Finished all sweeps!")
+        finally:
+            self._processing = False
 
-        Paramters
-        ---------
-        db:
-            The name of the database file for each sweep (list or string).
-        exps:
-            The name of experiment for each sweep (list or string).
-        samples:
-            The name of sample for each sweep (list or string).
-        """
-        # Check if db was loaded correctly
-        if isinstance(db, list):
-            # Convert to a deque for easier popping from the queue
-            self.database = deque(db)
-        elif isinstance(db, str):
-            self.database = db
-        else:
-            print("Database info loaded incorrectly!")
-
-        # Check again for experiments
-        if isinstance(exps, list):
-            self.exp_name = deque(exps)
-        elif isinstance(exps, str):
-            self.exp_name = exps
-        else:
-            print("Database info loaded incorrectly!")
-
-        # Check if samples were loaded correctly
-        if isinstance(samples, list):
-            self.sample_name = deque(samples)
-        elif isinstance(samples, str):
-            self.sample_name = samples
-        else:
-            print("Database info loaded incorrectly!")
 
     def estimate_time(self, verbose=False):
         """Returns an estimate of the amount of time the sweep queue will take to complete.
@@ -549,47 +511,6 @@ class SweepQueue(QObject):
 
         return t_est
 
-    def set_database(self):
-        """Sets the loaded database information for each sweep before running.
-
-        Database information must be previously loaded using the 'load_database_info'
-        method. Creates path for database and begins a new QCoDeS experiment.
-        """
-        # Grab the next database file name
-        if self.database is None:
-            return
-
-        db = ""
-        if isinstance(self.database, str):
-            db = self.database
-        elif isinstance(self.database, deque):
-            db = self.database.popleft()
-
-        # Grab the next sample name
-        sample = ""
-        if isinstance(self.sample_name, str):
-            sample = self.sample_name
-        elif isinstance(self.sample_name, deque):
-            sample = self.sample_name.popleft()
-
-        # Grab the next experiment name
-        exp = ""
-        if isinstance(self.exp_name, str):
-            exp = self.exp_name
-        elif isinstance(self.exp_name, deque):
-            exp = self.exp_name.popleft()
-
-        # Initialize the database
-        try:
-            db_path = Path(db)
-            if db_path.suffix != ".db":
-                db_path = db_path.with_suffix(".db")
-            if not db_path.is_absolute():
-                db_path = get_path("databases") / db_path
-            initialise_or_create_database_at(str(db_path))
-            qc.new_experiment(name=exp, sample_name=sample)
-        except Exception:
-            print("Database info loaded incorrectly!")
 
 
 class DatabaseEntry(QObject):

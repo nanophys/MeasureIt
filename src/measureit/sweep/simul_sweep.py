@@ -345,8 +345,11 @@ class SimulSweep(BaseSweep, QObject):
             self.done_ramping(vals_dict, start_on_finish=start_on_finish, pd=persist)
             return
 
+        # Store ramp steps for validation in done_ramping
+        self.ramp_steps = {}
         for p, v in ramp_params_dict.items():
             v["step"] = (v["stop"] - v["start"]) / n_steps
+            self.ramp_steps[p] = v["step"]
 
         self.ramp_sweep = SimulSweep(
             ramp_params_dict,
@@ -361,7 +364,10 @@ class SimulSweep(BaseSweep, QObject):
                 pd=persist,
             ),
         )
-        self.ramp_sweep.follow_param(self._params)
+        # Only follow parameters that are not being ramped to avoid circular dependencies
+        follow_params = [p for p in self._params if p not in ramp_params_dict.keys()]
+        if follow_params:
+            self.ramp_sweep.follow_param(follow_params)
         self.is_ramping = True
         self.is_running = False
         self.ramp_sweep.start(ramp_to_start=False)
@@ -373,7 +379,9 @@ class SimulSweep(BaseSweep, QObject):
 
         # Check if we are at the value we expect, otherwise something went wrong with the ramp
         for p, v in vals_dict.items():
-            p_step = self.set_params_dict[p]["step"]
+            # Use ramp step if available (for parameters that were ramped),
+            # otherwise use sweep step (for parameters that were already at target)
+            p_step = getattr(self, 'ramp_steps', {}).get(p, self.set_params_dict[p]["step"])
             if abs(safe_get(p) - v) - abs(p_step / 2) > abs(p_step) * self.err:
                 self.print_main.emit(
                     f"Ramping failed (possible that the direction was changed while ramping). "
@@ -395,6 +403,10 @@ class SimulSweep(BaseSweep, QObject):
         if self.ramp_sweep is not None:
             self.ramp_sweep.kill()
             self.ramp_sweep = None
+
+        # Clear ramp steps after successful ramp
+        if hasattr(self, 'ramp_steps'):
+            del self.ramp_steps
 
         if start_on_finish is True:
             self.start(ramp_to_start=False, persist_data=pd)
