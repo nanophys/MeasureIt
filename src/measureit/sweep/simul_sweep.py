@@ -6,7 +6,7 @@ from functools import partial
 from PyQt5.QtCore import QObject, pyqtSlot
 
 from ..tools.util import _autorange_srs, safe_get, safe_set
-from .base_sweep import BaseSweep
+from .base_sweep import BaseSweep, ProgressState
 
 
 class SimulSweep(BaseSweep, QObject):
@@ -133,6 +133,8 @@ class SimulSweep(BaseSweep, QObject):
 
         self.follow_param([p for p in self.simul_params if p is not self.set_param])
         self.persist_data = []
+        self.progressState = ProgressState.zero()
+        self._progress_total_time = None
 
     def __str__(self):
         p_desc = ""
@@ -162,6 +164,22 @@ class SimulSweep(BaseSweep, QObject):
         if self.is_running is True:
             self.print_main.emit("Sweep is already running.")
             return
+
+        if self.progressState is not None:
+            estimate = self.estimate_time(verbose=False)
+            if (
+                isinstance(estimate, (int, float))
+                and math.isfinite(estimate)
+                and estimate > 0
+                and not self.continuous
+            ):
+                self._progress_total_time = estimate
+            else:
+                self._progress_total_time = None
+            self._update_progress_state(
+                time_elapsed=0.0,
+                total_time=self._progress_total_time,
+            )
 
         if ramp_to_start is True:
             self.print_main.emit("Ramping to our starting setpoints.")
@@ -438,6 +456,40 @@ class SimulSweep(BaseSweep, QObject):
                 f"Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s"
             )
         return t_est
+
+    def update_progress(self, *, finalized: bool = False) -> None:
+        if self.progressState is None:
+            return
+
+        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
+        total = (
+            self._progress_total_time
+            if isinstance(self._progress_total_time, (int, float))
+            and math.isfinite(self._progress_total_time)
+            and self._progress_total_time > 0
+            else None
+        )
+        remaining = None
+        if total is not None:
+            remaining = max(total - elapsed, 0.0)
+
+        is_complete = finalized or (
+            total is not None
+            and remaining is not None
+            and remaining <= 0.0
+            and not self.is_running
+        )
+        if is_complete and remaining is None:
+            remaining = 0.0
+
+        elapsed_for_state = total if is_complete and total is not None else elapsed
+
+        self._update_progress_state(
+            time_elapsed=elapsed_for_state,
+            total_time=total,
+            time_remaining=remaining,
+            finalized=is_complete,
+        )
 
     # --- JSON export/import hooks ---
     def _export_json_specific(self, json_dict: dict) -> dict:

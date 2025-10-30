@@ -1,5 +1,3 @@
-import pytest
-
 import qcodes as qc
 from qcodes.instrument_drivers.mock_instruments import MockParabola
 
@@ -55,7 +53,16 @@ def test_database_save_and_dataset_signal(qtbot, temp_measureit_home):
     inst.noise(0.0)
 
     # Save to DB; keep plotting off
-    s = Sweep1D(inst.x, start=0.0, stop=0.2, step=0.1, inter_delay=0.01, save_data=True, plot_data=False, suppress_output=True)
+    s = Sweep1D(
+        inst.x,
+        start=0.0,
+        stop=0.2,
+        step=0.1,
+        inter_delay=0.01,
+        save_data=True,
+        plot_data=False,
+        suppress_output=True,
+    )
     s.follow_param(inst.parabola)
 
     # Setup DB

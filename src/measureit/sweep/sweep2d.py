@@ -6,7 +6,7 @@ from functools import partial
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from ..visualization.heatmap_thread import Heatmap
-from .base_sweep import BaseSweep
+from .base_sweep import BaseSweep, ProgressState
 from .sweep1d import Sweep1D
 
 
@@ -199,6 +199,8 @@ class Sweep2D(BaseSweep, QObject):
         # Our update_values() function iterates the outer sweep, so when the inner sweep
         # is done, call that function automatically
         self.in_sweep.set_complete_func(self.update_values)
+        self.progressState = ProgressState.zero()
+        self._progress_total_time = None
         # Bubble dataset info through the outer sweep signal for convenience
         try:
             self.in_sweep.dataset_signal.connect(self.dataset_signal)
@@ -314,6 +316,14 @@ class Sweep2D(BaseSweep, QObject):
         if self.meas is None:
             self._create_measurement()
 
+        if self.progressState is not None:
+            estimate = self.estimate_time(verbose=False)
+            self._progress_total_time = estimate if estimate > 0 else None
+            self._update_progress_state(
+                time_elapsed=0.0,
+                total_time=self._progress_total_time,
+            )
+
         if ramp_to_start:
             self.ramp_to(self.out_setpoint, start_on_finish=True)
         else:
@@ -328,6 +338,7 @@ class Sweep2D(BaseSweep, QObject):
             time.sleep(self.outer_delay)
 
             self.is_running = True
+            self.t0 = time.monotonic()
 
             if self.plot_data and self.heatmap_plotter is None:
                 # Initialize our heatmap in the main GUI thread to avoid crashes in Jupyter/Qt
@@ -447,8 +458,13 @@ class Sweep2D(BaseSweep, QObject):
                 self.is_running = False
                 self.inner_sweep.is_running = False
                 self.print_main.emit("Done ramping both parameters to zero")
+            if getattr(self, "progressState", None) is not None:
+                self.update_progress()
             # Stop the function from running any further, as we don't want to check anything else
             return
+
+        if getattr(self, "progressState", None) is not None:
+            self.update_progress()
 
         # Update heatmap rows for all allowed/selected parameters (only if plotting is enabled)
         last_plot_data = None
@@ -501,6 +517,38 @@ class Sweep2D(BaseSweep, QObject):
                 f"({self.set_param.unit})"
             )
             self.completed.emit()
+
+    def update_progress(self, *, finalized: bool = False) -> None:
+        if self.progressState is None:
+            return
+
+        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
+        total = (
+            self._progress_total_time
+            if self._progress_total_time not in (None, 0)
+            else None
+        )
+        remaining = None
+        if total is not None:
+            remaining = max(total - elapsed, 0.0)
+
+        is_complete = finalized or (
+            total is not None
+            and remaining is not None
+            and remaining <= 0.0
+            and not self.is_running
+        )
+        if is_complete and remaining is None:
+            remaining = 0.0
+
+        elapsed_for_state = total if is_complete and total is not None else elapsed
+
+        self._update_progress_state(
+            time_elapsed=elapsed_for_state,
+            total_time=total,
+            time_remaining=remaining,
+            finalized=is_complete,
+        )
 
     def get_param_setpoint(self):
         """Obtains the current value of the setpoint."""

@@ -159,6 +159,13 @@ class RunnerThread(QThread):
                     self.sweep.stop()
                     continue
 
+                finalized = data is None and not self.sweep.is_running
+                if getattr(self.sweep, "progressState", None) is not None:
+                    try:
+                        self.sweep.update_progress(finalized=finalized)
+                    except Exception:
+                        pass
+
                 # Check if we've hit the end- update_values will return None
                 if data is None:
                     continue

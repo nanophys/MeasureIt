@@ -79,7 +79,9 @@ def test_set_data_dir_updates_environment_variables(tmp_path):
 
 
 def test_get_path_rejects_unknown_subdir(monkeypatch):
-    monkeypatch.setattr(config, "user_data_dir", _fake_user_data_dir(Path("/tmp/unused")))
+    monkeypatch.setattr(
+        config, "user_data_dir", _fake_user_data_dir(Path("/tmp/unused"))
+    )
     with pytest.raises(ValueError):
         config.get_path("unknown")  # type: ignore[arg-type]
 

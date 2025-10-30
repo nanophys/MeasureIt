@@ -27,7 +27,17 @@ Data Directory
 Jupyter Usage
 -------------
 
-- Use Qt integration: start your notebook cell with ``%gui qt`` before starting sweeps.
+- Use Qt integration: call ``measureit.tools.ensure_qt()`` before starting sweeps from a notebook.
+
+  .. code-block:: python
+
+     from measureit.tools import ensure_qt
+     ensure_qt()  # set MEASUREIT_FORCE_QT=1 to bypass the probe once configured
+- On WSL, if the probe warns about the XCB plugin, install the required Qt packages:
+
+  .. code-block:: bash
+
+     sudo apt install libxcb-xinerama0 libxkbcommon-x11-0 libqt5gui5 libegl1 libopengl0
 - Programmatic example (headless plotting):
 
   .. code-block:: python
@@ -44,4 +54,3 @@ Example notebooks
 -----------------
 
 - See the repository's ``examples/`` folder (e.g., ``examples/content/quick start.ipynb``).
-

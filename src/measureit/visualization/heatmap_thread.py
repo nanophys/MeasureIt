@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -108,6 +109,9 @@ class Heatmap(QObject):
         self.out_keys = []
         self.in_keys = []
         self.info_label = None
+        self.progress_bar = None
+        self.elapsed_label = None
+        self.remaining_label = None
 
         # Timer for regular heatmap updates (5 FPS)
         self.update_timer = None
@@ -218,7 +222,7 @@ class Heatmap(QObject):
             self.param_surfaces = {}
             self.count = 0
 
-            # Ensure a QApplication exists (safe in scripts and Jupyter when %gui qt is active)
+            # Ensure a QApplication exists (safe in scripts and in notebooks once ensure_qt() has been called)
             try:
                 pg.mkQApp()
             except Exception:
@@ -241,6 +245,27 @@ class Heatmap(QObject):
                 "QLabel { background-color: #f0f0f0; padding: 5px; }"
             )
             main_layout.addWidget(self.info_label)
+
+            if getattr(self.sweep, "progressState", None) is not None:
+                progress_info = QHBoxLayout()
+                progress_info.setContentsMargins(0, 0, 0, 0)
+                progress_info.setSpacing(8)
+
+                self.elapsed_label = QLabel("Elapsed: --")
+                self.remaining_label = QLabel("Remaining: --")
+
+                progress_info.addWidget(self.elapsed_label)
+                progress_info.addStretch(1)
+                progress_info.addWidget(self.remaining_label)
+
+                self.progress_bar = QProgressBar()
+                self.progress_bar.setRange(0, 1000)
+                self.progress_bar.setValue(0)
+                self.progress_bar.setTextVisible(True)
+
+                main_layout.addLayout(progress_info)
+                main_layout.addWidget(self.progress_bar)
+                self._update_progress_widgets()
 
             # Controls row (colormap picker, auto-levels, reset)
             controls = QHBoxLayout()
@@ -381,6 +406,8 @@ class Heatmap(QObject):
             )
 
             self.figs_set = True
+
+            self._update_progress_widgets()
 
         except Exception as e:
             print(f"Error creating heatmap figures: {e}")
@@ -551,6 +578,8 @@ class Heatmap(QObject):
             view_box.setRange(xRange=view_range[0], yRange=view_range[1], padding=0)
 
             self.needs_refresh = False
+
+        self._update_progress_widgets()
 
     def _rebuild_param_box(self):
         """Populate the parameter selector with followed measurement parameters."""
@@ -752,6 +781,36 @@ class Heatmap(QObject):
 
     def _toggle_auto_levels(self, checked: bool):
         self._auto_levels_enabled = bool(checked)
+
+    def _update_progress_widgets(self):
+        if self.progress_bar is None:
+            return
+
+        state = getattr(self.sweep, "progressState", None)
+        if state is None:
+            return
+
+        progress_value = int(max(0.0, min(1.0, state.progress)) * 1000)
+        self.progress_bar.setValue(progress_value)
+
+        def _format_seconds(value):
+            if value is None:
+                return "--"
+            try:
+                if math.isinf(value):
+                    return "∞"
+            except TypeError:
+                return "--"
+            return f"{max(0.0, value):.1f} s"
+
+        if self.elapsed_label is not None:
+            self.elapsed_label.setText(
+                f"Elapsed: {_format_seconds(state.time_elapsed)}"
+            )
+        if self.remaining_label is not None:
+            self.remaining_label.setText(
+                f"Remaining: {_format_seconds(state.time_remaining)}"
+            )
 
     def _reset_view(self):
         try:

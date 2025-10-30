@@ -1,41 +1,47 @@
-import io, sys
-import time
-import numpy as np
-import qcodes as qc
-from qcodes.dataset.measurements import Measurement
-from qcodes.dataset.database import initialise_or_create_database_at
-from daq_driver import Daq
-from util import _value_parser
-import PyQt5 as qt
-from PyQt5.QtWidgets import qApp, QSizePolicy, QWidget, QAction, QApplication, QLabel, QMainWindow, QPushButton, QComboBox, QMessageBox, QLineEdit, QMenu, QMenuBar, QStatusBar, QGridLayout
-from PyQt5.QtCore import Qt
-import matplotlib.pyplot as plt
-from matplotlib.ticker import ScalarFormatter
-#from IPython import display
-from qcodes.dataset.data_export import get_data_by_id 
-import nidaqmx
 import importlib
+import sys
+
+# from IPython import display
+import nidaqmx
+import PyQt5 as qt
+from daq_driver import Daq
+from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
+    QGridLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMenu,
+    QMenuBar,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QStatusBar,
+    QWidget,
+)
 from sweep_window import Sweep1DWindow
-    
+
 #    qc.dataset.experiment_container.experiments()
 #    ex = qc.dataset.experiment_container.load_experiment(0)
-    
+
 #    fii = get_data_by_id(ex.data_sets()[0].run_id)
 #    print(fii)
-    
-    
+
+
 class Daq_Main_Window(QMainWindow):
     def __init__(self, *args, **kwargs):
         super(Daq_Main_Window, self).__init__(*args, **kwargs)
-        
-        self.daq=None
-        
+
+        self.daq = None
+
         self.connect()
         self.setupUi()
-        
+
     def closeEvent(self, event):
-        reply = QMessageBox.question(self, 'Message',
-            "Are you sure to quit?", QMessageBox.Yes, QMessageBox.No)
+        reply = QMessageBox.question(
+            self, "Message", "Are you sure to quit?", QMessageBox.Yes, QMessageBox.No
+        )
 
         if reply == QMessageBox.Yes:
             if self.daq is not None:
@@ -43,7 +49,7 @@ class Daq_Main_Window(QMainWindow):
                 event.accept()
         else:
             event.ignore()
-    
+
     def connect(self):
         try:
             importlib.reload(nidaqmx)
@@ -54,7 +60,7 @@ class Daq_Main_Window(QMainWindow):
             msg.setWindowTitle("Connection Attempt")
             msg.setStandardButtons(QMessageBox.Close)
             msg.exec_()
-        
+
     def reconnect(self):
         if self.daq is not None:
             msg = QMessageBox()
@@ -64,7 +70,7 @@ class Daq_Main_Window(QMainWindow):
             msg.exec_()
         else:
             self.connect()
-            
+
     def setupUi(self):
         self.setObjectName("Main Window")
         self.resize(800, 338)
@@ -198,12 +204,12 @@ class Daq_Main_Window(QMainWindow):
         self.OutputChannels.addWidget(self.ao0_val, 0, 1, 1, 1)
         self.ao0_set = QLineEdit(self.formLayoutWidget_2)
         self.ao0_set.setObjectName("ao0_set")
-        self.ao0_set.setMaximumSize(61,20)
-        self.ao0_set.setSizePolicy(QSizePolicy(0,0))
+        self.ao0_set.setMaximumSize(61, 20)
+        self.ao0_set.setSizePolicy(QSizePolicy(0, 0))
         self.OutputChannels.addWidget(self.ao0_set, 0, 2, 1, 1)
         self.ao1_set = QLineEdit(self.formLayoutWidget_2)
         self.ao1_set.setObjectName("ao1_set")
-        self.ao1_set.setMaximumSize(61,20)
+        self.ao1_set.setMaximumSize(61, 20)
         self.OutputChannels.addWidget(self.ao1_set, 1, 2, 1, 1)
         self.out_cha = QLabel(self.centralwidget)
         self.out_cha.setGeometry(qt.QtCore.QRect(410, 50, 61, 20))
@@ -215,7 +221,7 @@ class Daq_Main_Window(QMainWindow):
         self.out_set.setGeometry(qt.QtCore.QRect(550, 50, 51, 20))
         self.out_set.setObjectName("out_set")
         self.setCentralWidget(self.centralwidget)
-        
+
         # Buttons
         self.updateButton = QPushButton(self.centralwidget)
         self.updateButton.setGeometry(qt.QtCore.QRect(410, 170, 201, 41))
@@ -225,29 +231,29 @@ class Daq_Main_Window(QMainWindow):
         self.connectButton.setGeometry(qt.QtCore.QRect(410, 220, 201, 41))
         self.connectButton.setObjectName("connectButton")
         self.connectButton.clicked.connect(self.reconnect)
-        
+
         # Menu Bar
         self.menubar = QMenuBar(self)
         self.menubar.setGeometry(qt.QtCore.QRect(0, 0, 800, 21))
         self.menubar.setObjectName("menubar")
-        
+
         # File Menu
         self.menuFile = QMenu(self.menubar)
         self.menuFile.setObjectName("menuFile")
-        quitAction = QAction('&Quit', self)
+        quitAction = QAction("&Quit", self)
         quitAction.triggered.connect(self.close)
         self.menuFile.addAction(quitAction)
-        
+
         # Experiment Menu
         self.menuExperiments = QMenu(self.menubar)
         self.menuExperiments.setObjectName("menuExperiments")
-        sweep1dAction = QAction('&1D Sweep', self)
+        sweep1dAction = QAction("&1D Sweep", self)
         sweep1dAction.triggered.connect(self.disp_1D_Sweep)
         self.menuExperiments.addAction(sweep1dAction)
-        sweep2dAction = QAction('&2D Sweep', self)
+        sweep2dAction = QAction("&2D Sweep", self)
         sweep2dAction.triggered.connect(self.disp_2D_Sweep)
         self.menuExperiments.addAction(sweep2dAction)
-        
+
         self.setMenuBar(self.menubar)
         self.statusbar = QStatusBar(self)
         self.statusbar.setObjectName("statusbar")
@@ -256,23 +262,37 @@ class Daq_Main_Window(QMainWindow):
         self.menubar.addAction(self.menuExperiments.menuAction())
 
         self.set_label_names()
-        self.input_vals = [self.ai0_val, self.ai1_val, self.ai2_val, self.ai3_val, self.ai4_val, self.ai5_val, self.ai6_val, 
-                           self.ai7_val, self.ai16_val, self.ai17_val, self.ai18_val, self.ai19_val, self.ai20_val, self.ai21_val, 
-                           self.ai22_val, self.ai23_val]
+        self.input_vals = [
+            self.ai0_val,
+            self.ai1_val,
+            self.ai2_val,
+            self.ai3_val,
+            self.ai4_val,
+            self.ai5_val,
+            self.ai6_val,
+            self.ai7_val,
+            self.ai16_val,
+            self.ai17_val,
+            self.ai18_val,
+            self.ai19_val,
+            self.ai20_val,
+            self.ai21_val,
+            self.ai22_val,
+            self.ai23_val,
+        ]
         self.output_vals = [self.ao0_val, self.ao1_val]
-        
-        
+
         self.update_vals()
-        
+
         qt.QtCore.QMetaObject.connectSlotsByName(self)
 
     def disp_1D_Sweep(self):
         self.sweep_window = Sweep1DWindow(parent=self)
         self.sweep_window.show()
-    
+
     def disp_2D_Sweep(self):
         pass
-    
+
     def set_label_names(self):
         self.setWindowTitle("DAQ Controller - MeasureIt")
         self.input_channels.setText("Input Channels")
@@ -324,66 +344,63 @@ class Daq_Main_Window(QMainWindow):
     def update_vals(self):
         if self.daq is not None:
             self.daq.update_all_inputs()
-            for n,num in enumerate([0,1,2,3,4,5,6,7,16,17,18,19,20,21,22,23]):
-                name = "ai"+str(num)
+            for n, num in enumerate(
+                [0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23]
+            ):
+                name = "ai" + str(num)
                 channel = self.daq.submodules[name]
                 self.input_vals[n].setText(str(channel.get("voltage"))[0:7])
-                
-            for n,num in enumerate([0,1]):
-                name = "ao"+str(num)
+
+            for n, num in enumerate([0, 1]):
+                name = "ao" + str(num)
                 channel = self.daq.submodules[name]
                 self.output_vals[n].setText(str(channel.get("voltage"))[0:7])
-    
+
     def set_vals(self):
         if self.daq is not None:
-            invalid=0
+            invalid = 0
             try:
                 value0 = float(self.ao0_set.text())
-                
-                task=nidaqmx.Task()
+
+                task = nidaqmx.Task()
                 self.daq.submodules["ao0"].add_self_to_task(task)
                 self.daq.ao0.set("voltage", float(value0))
                 self.daq.submodules["ao0"].clear_task()
                 task.close()
-                
+
             except ValueError:
                 invalid += 1
-            
+
             try:
                 value1 = float(self.ao1_set.text())
-            
-                task=nidaqmx.Task()
+
+                task = nidaqmx.Task()
                 self.daq.submodules["ao1"].add_self_to_task(task)
                 self.daq.ao1.set("voltage", float(value1))
                 self.daq.submodules["ao1"].clear_task()
                 task.close()
             except ValueError:
                 invalid += 1
-            
+
             if invalid == 2:
                 msg = QMessageBox()
                 msg.setText("No valid inputs given")
                 msg.setWindowTitle("Error")
                 msg.setStandardButtons(QMessageBox.Close)
                 msg.exec_()
-                
+
             self.update_vals()
 
 
-        
 def main():
-#    do_sweep()
+    #    do_sweep()
     app = QApplication(sys.argv)
-    
+
     window = Daq_Main_Window()
     window.show()
-    
+
     app.exec_()
-    
-    
+
+
 if __name__ == "__main__":
     main()
-    
-    
-    
-    

@@ -2,7 +2,9 @@
 import importlib
 import json
 import time
+from dataclasses import dataclass
 from functools import partial
+from typing import Optional
 
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from qcodes import Station
@@ -11,6 +13,20 @@ from qcodes.dataset.measurements import Measurement
 from .._internal.plotter_thread import Plotter
 from .._internal.runner_thread import RunnerThread
 from ..tools.util import _autorange_srs, safe_get
+
+
+@dataclass
+class ProgressState:
+    """Lightweight container tracking sweep progress."""
+
+    time_elapsed: float = 0.0
+    time_remaining: Optional[float] = None
+    progress: float = 0.0
+
+    @classmethod
+    def zero(cls) -> "ProgressState":
+        """Return a zeroed progress state."""
+        return cls(time_elapsed=0.0, time_remaining=None, progress=0.0)
 
 
 class BaseSweep(QObject):
@@ -169,6 +185,8 @@ class BaseSweep(QObject):
         """
         QObject.__init__(self)
 
+        self.IS_MEASUREIT_SWEEP = True
+
         self._params = []
         self._srs = []
         self.set_param = set_param
@@ -209,6 +227,7 @@ class BaseSweep(QObject):
         self.plotter = None
         self.plotter_thread = None
         self.runner = None
+        self.progressState: Optional[ProgressState] = None
 
     @classmethod
     def init_from_json(cls, fn, station):
@@ -438,6 +457,64 @@ class BaseSweep(QObject):
     def get_dataset(self):
         """Returns the dataset object which contains the collected data."""
         return self.dataset
+
+    def _update_progress_state(
+        self,
+        *,
+        time_elapsed: float,
+        total_time: Optional[float] = None,
+        finalized: bool = False,
+        progress: Optional[float] = None,
+        time_remaining: Optional[float] = None,
+    ) -> None:
+        """Update the cached progress state, clamping values to sensible bounds."""
+        if self.progressState is None:
+            return
+
+        elapsed = max(time_elapsed, 0.0)
+
+        if time_remaining is not None:
+            remaining = max(time_remaining, 0.0)
+        elif total_time is not None and total_time > 0:
+            remaining = max(total_time - elapsed, 0.0)
+        elif finalized:
+            remaining = 0.0
+        else:
+            remaining = None
+
+        if finalized:
+            p_val = 1.0
+        elif progress is not None:
+            p_val = max(0.0, min(1.0, progress))
+        else:
+            denom = elapsed + (remaining if remaining is not None else 0.0)
+            if remaining is None or denom <= 0.0:
+                p_val = max(0.0, min(1.0, self.progressState.progress))
+            else:
+                p_val = max(0.0, min(1.0, elapsed / denom))
+
+        self.progressState = ProgressState(
+            time_elapsed=elapsed,
+            time_remaining=remaining,
+            progress=p_val,
+        )
+
+    def update_progress(self, *, finalized: bool = False) -> None:
+        """Update progress using basic elapsed timing.
+
+        Subclasses override to provide richer estimates. The default implementation
+        keeps elapsed time and marks completion when requested.
+        """
+        if self.progressState is None:
+            return
+
+        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
+        remaining = 0.0 if finalized else None
+        self._update_progress_state(
+            time_elapsed=elapsed,
+            time_remaining=remaining,
+            finalized=finalized,
+        )
 
     @pyqtSlot(dict)
     def receive_dataset(self, ds_dict):

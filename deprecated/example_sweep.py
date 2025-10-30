@@ -1,24 +1,24 @@
 # example_sweep.py
 # Example script to run a simple sweep with the DAQ and the sweep/plotting class
 
-from sweep import Sweep1D, Sweep2D
-from daq_driver import Daq, DaqAOChannel, DaqAIChannel
-import nidaqmx
-import numpy as np
 import qcodes as qc
-from qcodes.dataset.measurements import Measurement
-from qcodes.dataset.database import initialise_or_create_database_at
+from daq_driver import Daq
 from qcodes.dataset.data_export import get_data_by_id
+from qcodes.dataset.database import initialise_or_create_database_at
+from sweep import Sweep1D, Sweep2D
+
 
 def do_1d_sweep(_min_v, _max_v, _step, _freq, _expName, _sampleName):
     # Create the DAQ object
     daq = Daq("Dev1", "testdaq")
-    
+
     # Initialize the database you want to save data to
     try:
         experimentName = _expName
         sampleName = _sampleName
-        initialise_or_create_database_at('C:\\Users\\erunb\\measureit.Databases\\testdatabase.db')
+        initialise_or_create_database_at(
+            "C:\\Users\\erunb\\measureit.Databases\\testdatabase.db"
+        )
         qc.new_experiment(name=experimentName, sample_name=sampleName)
     except:
         print("Error opening database")
@@ -31,32 +31,47 @@ def do_1d_sweep(_min_v, _max_v, _step, _freq, _expName, _sampleName):
     max_v = _max_v
     step = _step
     freq = _freq
- 
+
     # Create the sweep argument, tell it which channel to listen to
-    s = Sweep1D(daq.submodules["ao0"].voltage, min_v, max_v, step, freq, bidirectional=True, meas=None, plot=True, auto_figs=True)
+    s = Sweep1D(
+        daq.submodules["ao0"].voltage,
+        min_v,
+        max_v,
+        step,
+        freq,
+        bidirectional=True,
+        meas=None,
+        plot=True,
+        auto_figs=True,
+    )
     s.follow_param(daq.submodules["ai3"].voltage)
-    s._create_measurement((s.set_param))
-    
+    s._create_measurement(s.set_param)
+
     # Run the sweep automatically
     s.autorun()
 
     # Clean up the DAQ
     daq.__del__()
-        
+
     # Show the experiment data
-    ex = qc.dataset.experiment_container.load_experiment_by_name(experimentName, sampleName)
+    ex = qc.dataset.experiment_container.load_experiment_by_name(
+        experimentName, sampleName
+    )
     fii = get_data_by_id(ex.data_sets()[0].run_id)
     print(fii)
+
 
 def do_2d_sweep():
     # Create the DAQ object
     daq = Daq("Dev1", "testdaq")
-    
+
     # Initialize the database you want to save data to
     try:
         experimentName = "testexp-2d_5"
         sampleName = "sampletest-2d"
-        initialise_or_create_database_at('C:\\Users\\erunb\\measureit.Databases\\testdatabase.db')
+        initialise_or_create_database_at(
+            "C:\\Users\\erunb\\measureit.Databases\\testdatabase.db"
+        )
         qc.new_experiment(name=experimentName, sample_name=sampleName)
     except:
         print("Error opening database")
@@ -73,25 +88,18 @@ def do_2d_sweep():
     # "measured" parameter
     param = daq.submodules["ai3"].voltage
     s = Sweep2D(in_sweep_params, out_sweep_params, freq, param)
-    
+
     # Run the sweep automatically
     s.autorun()
 
     # Clean up the DAQ
     daq.__del__()
-        
+
     # Show the experiment data
-    #ex = qc.dataset.experiment_container.load_experiment_by_name(experimentName, sampleName)
-    #fii = get_data_by_id(ex.data_sets()[0].run_id)
-    #print(fii)
+    # ex = qc.dataset.experiment_container.load_experiment_by_name(experimentName, sampleName)
+    # fii = get_data_by_id(ex.data_sets()[0].run_id)
+    # print(fii)
 
 
-
-
-#do_1d_sweep(0, 0.1, 0.001, 1000, "test_exp", "example_sample1")
+# do_1d_sweep(0, 0.1, 0.001, 1000, "test_exp", "example_sample1")
 do_2d_sweep()
-
-
-
-
-
