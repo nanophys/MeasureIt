@@ -431,9 +431,6 @@ class SimulSweep(BaseSweep, QObject):
         -------
         Time estimate for the sweep, in seconds
         """
-        effective_back_multiplier = (
-            self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
-        )
 
         if self.t0 != 0 and not self.is_running:
             remaining = 0
@@ -445,6 +442,8 @@ class SimulSweep(BaseSweep, QObject):
             distance = abs(target - current)
             steps = max(distance / step_mag, 0)
             remaining = steps * self.inter_delay
+
+            effective_back_multiplier = self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
 
             if (
                 self.bidirectional

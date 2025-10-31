@@ -88,7 +88,7 @@ class Sweep2D(BaseSweep, QObject):
 
     """
 
-    add_heatmap_data = pyqtSignal(dict)
+    add_heatmap_data = pyqtSignal(object)
 
     def __init__(
         self,
@@ -198,7 +198,7 @@ class Sweep2D(BaseSweep, QObject):
         self.in_sweep.follow_param(self.set_param)
         # Our update_values() function iterates the outer sweep, so when the inner sweep
         # is done, call that function automatically
-        self.in_sweep.set_complete_func(lambda: self.update_values())
+        self.in_sweep.set_complete_func(self.update_values)
 
         self.outer_delay = outer_delay
         self.inner_time = self.in_sweep.estimate_time(verbose=False)
@@ -501,6 +501,9 @@ class Sweep2D(BaseSweep, QObject):
         # If neither of the above are triggered, it means we are at the end of the sweep
         else:
             self.is_running = False
+            self.update_progress()
+            if self.plot_data and self.heatmap_plotter is not None:
+                self.add_heatmap_data.emit(None)
             self.print_main.emit(
                 f"Done with the sweep, {self.set_param.label}={self.out_setpoint} "
                 f"({self.set_param.unit})"

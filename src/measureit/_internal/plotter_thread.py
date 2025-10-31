@@ -285,14 +285,14 @@ class Plotter(QObject):  # moved to _internal
         # Show the widget
         self.widget.show()
 
-    @pyqtSlot(list, int)
+    @pyqtSlot(object, int)
     def add_data(self, data, direction):
         """Receives data from the Runner Thread.
 
         Parameters
         ---------
         data:
-            List of (parameter, value) tuples.
+            List of (parameter, value) tuples, or None if sweep is finished.
         direction:
             The direction of the sweep (0 or 1).
         """
@@ -300,7 +300,7 @@ class Plotter(QObject):  # moved to _internal
 
         # Only update plots when we have enough data points or it's been a while
         # This prevents excessive update calls that slow down the plotting
-        self.update_plots()
+        self.update_plots(force=data is None)
 
     @pyqtSlot(bool)
     def update_plots(self, force=False):
@@ -323,7 +323,7 @@ class Plotter(QObject):  # moved to _internal
         while len(self.data_queue) > 0:
             temp = self.data_queue.popleft()
             if temp[0] is None:
-                return
+                break
             data = deque(temp[0])
             direction = temp[1]
 

@@ -426,13 +426,13 @@ class BaseSweep(QObject):
         if self.runner is None:
             self.runner = RunnerThread(self)
             self.runner.get_dataset.connect(self.receive_dataset)
-            self.t0 = time.monotonic()
 
             if self.plot_data is True:
                 self.runner.add_plotter(self.plotter)
 
         # Flag that we are now running.
         self.is_running = True
+        self.t0 = time.monotonic()
 
         # Save persistent data from 2D sweep
         self.persist_data = persist_data

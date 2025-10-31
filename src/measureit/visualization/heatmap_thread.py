@@ -416,7 +416,7 @@ class Heatmap(QObject):
             traceback.print_exc()
             self.figs_set = False
 
-    @pyqtSlot(dict)
+    @pyqtSlot(object)
     def add_data(self, data_dict):
         """Feeds the thread data dictionary to add to the heatmap.
 
@@ -427,7 +427,9 @@ class Heatmap(QObject):
             from the plotter thread.
         """
         try:
-            if data_dict is not None:
+            if data_dict is None:
+                self.data_to_add.append(None)
+            else:
                 # Accept legacy payloads (only 'forward'/'backward') or new ones with 'param_index' and 'out_value'
                 if "param_index" not in data_dict:
                     data_dict = dict(data_dict)  # shallow copy
@@ -525,10 +527,13 @@ class Heatmap(QObject):
         items_processed = 0
         while len(self.data_to_add) > 0 and items_processed < self.max_items_per_update:
             data_dict = self.data_to_add.popleft()
+            if data_dict is None:
+                break
             self.add_to_heatmap(data_dict)
             items_processed += 1
             self.needs_refresh = True
 
+        self._update_progress_widgets()
         # Update display with proper scaling while preserving view
         if self.image_item is not None and (self.needs_refresh or items_processed > 0):
             # Remember current view state
@@ -578,8 +583,6 @@ class Heatmap(QObject):
             view_box.setRange(xRange=view_range[0], yRange=view_range[1], padding=0)
 
             self.needs_refresh = False
-
-        self._update_progress_widgets()
 
     def _rebuild_param_box(self):
         """Populate the parameter selector with followed measurement parameters."""

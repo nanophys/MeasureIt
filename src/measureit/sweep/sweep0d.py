@@ -141,9 +141,10 @@ class Sweep0D(BaseSweep, QObject):
         Time estimate for the sweep, in seconds
         """
         if not self.is_running:
-            return self.max_time if self.t0 == 0 else 0
-        elapsed = time.monotonic() - self.t0
-        remaining = max(float(self.max_time) - elapsed, 0.0)
+            remaining = self.max_time if self.t0 == 0 else 0
+        else:
+            elapsed = time.monotonic() - self.t0
+            remaining = max(float(self.max_time) - elapsed, 0.0)
 
         if verbose:
             hours, minutes, seconds = self._split_hms(remaining)

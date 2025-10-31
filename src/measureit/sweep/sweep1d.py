@@ -577,38 +577,38 @@ class Sweep1D(BaseSweep, QObject):
                         remaining += distance_back * 60 / rate
                 return remaining
 
-        if isinstance(self.instrument, M4G):
-            try:
-                rate = abs(float(self.instrument.range0_rate()))
-            except Exception:
-                return 0.0
-            if rate <= 0:
-                return 0.0
+            if isinstance(self.instrument, M4G):
+                try:
+                    rate = abs(float(self.instrument.range0_rate()))
+                except Exception:
+                    return 0.0
+                if rate <= 0:
+                    return 0.0
+                current_value = self.setpoint
+                distance = abs(self.end - current_value)
+                remaining = distance / rate
+                if self.bidirectional and self.direction == 0:
+                    remaining += abs(self.end - self.begin) / rate
+                return remaining
+
             current_value = self.setpoint
+
+            step_size = abs(self.step)
+            if step_size == 0:
+                return 0.0
+
             distance = abs(self.end - current_value)
-            remaining = distance / rate
+            remaining = (distance / step_size) * self.inter_delay
+
             if self.bidirectional and self.direction == 0:
-                remaining += abs(self.end - self.begin) / rate
-            return remaining
-
-        current_value = self.setpoint
-
-        step_size = abs(self.step)
-        if step_size == 0:
-            return 0.0
-
-        distance = abs(self.end - current_value)
-        remaining = (distance / step_size) * self.inter_delay
-
-        if self.bidirectional and self.direction == 0:
-            effective_back_multiplier = (
-                self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
-            )
-            if effective_back_multiplier > 0:
-                distance_back = abs(self.end - self.begin)
-                remaining += (
-                    distance_back / (step_size * effective_back_multiplier)
-                ) * self.inter_delay
+                effective_back_multiplier = (
+                    self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
+                )
+                if effective_back_multiplier > 0:
+                    distance_back = abs(self.end - self.begin)
+                    remaining += (
+                        distance_back / (step_size * effective_back_multiplier)
+                    ) * self.inter_delay
 
         if verbose:
             hours, minutes, seconds = self._split_hms(remaining)

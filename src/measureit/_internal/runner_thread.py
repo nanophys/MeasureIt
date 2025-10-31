@@ -46,7 +46,7 @@ class RunnerThread(QThread):
     """
 
     get_dataset = pyqtSignal(dict)
-    send_data = pyqtSignal(list, int)
+    send_data = pyqtSignal(object, int)
 
     def __init__(self, sweep):
         """Initializes the runner.
@@ -169,6 +169,7 @@ class RunnerThread(QThread):
                 # Check if we've hit the end- update_values will return None
                 if data is None:
                     continue
+
 
             # Smart sleep, by checking if the whole process has taken longer than
             # our sleep time
