@@ -176,3 +176,11 @@ class GateLeakage(Sweep1D, QObject):
             self.direction = 0
         else:
             self.direction = 1
+
+    def estimate_time(self, verbose=True):
+        """Gate leakage sweeps are event-driven; report no deterministic estimate."""
+        if verbose:
+            self.print_main.emit(
+                f"No estimated time remaining for {repr(self)} (non-deterministic sweep)."
+            )
+        return 0.0

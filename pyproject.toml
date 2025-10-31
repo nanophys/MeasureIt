@@ -9,8 +9,8 @@ where = ["src"]
 "measureit.Drivers.data" = ["*.txt"]
 
 [project]
-name = "measureit"
-version = "1.0.0"
+name = "qmeasure"
+version = "1.0.1"
 description = "Measurement code for condensed matter groups at UW based on QCoDeS."
 readme = {file = "README.md", content-type = "text/markdown"}
 license = "GPL-3.0-or-later"
@@ -52,6 +52,9 @@ dependencies = [
     "multipyvu>=1.2.0; platform_system=='Windows'",
     # Path helpers
     "platformdirs>=3.0.0",
+
+    # Jupyter support (required for typical workflow)
+    "ipykernel>=6.29.0,!=7.*",  # Exclude 7.x due to event-loop bug with Qt
 ]
 
 [project.optional-dependencies]

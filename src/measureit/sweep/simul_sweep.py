@@ -6,7 +6,7 @@ from functools import partial
 from PyQt5.QtCore import QObject, pyqtSlot
 
 from ..tools.util import _autorange_srs, safe_get, safe_set
-from .base_sweep import BaseSweep, ProgressState
+from .base_sweep import BaseSweep
 
 
 class SimulSweep(BaseSweep, QObject):
@@ -133,8 +133,9 @@ class SimulSweep(BaseSweep, QObject):
 
         self.follow_param([p for p in self.simul_params if p is not self.set_param])
         self.persist_data = []
-        self.progressState = ProgressState.zero()
-        self._progress_total_time = None
+        if not self.continuous:
+            self.progressState = 0
+            self.update_progress()
 
     def __str__(self):
         p_desc = ""
@@ -164,22 +165,6 @@ class SimulSweep(BaseSweep, QObject):
         if self.is_running is True:
             self.print_main.emit("Sweep is already running.")
             return
-
-        if self.progressState is not None:
-            estimate = self.estimate_time(verbose=False)
-            if (
-                isinstance(estimate, (int, float))
-                and math.isfinite(estimate)
-                and estimate > 0
-                and not self.continuous
-            ):
-                self._progress_total_time = estimate
-            else:
-                self._progress_total_time = None
-            self._update_progress_state(
-                time_elapsed=0.0,
-                total_time=self._progress_total_time,
-            )
 
         if ramp_to_start is True:
             self.print_main.emit("Ramping to our starting setpoints.")
@@ -345,8 +330,11 @@ class SimulSweep(BaseSweep, QObject):
             self.done_ramping(vals_dict, start_on_finish=start_on_finish, pd=persist)
             return
 
+        # Store ramp steps for validation in done_ramping
+        self.ramp_steps = {}
         for p, v in ramp_params_dict.items():
             v["step"] = (v["stop"] - v["start"]) / n_steps
+            self.ramp_steps[p] = v["step"]
 
         self.ramp_sweep = SimulSweep(
             ramp_params_dict,
@@ -361,7 +349,10 @@ class SimulSweep(BaseSweep, QObject):
                 pd=persist,
             ),
         )
-        self.ramp_sweep.follow_param(self._params)
+        # Only follow parameters that are not being ramped to avoid circular dependencies
+        follow_params = [p for p in self._params if p not in ramp_params_dict.keys()]
+        if follow_params:
+            self.ramp_sweep.follow_param(follow_params)
         self.is_ramping = True
         self.is_running = False
         self.ramp_sweep.start(ramp_to_start=False)
@@ -373,7 +364,9 @@ class SimulSweep(BaseSweep, QObject):
 
         # Check if we are at the value we expect, otherwise something went wrong with the ramp
         for p, v in vals_dict.items():
-            p_step = self.set_params_dict[p]["step"]
+            # Use ramp step if available (for parameters that were ramped),
+            # otherwise use sweep step (for parameters that were already at target)
+            p_step = getattr(self, 'ramp_steps', {}).get(p, self.set_params_dict[p]["step"])
             if abs(safe_get(p) - v) - abs(p_step / 2) > abs(p_step) * self.err:
                 self.print_main.emit(
                     f"Ramping failed (possible that the direction was changed while ramping). "
@@ -395,6 +388,10 @@ class SimulSweep(BaseSweep, QObject):
         if self.ramp_sweep is not None:
             self.ramp_sweep.kill()
             self.ramp_sweep = None
+
+        # Clear ramp steps after successful ramp
+        if hasattr(self, 'ramp_steps'):
+            del self.ramp_steps
 
         if start_on_finish is True:
             self.start(ramp_to_start=False, persist_data=pd)
@@ -434,50 +431,35 @@ class SimulSweep(BaseSweep, QObject):
         -------
         Time estimate for the sweep, in seconds
         """
-        t_est = self.n_steps * self.inter_delay
+        effective_back_multiplier = (
+            self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
+        )
 
-        hours = int(t_est / 3600)
-        minutes = int((t_est % 3600) / 60)
-        seconds = t_est % 60
-        if verbose is True:
+        if self.t0 != 0 and not self.is_running:
+            remaining = 0
+        else:
+            cfg = list(self.set_params_dict.values())[0]
+            step_mag = abs(cfg["step"])
+            current = cfg["setpoint"]
+            target = cfg["stop"]
+            distance = abs(target - current)
+            steps = max(distance / step_mag, 0)
+            remaining = steps * self.inter_delay
+
+            if (
+                self.bidirectional
+                and effective_back_multiplier > 0
+                and (self.direction == 0 or (self.t0 == 0 and not self.is_running))
+            ):
+                remaining += self.n_steps / effective_back_multiplier * self.inter_delay
+
+        if verbose:
+            hours, minutes, seconds = self._split_hms(remaining)
             self.print_main.emit(
-                f"Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s"
+                f"Estimated time remaining for {repr(self)}: {hours}h:{minutes:02d}m:{seconds:02d}s"
             )
-        return t_est
 
-    def update_progress(self, *, finalized: bool = False) -> None:
-        if self.progressState is None:
-            return
-
-        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
-        total = (
-            self._progress_total_time
-            if isinstance(self._progress_total_time, (int, float))
-            and math.isfinite(self._progress_total_time)
-            and self._progress_total_time > 0
-            else None
-        )
-        remaining = None
-        if total is not None:
-            remaining = max(total - elapsed, 0.0)
-
-        is_complete = finalized or (
-            total is not None
-            and remaining is not None
-            and remaining <= 0.0
-            and not self.is_running
-        )
-        if is_complete and remaining is None:
-            remaining = 0.0
-
-        elapsed_for_state = total if is_complete and total is not None else elapsed
-
-        self._update_progress_state(
-            time_elapsed=elapsed_for_state,
-            total_time=total,
-            time_remaining=remaining,
-            finalized=is_complete,
-        )
+        return remaining
 
     # --- JSON export/import hooks ---
     def _export_json_specific(self, json_dict: dict) -> dict:

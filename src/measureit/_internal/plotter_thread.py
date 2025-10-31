@@ -198,7 +198,7 @@ class Plotter(QObject):  # moved to _internal
 
             main_layout.addLayout(progress_info)
             main_layout.addWidget(self.progress_bar)
-            self._update_progress_widgets()
+            self.update_progress_widgets()
 
         # Create PyQtGraph layout widget
         self.layout_widget = pg.GraphicsLayoutWidget()
@@ -322,6 +322,8 @@ class Plotter(QObject):  # moved to _internal
         # Process all queued data at once for better performance
         while len(self.data_queue) > 0:
             temp = self.data_queue.popleft()
+            if temp[0] is None:
+                return
             data = deque(temp[0])
             direction = temp[1]
 
@@ -377,7 +379,7 @@ class Plotter(QObject):  # moved to _internal
 
         # Now update all plots at once (much more efficient)
         self._update_plot_displays()
-        self._update_progress_widgets()
+        self.update_progress_widgets()
 
     def _update_plot_displays(self):
         """Efficiently updates all plot displays using stored data arrays.
@@ -410,11 +412,11 @@ class Plotter(QObject):  # moved to _internal
                     y_data = np.array(backward_data["y"], dtype=np.float64)
                     backward_item.setData(x_data, y_data)
 
-    def _update_progress_widgets(self):
+    def update_progress_widgets(self):
         if self.progress_bar is None:
             return
 
-        state = getattr(self.sweep, "progressState", None)
+        state = self.sweep.progressState
         if state is None:
             return
 

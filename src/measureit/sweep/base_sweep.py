@@ -377,6 +377,9 @@ class BaseSweep(QObject):
             self.close_plots()
             self.plotter = None
 
+        # Reset measurement object to ensure fresh measurement for next run
+        self.meas = None
+
     def check_running(self):
         """Returns the status of the sweep."""
         return self.is_running
@@ -455,63 +458,37 @@ class BaseSweep(QObject):
         """Returns the dataset object which contains the collected data."""
         return self.dataset
 
-    def _update_progress_state(
-        self,
-        *,
-        time_elapsed: float,
-        total_time: Optional[float] = None,
-        finalized: bool = False,
-        progress: Optional[float] = None,
-        time_remaining: Optional[float] = None,
-    ) -> None:
-        """Update the cached progress state, clamping values to sensible bounds."""
-        if self.progressState is None:
+    @staticmethod
+    def _split_hms(seconds: float) -> tuple[int, int, int]:
+        """Convert seconds into hours, minutes, seconds (integer components)."""
+        seconds = max(seconds, 0.0)
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(round(seconds % 60))
+        if secs == 60:
+            secs = 0
+            minutes += 1
+        if minutes == 60:
+            minutes = 0
+            hours += 1
+        return hours, minutes, secs
+
+    def update_progress(self) -> None:
+        """By default, updates progress using elapsed time and estimated time remaining. Can be overridden."""
+        if ProgressState is None:
             return
-
-        elapsed = max(time_elapsed, 0.0)
-
-        if time_remaining is not None:
-            remaining = max(time_remaining, 0.0)
-        elif total_time is not None and total_time > 0:
-            remaining = max(total_time - elapsed, 0.0)
-        elif finalized:
-            remaining = 0.0
+        remaining = self.estimate_time(verbose=False)
+        if not self.is_running and self.t0 == 0:
+            self.progressState = ProgressState(
+                time_elapsed=0, time_remaining=remaining, progress=0
+            )
         else:
-            remaining = None
-
-        if finalized:
-            p_val = 1.0
-        elif progress is not None:
-            p_val = max(0.0, min(1.0, progress))
-        else:
-            denom = elapsed + (remaining if remaining is not None else 0.0)
-            if remaining is None or denom <= 0.0:
-                p_val = max(0.0, min(1.0, self.progressState.progress))
-            else:
-                p_val = max(0.0, min(1.0, elapsed / denom))
-
-        self.progressState = ProgressState(
-            time_elapsed=elapsed,
-            time_remaining=remaining,
-            progress=p_val,
-        )
-
-    def update_progress(self, *, finalized: bool = False) -> None:
-        """Update progress using basic elapsed timing.
-
-        Subclasses override to provide richer estimates. The default implementation
-        keeps elapsed time and marks completion when requested.
-        """
-        if self.progressState is None:
-            return
-
-        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
-        remaining = 0.0 if finalized else None
-        self._update_progress_state(
-            time_elapsed=elapsed,
-            time_remaining=remaining,
-            finalized=finalized,
-        )
+            elapsed = max(time.monotonic() - self.t0, 0)
+            self.progressState = ProgressState(
+                time_elapsed=elapsed,
+                time_remaining=remaining,
+                progress=0 if elapsed == 0 else elapsed / (elapsed + remaining),
+            )
 
     @pyqtSlot(dict)
     def receive_dataset(self, ds_dict):
@@ -638,6 +615,14 @@ class BaseSweep(QObject):
         **kwargs:
             Arbitrary keyword arguments to be passed to the callback function
         """
+        # Disconnect any existing complete_func to prevent duplicate connections
+        if hasattr(self, 'complete_func') and self.complete_func is not None:
+            try:
+                self.completed.disconnect(self.complete_func)
+            except (TypeError, RuntimeError):
+                # No connection existed or already disconnected
+                pass
+
         self.complete_func = partial(func, *args, **kwargs)
         self.completed.connect(self.complete_func)
 

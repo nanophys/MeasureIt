@@ -158,23 +158,17 @@ class RunnerThread(QThread):
                 except ParameterException:
                     self.sweep.stop()
                     continue
-
-                finalized = data is None and not self.sweep.is_running
-                if getattr(self.sweep, "progressState", None) is not None:
-                    try:
-                        self.sweep.update_progress(finalized=finalized)
-                    except Exception:
-                        pass
-
-                # Check if we've hit the end- update_values will return None
-                if data is None:
-                    continue
+                self.sweep.update_progress()
 
                 # Send it to the plotter if we are going
                 # Note: we check again if running, because we won't know if we are
                 # done until we try to step the parameter once more
                 if self.plotter is not None and self.sweep.plot_data is True:
                     self.send_data.emit(data, self.sweep.direction)
+
+                # Check if we've hit the end- update_values will return None
+                if data is None:
+                    continue
 
             # Smart sleep, by checking if the whole process has taken longer than
             # our sleep time

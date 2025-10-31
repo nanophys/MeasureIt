@@ -6,7 +6,7 @@ from functools import partial
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from ..visualization.heatmap_thread import Heatmap
-from .base_sweep import BaseSweep, ProgressState
+from .base_sweep import BaseSweep
 from .sweep1d import Sweep1D
 
 
@@ -198,9 +198,12 @@ class Sweep2D(BaseSweep, QObject):
         self.in_sweep.follow_param(self.set_param)
         # Our update_values() function iterates the outer sweep, so when the inner sweep
         # is done, call that function automatically
-        self.in_sweep.set_complete_func(self.update_values)
-        self.progressState = ProgressState.zero()
-        self._progress_total_time = None
+        self.in_sweep.set_complete_func(lambda: self.update_values())
+
+        self.outer_delay = outer_delay
+        self.inner_time = self.in_sweep.estimate_time(verbose=False)
+        self.progressState = 0
+        self.update_progress()
         # Bubble dataset info through the outer sweep signal for convenience
         try:
             self.in_sweep.dataset_signal.connect(self.dataset_signal)
@@ -210,8 +213,6 @@ class Sweep2D(BaseSweep, QObject):
                 self.in_sweep.dataset_signal.connect(self.dataset_signal.emit)
             except Exception:
                 pass
-
-        self.outer_delay = outer_delay
 
         # Flags for ramping
         self.inner_ramp = False
@@ -315,14 +316,6 @@ class Sweep2D(BaseSweep, QObject):
 
         if self.meas is None:
             self._create_measurement()
-
-        if self.progressState is not None:
-            estimate = self.estimate_time(verbose=False)
-            self._progress_total_time = estimate if estimate > 0 else None
-            self._update_progress_state(
-                time_elapsed=0.0,
-                total_time=self._progress_total_time,
-            )
 
         if ramp_to_start:
             self.ramp_to(self.out_setpoint, start_on_finish=True)
@@ -446,6 +439,7 @@ class Sweep2D(BaseSweep, QObject):
         The outer parameter is iterated and the inner sweep is restarted. If the stop
         condition is reached, the completed signal is emitted and the sweeps are stopped.
         """
+        self.update_progress()
         # If this function was called from a ramp down to 0, a special case of sweeping, deal with that
         # independently
         if self.in_sweep.is_ramping:
@@ -458,13 +452,8 @@ class Sweep2D(BaseSweep, QObject):
                 self.is_running = False
                 self.inner_sweep.is_running = False
                 self.print_main.emit("Done ramping both parameters to zero")
-            if getattr(self, "progressState", None) is not None:
-                self.update_progress()
             # Stop the function from running any further, as we don't want to check anything else
             return
-
-        if getattr(self, "progressState", None) is not None:
-            self.update_progress()
 
         # Update heatmap rows for all allowed/selected parameters (only if plotting is enabled)
         last_plot_data = None
@@ -517,38 +506,6 @@ class Sweep2D(BaseSweep, QObject):
                 f"({self.set_param.unit})"
             )
             self.completed.emit()
-
-    def update_progress(self, *, finalized: bool = False) -> None:
-        if self.progressState is None:
-            return
-
-        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
-        total = (
-            self._progress_total_time
-            if self._progress_total_time not in (None, 0)
-            else None
-        )
-        remaining = None
-        if total is not None:
-            remaining = max(total - elapsed, 0.0)
-
-        is_complete = finalized or (
-            total is not None
-            and remaining is not None
-            and remaining <= 0.0
-            and not self.is_running
-        )
-        if is_complete and remaining is None:
-            remaining = 0.0
-
-        elapsed_for_state = total if is_complete and total is not None else elapsed
-
-        self._update_progress_state(
-            time_elapsed=elapsed_for_state,
-            total_time=total,
-            time_remaining=remaining,
-            finalized=is_complete,
-        )
 
     def get_param_setpoint(self):
         """Obtains the current value of the setpoint."""
@@ -703,20 +660,21 @@ class Sweep2D(BaseSweep, QObject):
         -------
         Time estimate for the sweep, in seconds
         """
-        in_time = self.in_sweep.estimate_time(verbose=False)
-        n_lines = abs((self.out_start - self.out_stop) / self.out_step) + 1
-        out_time = self.outer_delay * self.out_step
+        if not self.is_running and self.t0 != 0:
+            remaining = 0
+        elif not self.out_step:
+            remaining = self.inner_time
+        else:
+            step_mag = abs(self.out_step)
+            steps = abs(self.out_stop - self.out_setpoint) / step_mag
+            remaining = max(steps * self.outer_delay + (steps + 1) * self.inner_time, 0)
 
-        t_est = in_time * n_lines + out_time
-
-        hours = int(t_est / 3600)
-        minutes = int((t_est % 3600) / 60)
-        seconds = t_est % 60
-        if verbose is True:
+        if verbose:
+            hours, minutes, seconds = self._split_hms(remaining)
             self.print_main.emit(
-                f"Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s"
+                f"Estimated time remaining for {repr(self)}: {hours}h:{minutes:02d}m:{seconds:02d}s"
             )
-        return t_est
+        return remaining
 
     # --- JSON export/import hooks ---
     def _export_json_specific(self, json_dict: dict) -> dict:

@@ -5,7 +5,7 @@ import time
 from PyQt5.QtCore import QObject, pyqtSlot
 
 from ..tools.util import safe_get, safe_set
-from .base_sweep import BaseSweep, ProgressState
+from .base_sweep import BaseSweep
 
 try:
     from qcodes.instrument_drivers.american_magnetics import AMIModel430 as AMI430
@@ -163,8 +163,9 @@ class Sweep1D(BaseSweep, QObject):
         self.err = err
 
         self.magnet_initialized = False
-        self.progressState = ProgressState.zero()
-        self._progress_total_time = None
+        if not self.continuous:
+            self.progressState = 0
+            self.update_progress()
 
     def __str__(self):
         return f"1D Sweep of {self.set_param.label} from {self.begin} to {self.end}, with step size {self.step}."
@@ -193,14 +194,6 @@ class Sweep1D(BaseSweep, QObject):
             self.print_main.emit("Sweep is already running.")
             return
 
-        if self.progressState is not None:
-            estimate = self.estimate_time(verbose=False)
-            self._progress_total_time = estimate if estimate > 0 else None
-            self._update_progress_state(
-                time_elapsed=0.0,
-                total_time=self._progress_total_time,
-            )
-
         if (
             ramp_to_start is True
             and not isinstance(self.instrument, OxfordInstruments_IPS120)
@@ -221,38 +214,6 @@ class Sweep1D(BaseSweep, QObject):
                 f"Sweeping {self.set_param.label} to {self.end} ({self.set_param.unit})"
             )
             BaseSweep.start(self, persist_data=persist_data)
-
-    def update_progress(self, *, finalized: bool = False) -> None:
-        if self.progressState is None:
-            return
-
-        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
-        total = (
-            self._progress_total_time
-            if self._progress_total_time not in (None, 0)
-            else None
-        )
-        remaining = None
-        if total is not None:
-            remaining = max(total - elapsed, 0.0)
-
-        is_complete = finalized or (
-            total is not None
-            and remaining is not None
-            and remaining <= 0.0
-            and not self.is_running
-        )
-        if is_complete and remaining is None:
-            remaining = 0.0
-
-        elapsed_for_state = total if is_complete and total is not None else elapsed
-
-        self._update_progress_state(
-            time_elapsed=elapsed_for_state,
-            total_time=total,
-            time_remaining=remaining,
-            finalized=is_complete,
-        )
 
     def stop(self):
         """Stops running any currently active sweeps."""
@@ -591,45 +552,71 @@ class Sweep1D(BaseSweep, QObject):
         self.runner = None
 
     def estimate_time(self, verbose=True):
-        """Returns an estimate of the amount of time the sweep will take to complete.
-
-        Parameters
-        ----------
-        verbose:
-            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
-
-        Returns:
-        -------
-        Time estimate for the sweep, in seconds
-        """
-        t_est = 0
-
-        if isinstance(self.instrument, AMI430):
-            rate = safe_get(self.instrument.ramp_rate)
-            if safe_get(self.instrument.ramp_rate_units) == 0:
-                t_est = abs((self.end - self.begin) / rate)
-            else:
-                t_est = abs((self.end - self.begin) * 60 / rate)
-        elif isinstance(self.instrument, M4G):
-            t_est += 0
+        """Estimate remaining time from the current sweep state."""
+        if not self.is_running and self.t0 != 0:
+            remaining = 0
         else:
-            t_est = abs((self.begin - self.end) / self.step) * self.inter_delay
+            if isinstance(self.instrument, AMI430):
+                rate = safe_get(self.instrument.ramp_rate)
+                if not rate:
+                    return 0.0
+                units = safe_get(self.instrument.ramp_rate_units)
+                current = self.setpoint
+                target = self.end
+                distance = abs(target - current)
+                if units == 0:
+                    remaining = distance / rate
+                else:
+                    remaining = distance * 60 / rate
 
-            if self.continuous is True:
-                self.print_main.emit(f"No estimated time for {repr(self)} to run.")
-                return 0
-            elif self.bidirectional is True:
-                t_est *= 1 + 1.0 / self.back_multiplier
+                if self.bidirectional and self.direction == 0:
+                    distance_back = abs(self.end - self.begin)
+                    if units == 0:
+                        remaining += distance_back / rate
+                    else:
+                        remaining += distance_back * 60 / rate
+                return remaining
 
-        hours = int(t_est / 3600)
-        minutes = int((t_est % 3600) / 60)
-        seconds = t_est % 60
-        if verbose is True:
+        if isinstance(self.instrument, M4G):
+            try:
+                rate = abs(float(self.instrument.range0_rate()))
+            except Exception:
+                return 0.0
+            if rate <= 0:
+                return 0.0
+            current_value = self.setpoint
+            distance = abs(self.end - current_value)
+            remaining = distance / rate
+            if self.bidirectional and self.direction == 0:
+                remaining += abs(self.end - self.begin) / rate
+            return remaining
+
+        current_value = self.setpoint
+
+        step_size = abs(self.step)
+        if step_size == 0:
+            return 0.0
+
+        distance = abs(self.end - current_value)
+        remaining = (distance / step_size) * self.inter_delay
+
+        if self.bidirectional and self.direction == 0:
+            effective_back_multiplier = (
+                self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
+            )
+            if effective_back_multiplier > 0:
+                distance_back = abs(self.end - self.begin)
+                remaining += (
+                    distance_back / (step_size * effective_back_multiplier)
+                ) * self.inter_delay
+
+        if verbose:
+            hours, minutes, seconds = self._split_hms(remaining)
             self.print_main.emit(
-                f"Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s"
+                f"Estimated time remaining for {repr(self)}: {hours}h:{minutes:02d}m:{seconds:02d}s"
             )
 
-        return t_est
+        return remaining
 
     # --- JSON export/import hooks ---
     def _export_json_specific(self, json_dict: dict) -> dict:

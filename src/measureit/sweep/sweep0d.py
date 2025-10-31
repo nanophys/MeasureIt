@@ -1,12 +1,11 @@
 # sweep0d.py
 
-import math
 import time
 
 from PyQt5.QtCore import QObject
 
 from ..tools.util import _autorange_srs
-from .base_sweep import BaseSweep, ProgressState
+from .base_sweep import BaseSweep
 
 
 class Sweep0D(BaseSweep, QObject):
@@ -56,14 +55,8 @@ class Sweep0D(BaseSweep, QObject):
 
         # Amount of time to run
         self.max_time = max_time
-        self.progressState = ProgressState.zero()
-        self._progress_total_time = (
-            max_time
-            if isinstance(max_time, (int, float))
-            and math.isfinite(max_time)
-            and max_time > 0
-            else None
-        )
+        self.progressState = 0
+        self.update_progress()
 
     def __str__(self):
         if self.max_time is None:
@@ -147,46 +140,18 @@ class Sweep0D(BaseSweep, QObject):
         -------
         Time estimate for the sweep, in seconds
         """
-        if self.max_time is not None:
-            hours = int(self.max_time / 3600)
-            minutes = int((self.max_time % 3600) / 60)
-            seconds = self.max_time % 60
-            if verbose is True:
-                self.print_main.emit(
-                    f"Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s"
-                )
+        if not self.is_running:
+            return self.max_time if self.t0 == 0 else 0
+        elapsed = time.monotonic() - self.t0
+        remaining = max(float(self.max_time) - elapsed, 0.0)
 
-            return self.max_time
-        else:
-            if verbose is True:
-                self.print_main.emit(f"No estimated time for {repr(self)} to run.")
-            return 0
+        if verbose:
+            hours, minutes, seconds = self._split_hms(remaining)
+            self.print_main.emit(
+                f"Estimated time remaining for {repr(self)}: {hours}h:{minutes:02d}m:{seconds:02d}s"
+            )
 
-    def update_progress(self, *, finalized: bool = False) -> None:
-        if self.progressState is None:
-            return
-
-        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
-        total = self._progress_total_time
-        remaining = None
-
-        if total is not None:
-            remaining = max(total - elapsed, 0.0)
-
-        is_complete = finalized or (
-            total is not None and remaining is not None and remaining <= 0.0
-        )
-        if is_complete and remaining is None:
-            remaining = 0.0
-
-        elapsed_for_state = total if is_complete and total is not None else elapsed
-
-        self._update_progress_state(
-            time_elapsed=elapsed_for_state,
-            total_time=total,
-            time_remaining=remaining,
-            finalized=is_complete,
-        )
+        return remaining
 
     # --- JSON export/import hooks ---
     def _export_json_specific(self, json_dict: dict) -> dict:
