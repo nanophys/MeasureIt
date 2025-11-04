@@ -344,6 +344,15 @@ class BaseSweep(QObject):
         self.progressState.state = SweepState.PAUSED
         self.send_updates()
 
+    def stop(self):
+        """Stop/pause the sweep. Alias for pause() for backward compatibility.
+
+        This method pauses the sweep execution, allowing it to be resumed later
+        with start() or resume(). This matches the behavior from older versions
+        of MeasureIt where stop() was used to pause sweeps.
+        """
+        self.pause()
+
     def kill(self):
         """Ends the threads spawned by the sweep and closes any active plots."""
         # Stop any data-taking

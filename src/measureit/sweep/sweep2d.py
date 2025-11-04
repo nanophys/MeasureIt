@@ -353,6 +353,13 @@ class Sweep2D(BaseSweep, QObject):
         BaseSweep.pause(self)
         self.in_sweep.pause()
 
+    def stop(self):
+        """Stop/pause the sweep. Alias for pause() for backward compatibility.
+
+        Stops both the inner and outer sweep.
+        """
+        self.pause()
+
     def resume(self):
         """Resumes the inner and outer sweeps."""
         if self.progressState.state != SweepState.PAUSED:

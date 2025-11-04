@@ -405,6 +405,14 @@ class SweepQueue(QObject):
         else:
             print("No sweep currently running, nothing to pause")
 
+    def stop(self):
+        """Stop/pause the current sweep. Alias for pause() for backward compatibility.
+
+        This method pauses the currently running sweep in the queue, allowing it
+        to be resumed later. This matches the behavior from older versions of MeasureIt.
+        """
+        self.pause()
+
     def resume(self):
         """Resumes any paused sweeps."""
         if self.current_sweep is not None:
