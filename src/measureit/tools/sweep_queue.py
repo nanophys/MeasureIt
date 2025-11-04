@@ -9,7 +9,7 @@ from functools import partial
 from pathlib import Path
 
 import qcodes as qc
-from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 from qcodes import Station, initialise_or_create_database_at
 
 from ..config import get_path
@@ -94,6 +94,8 @@ class SweepQueue(QObject):
         self.rts = True
         # Flag to prevent concurrent begin_next() calls
         self._processing = False
+        self._pending_begin_next = False
+        self._retry_scheduled = False
         # Track previous action to detect DatabaseEntry->Sweep transitions
         self.previous_action = None
 
@@ -452,12 +454,21 @@ class SweepQueue(QObject):
         Connected to completed pyqtSignals in the sweeps.
         Refactored to eliminate recursion and race conditions.
         """
+        # If a deferred retry is landing back here, clear the scheduled flag
+        if self._retry_scheduled and not self._processing:
+            self._retry_scheduled = False
+
         # Prevent concurrent executions of begin_next()
         if self._processing:
             if self.debug:
-                print("[DEBUG] begin_next() called but already processing, returning")
+                print("[DEBUG] begin_next() called but already processing, scheduling retry")
+            self._pending_begin_next = True
+            if not self._retry_scheduled:
+                self._retry_scheduled = True
+                QTimer.singleShot(0, self.begin_next)
             return
         self._processing = True
+        self._pending_begin_next = False
 
         if self.debug:
             print(f"[DEBUG] begin_next() called, queue length: {len(self.queue)}")
@@ -547,6 +558,12 @@ class SweepQueue(QObject):
 
         finally:
             self._processing = False
+            # If additional completion requests arrived during processing but
+            # no retry is queued (e.g., caller invoked begin_next manually),
+            # schedule one now so the queue keeps draining.
+            if self._pending_begin_next and not self._retry_scheduled:
+                self._retry_scheduled = True
+                QTimer.singleShot(0, self.begin_next)
 
 
     def estimate_time(self, verbose=False):
