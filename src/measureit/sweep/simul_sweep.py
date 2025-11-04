@@ -60,8 +60,6 @@ class SimulSweep(BaseSweep, QObject):
         Iterates each parameter based on step size.
     update_values()
         Returns updated parameter-value pairs, default parameter is time.
-    ramp_to_zero(params=None)
-        Ramps value of all parameters to zero.
     ramp_to(vals_dict, start_on_finish=False, persist=None, multiplier=1)
         Begins ramping parameters to assigned starting values.
     done_ramping(self, vals_dict, start_on_finish=False, pd=None)
@@ -275,14 +273,6 @@ class SimulSweep(BaseSweep, QObject):
         # self.send_updates()
 
         return data
-
-    def ramp_to_zero(self, params=None):
-        if params is None:
-            params = self.simul_params
-        vals_dict = {}
-        for p in params:
-            vals_dict[p] = 0
-        self.ramp_to(vals_dict)
 
     def ramp_to(self, vals_dict, start_on_finish=False, persist=None, multiplier=1):
         # Ensure we aren't currently running

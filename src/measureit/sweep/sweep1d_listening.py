@@ -87,8 +87,6 @@ class Sweep1D_listening(BaseSweep, QObject):
         Flips the direction of the sweep, to do bidirectional sweeping.
     ramp_to(value, start_on_finish=False, persist=None, multiplier=1)
         Ramps the set_param to a given value, at a rate dictated by the multiplier.
-    ramp_to_zero()
-        Ramps the set_param to 0, at the same rate as already specified.
     done_ramping(self, value, start_on_finish=False, pd=None)
         Alerts the sweep that the ramp is finished.
     get_param_setpoint()
@@ -374,17 +372,6 @@ class Sweep1D_listening(BaseSweep, QObject):
         self.ramp_sweep.start(ramp_to_start=False)
 
         print(f"Ramping {self.set_param.label} to {value} . . . ")
-
-    def ramp_to_zero(self):
-        """Ramps the set_param to 0, at the same rate as already specified."""
-        self.end = 0
-        if self.setpoint - self.end > 0:
-            self.step = (-1) * abs(self.step)
-        else:
-            self.step = abs(self.step)
-
-        print(f"Ramping {self.set_param.label} to 0 . . . ")
-        self.start()
 
     @pyqtSlot()
     def done_ramping(self, value, start_on_finish=False, pd=None):

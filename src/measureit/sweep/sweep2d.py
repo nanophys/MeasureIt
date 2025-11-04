@@ -81,8 +81,6 @@ class Sweep2D(BaseSweep, QObject):
         Ends all threads and closes any active plots.
     ramp_to(value, start_on_finish=False, multiplier=1)
         Ramps the set_param to a given value, at a rate specified by multiplier.
-    ramp_to_zero()
-
     done_ramping(start_on_finish=False)
 
 
@@ -216,8 +214,6 @@ class Sweep2D(BaseSweep, QObject):
                 pass
 
         # Flags for ramping
-        self.inner_ramp = False
-        self.outer_ramp = False
         self.ramp_sweep = None
 
         # Set the function to call when the inner sweep finishes
@@ -309,7 +305,7 @@ class Sweep2D(BaseSweep, QObject):
         if self.progressState.state == SweepState.RUNNING:
             self.print_main.emit("Can't start the sweep, we're already running!")
             return
-        elif self.outer_ramp:
+        elif self.progressState.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Can't start the sweep, we're currently ramping the outer sweep parameter!"
             )
@@ -444,26 +440,6 @@ class Sweep2D(BaseSweep, QObject):
         The outer parameter is iterated and the inner sweep is restarted. If the stop
         condition is reached, the completed signal is emitted and the sweeps are stopped.
         """
-        self.update_progress()
-        # If this function was called from a ramp down to 0, a special case of sweeping, deal with that
-        # independently
-        if self.in_sweep.progressState.state == SweepState.RAMPING:
-            # We are no longer ramping to zero
-
-            self.inner_ramp = False
-            # Check if our outer ramp to zero is still going, and if not, then officially end
-            # our ramping to zero
-            if not self.outer_ramp:
-                if self.progressState.state != SweepState.KILLED:
-                    self.progressState.state = SweepState.READY
-                if hasattr(self, "inner_sweep"):
-                    inner = getattr(self, "inner_sweep")
-                    if hasattr(inner, "progressState"):
-                        inner.progressState.state = SweepState.READY
-                self.in_sweep.progressState.state = SweepState.READY
-                self.print_main.emit("Done ramping both parameters to zero")
-            # Stop the function from running any further, as we don't want to check anything else
-            return
 
         # Update heatmap rows for all allowed/selected parameters (only if plotting is enabled)
         last_plot_data = None
@@ -517,6 +493,7 @@ class Sweep2D(BaseSweep, QObject):
                 f"({self.set_param.unit})"
             )
             self.mark_done()
+        self.update_progress()
 
     def get_param_setpoint(self):
         """Obtains the current value of the setpoint."""
@@ -569,7 +546,7 @@ class Sweep2D(BaseSweep, QObject):
             The multiplier for the step size, to ramp quicker than the sweep speed.
         """
         # Ensure we aren't currently running
-        if self.outer_ramp:
+        if self.progressState.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Currently ramping. Finish current ramp before starting another."
             )
@@ -602,38 +579,10 @@ class Sweep2D(BaseSweep, QObject):
             if p is not self.set_param:
                 self.ramp_sweep.follow_param(p)
 
-        self.outer_ramp = True
         self.progressState.state = SweepState.RAMPING
         self.ramp_sweep.start(ramp_to_start=False)
 
         self.print_main.emit(f"Ramping {self.set_param.label} to {value} . . . ")
-
-    def ramp_to_zero(self):
-        """Ramps the set_param to 0, at the same rate as already specified."""
-        self.print_main.emit("Ramping both parameters to 0.")
-        # Ramp our inner sweep parameter to zero
-        self.inner_ramp = True
-        self.in_sweep.ramp_to(0)
-
-        # Check our step sign
-        if self.out_setpoint > 0:
-            self.out_step = (-1) * abs(self.out_step)
-        else:
-            self.out_step = abs(self.out_step)
-
-        # Create a new sweep to ramp our outer parameter to zero
-        zero_sweep = Sweep1D(
-            self.set_param,
-            self.set_param.get(),
-            0,
-            self.step / self.out_ministeps,
-            inter_delay=self.inter_delay,
-            complete_func=self.done_ramping,
-        )
-        zero_sweep.follow_param(self._params)
-        self.progressState.state = SweepState.RAMPING
-        self.outer_ramp = True
-        zero_sweep.start()
 
     def done_ramping(self, start_on_finish=False):
         """Alerts the sweep that the ramp is finished.
@@ -644,7 +593,7 @@ class Sweep2D(BaseSweep, QObject):
             Sweep will be called to start immediately after ramping when set to True.
         """
         # Our outer parameter has finished ramping
-        self.outer_ramp = False
+        self.progressState.state = SweepState.READY
         if self.ramp_sweep is not None:
             self.ramp_sweep.kill()
             self.ramp_sweep = None
