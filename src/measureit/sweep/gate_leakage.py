@@ -4,6 +4,7 @@ import numpy as np
 from PyQt5.QtCore import QObject
 
 from ..tools.util import _autorange_srs
+from .progress import SweepState
 from .sweep1d import Sweep1D
 
 
@@ -62,8 +63,7 @@ class GateLeakage(Sweep1D, QObject):
         QObject.__init__(self)
 
         self.follow_param(self.track_param)
-        # Disable generic progress tracking; leakage sweeps do not have predictable duration
-        self.progressState = None
+        self._completion_pending = False
 
     def step_param(self):
         """Runs Sweep1D in both directions by step size.
@@ -78,16 +78,15 @@ class GateLeakage(Sweep1D, QObject):
         A list containing the values of 'set_param' and 'track_param' for each
         setpoint until the sweep is stopped after 2 total flips.
         """
+        if self._completion_pending:
+            self._completion_pending = False
+            return None
+
         # Our ending condition is if we end up back at 0 after going forwards and backwards
         if self.flips >= 2 and abs(self.setpoint) <= abs(self.step / (3 / 2)):
             self.flips = 0
-            if self.save_data:
-                self.runner.datasaver.flush_data_to_database()
-            self.is_running = False
             print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
-            self.completed.emit()
-            if self.parent is None:
-                self.runner.kill_flag = True
+            self._completion_pending = True
             return [(self.set_param, -1)]
 
         if abs(self.end) != np.inf and abs(self.setpoint - self.end) <= abs(self.step):
@@ -137,7 +136,13 @@ class GateLeakage(Sweep1D, QObject):
         data = []
         data.append(("time", t))
 
-        data += self.step_param()
+        step_data = self.step_param()
+        if step_data is None:
+            if self.progressState.state != SweepState.KILLED:
+                self.mark_done()
+            return None
+
+        data += step_data
 
         persist_param = None
         if self.persist_data is not None:
@@ -152,8 +157,10 @@ class GateLeakage(Sweep1D, QObject):
                 v = p.get()
                 data.append((p, v))
 
-        if self.save_data and self.is_running:
+        if self.save_data and self.progressState.state == SweepState.RUNNING:
             self.runner.datasaver.add_result(*data)
+
+        self.send_updates()
 
         return data
 
@@ -176,3 +183,11 @@ class GateLeakage(Sweep1D, QObject):
             self.direction = 0
         else:
             self.direction = 1
+
+    def estimate_time(self, verbose=True):
+        """Gate leakage sweeps are event-driven; report no deterministic estimate."""
+        if verbose:
+            self.print_main.emit(
+                f"No estimated time remaining for {repr(self)} (non-deterministic sweep)."
+            )
+        return 0.0

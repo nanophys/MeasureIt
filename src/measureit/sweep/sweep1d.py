@@ -5,7 +5,8 @@ import time
 from PyQt5.QtCore import QObject, pyqtSlot
 
 from ..tools.util import safe_get, safe_set
-from .base_sweep import BaseSweep, ProgressState
+from .base_sweep import BaseSweep
+from .progress import SweepState
 
 try:
     from qcodes.instrument_drivers.american_magnetics import AMIModel430 as AMI430
@@ -68,8 +69,6 @@ class Sweep1D(BaseSweep, QObject):
         The first parameter value where a measurement is obtained after starting.
     direction:
         Either 0 or 1 to indicate the direction of the sweep.
-    is_ramping:
-        Flag to determine whether or not sweep is currently ramping to start.
     ramp_sweep:
         Defines the sweep used to set the parameter to its starting value.
     instrument:
@@ -79,8 +78,8 @@ class Sweep1D(BaseSweep, QObject):
     ---------
     start(persist_data=None, ramp_to_start=True, ramp_multiplier=1)
         Starts the sweep; runs from the BaseSweep start() function.
-    stop()
-        Stops running any currently active sweeps.
+    pause()
+        Pauses any currently active sweeps.
     kill()
         Ends the threads spawned by the sweep and closes any active plots.
     step_param()
@@ -157,14 +156,16 @@ class Sweep1D(BaseSweep, QObject):
         self.bidirectional = bidirectional
         self.continuous = continual
         self.direction = 0
-        self.is_ramping = False
         self.ramp_sweep = None
         self.instrument = self.set_param.instrument
         self.err = err
 
         self.magnet_initialized = False
-        self.progressState = ProgressState.zero()
-        self._progress_total_time = None
+        self._ami_completion_pending = False
+        self._m4g_completion_pending = False
+        if not self.continuous:
+            self.progressState.progress = 0.0
+            self.update_progress()
 
     def __str__(self):
         return f"1D Sweep of {self.set_param.label} from {self.begin} to {self.end}, with step size {self.step}."
@@ -184,22 +185,17 @@ class Sweep1D(BaseSweep, QObject):
         ramp_multiplier:
             Factor to control ramping speed compared to sweep speed.
         """
-        if self.is_ramping:
+        if self.progressState.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Still ramping. Wait until ramp is done to start the sweep."
             )
             return
-        if self.is_running:
+        if self.progressState.state == SweepState.RUNNING:
             self.print_main.emit("Sweep is already running.")
             return
 
-        if self.progressState is not None:
-            estimate = self.estimate_time(verbose=False)
-            self._progress_total_time = estimate if estimate > 0 else None
-            self._update_progress_state(
-                time_elapsed=0.0,
-                total_time=self._progress_total_time,
-            )
+        self._ami_completion_pending = False
+        self._m4g_completion_pending = False
 
         if (
             ramp_to_start is True
@@ -222,55 +218,23 @@ class Sweep1D(BaseSweep, QObject):
             )
             BaseSweep.start(self, persist_data=persist_data)
 
-    def update_progress(self, *, finalized: bool = False) -> None:
-        if self.progressState is None:
-            return
-
-        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
-        total = (
-            self._progress_total_time
-            if self._progress_total_time not in (None, 0)
-            else None
-        )
-        remaining = None
-        if total is not None:
-            remaining = max(total - elapsed, 0.0)
-
-        is_complete = finalized or (
-            total is not None
-            and remaining is not None
-            and remaining <= 0.0
-            and not self.is_running
-        )
-        if is_complete and remaining is None:
-            remaining = 0.0
-
-        elapsed_for_state = total if is_complete and total is not None else elapsed
-
-        self._update_progress_state(
-            time_elapsed=elapsed_for_state,
-            total_time=total,
-            time_remaining=remaining,
-            finalized=is_complete,
-        )
-
-    def stop(self):
-        """Stops running any currently active sweeps."""
-        if self.is_ramping and self.ramp_sweep is not None:
+    def pause(self):
+        """Pauses any currently active sweeps."""
+        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
             self.print_main.emit("Stopping the ramp.")
-            self.ramp_sweep.stop()
+            self.ramp_sweep.pause()
             self.ramp_sweep.kill()
 
-            while self.ramp_sweep.is_running:
+            while self.ramp_sweep.check_running():
                 time.sleep(0.2)
             self.done_ramping(self.ramp_sweep.setpoint)
             # self.setpoint=self.ramp_sweep.setpoint
             # self.ramp_sweep.plotter.clear()
             # self.ramp_sweep = None
-            # self.is_ramping=False
+            # self.progressState.state = SweepState.READY
             # self.print_main.emit(f"Stopped the ramp, the current setpoint  is {self.setpoint} {self.set_param.unit}")
 
-        BaseSweep.stop(self)
+        BaseSweep.pause(self)
 
         if isinstance(self.instrument, AMI430):
             self.instrument.pause()
@@ -283,8 +247,8 @@ class Sweep1D(BaseSweep, QObject):
 
     def kill(self):
         """Ends the threads spawned by the sweep and closes any active plots."""
-        if self.is_ramping and self.ramp_sweep is not None:
-            self.ramp_sweep.stop()
+        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
+            self.ramp_sweep.pause()
             self.ramp_sweep.kill()
 
         BaseSweep.kill(self)
@@ -324,12 +288,7 @@ class Sweep1D(BaseSweep, QObject):
                 f"Finished the sweep! {self.set_param.label} = {safe_get(self.set_param)} "
                 f"({self.set_param.unit})"
             )
-            if self.save_data:
-                self.runner.flush_flag = True
-            self.is_running = False
             self.flip_direction()
-            self.completed.emit()
-
             return None
 
     def step_AMI430(self):
@@ -342,6 +301,10 @@ class Sweep1D(BaseSweep, QObject):
         ---------
         The parameter-value pair that was measured.
         """
+        if self._ami_completion_pending:
+            self._ami_completion_pending = False
+            return None
+
         # Check if we have set the magnetic field yet
         if self.magnet_initialized is False:
             self.instrument.set_field(self.end, block=False)
@@ -359,17 +322,12 @@ class Sweep1D(BaseSweep, QObject):
         # Check our stop conditions- being at the end point
         if safe_get(self.instrument.ramping_state) == "holding":
             self.magnet_initialized = False
-            if self.save_data:
-                self.runner.flush_flag = True
-            self.is_running = False
             self.print_main.emit(
                 f"Done with the sweep, {self.set_param.label}={self.set_param.get()} "
                 f"({self.set_param.unit})"
             )
             self.flip_direction()
-            self.completed.emit()
-            if self.parent is None:
-                self.runner.kill_flag = True
+            self._ami_completion_pending = True
 
         # Return our data pair, just like any other sweep
         return [data_pair]
@@ -378,6 +336,10 @@ class Sweep1D(BaseSweep, QObject):
         """Function to deal with sweeps of Cryomagnetics M4G Magnet Supply. Instead of setting intermediate points, we set the endpoint at the
         beginning, then ask it for the current field while it is ramping.
         """
+        if self._m4g_completion_pending:
+            self._m4g_completion_pending = False
+            return None
+
         # Check if we have set the magnetic field yet
         if self.magnet_initialized is False:
             self.print_main.emit("Checking the remote connection to the magnet supply.")
@@ -422,11 +384,8 @@ class Sweep1D(BaseSweep, QObject):
                     self.flip_direction()
                     return self.step_M4G()
                 else:
-                    if self.parent is None:
-                        self.runner.kill_flag = True
                     self.magnet_initialized = False
-                    self.is_running = False
-                    self.completed.emit()
+                    self._m4g_completion_pending = True
 
         return [data_pair]
 
@@ -464,12 +423,12 @@ class Sweep1D(BaseSweep, QObject):
             Factor to alter the step size, used to ramp quicker than the sweep speed.
         """
         # Ensure we aren't currently running
-        if self.is_ramping:
+        if self.progressState.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Currently ramping. Finish current ramp before starting another."
             )
             return
-        if self.is_running:
+        if self.progressState.state == SweepState.RUNNING:
             self.print_main.emit("Already running. Stop the sweep before ramping.")
             return
 
@@ -494,8 +453,7 @@ class Sweep1D(BaseSweep, QObject):
         )
         self.ramp_sweep.follow_param(self._params)
 
-        self.is_running = False
-        self.is_ramping = True
+        self.progressState.state = SweepState.RAMPING
         self.ramp_sweep.start(ramp_to_start=False)
 
         self.print_main.emit(
@@ -526,8 +484,8 @@ class Sweep1D(BaseSweep, QObject):
         pd:
             Sets persistent data if running Sweep2D.
         """
-        self.is_ramping = False
-        self.is_running = False
+        if self.progressState.state != SweepState.KILLED:
+            self.progressState.state = SweepState.READY
         # Grab the beginning
         # value = self.ramp_sweep.begin
 
@@ -591,45 +549,71 @@ class Sweep1D(BaseSweep, QObject):
         self.runner = None
 
     def estimate_time(self, verbose=True):
-        """Returns an estimate of the amount of time the sweep will take to complete.
-
-        Parameters
-        ----------
-        verbose:
-            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
-
-        Returns:
-        -------
-        Time estimate for the sweep, in seconds
-        """
-        t_est = 0
-
-        if isinstance(self.instrument, AMI430):
-            rate = safe_get(self.instrument.ramp_rate)
-            if safe_get(self.instrument.ramp_rate_units) == 0:
-                t_est = abs((self.end - self.begin) / rate)
-            else:
-                t_est = abs((self.end - self.begin) * 60 / rate)
-        elif isinstance(self.instrument, M4G):
-            t_est += 0
+        """Estimate remaining time from the current sweep state."""
+        if self.progressState.state == SweepState.DONE:
+            remaining = 0
         else:
-            t_est = abs((self.begin - self.end) / self.step) * self.inter_delay
+            if isinstance(self.instrument, AMI430):
+                rate = safe_get(self.instrument.ramp_rate)
+                if not rate:
+                    return 0.0
+                units = safe_get(self.instrument.ramp_rate_units)
+                current = self.setpoint
+                target = self.end
+                distance = abs(target - current)
+                if units == 0:
+                    remaining = distance / rate
+                else:
+                    remaining = distance * 60 / rate
 
-            if self.continuous is True:
-                self.print_main.emit(f"No estimated time for {repr(self)} to run.")
-                return 0
-            elif self.bidirectional is True:
-                t_est *= 1 + 1.0 / self.back_multiplier
+                if self.bidirectional and self.direction == 0:
+                    distance_back = abs(self.end - self.begin)
+                    if units == 0:
+                        remaining += distance_back / rate
+                    else:
+                        remaining += distance_back * 60 / rate
+                return remaining
 
-        hours = int(t_est / 3600)
-        minutes = int((t_est % 3600) / 60)
-        seconds = t_est % 60
-        if verbose is True:
+            if isinstance(self.instrument, M4G):
+                try:
+                    rate = abs(float(self.instrument.range0_rate()))
+                except Exception:
+                    return 0.0
+                if rate <= 0:
+                    return 0.0
+                current_value = self.setpoint
+                distance = abs(self.end - current_value)
+                remaining = distance / rate
+                if self.bidirectional and self.direction == 0:
+                    remaining += abs(self.end - self.begin) / rate
+                return remaining
+
+            current_value = self.setpoint
+
+            step_size = abs(self.step)
+            if step_size == 0:
+                return 0.0
+
+            distance = abs(self.end - current_value)
+            remaining = (distance / step_size) * self.inter_delay
+
+            if self.bidirectional and self.direction == 0:
+                effective_back_multiplier = (
+                    self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
+                )
+                if effective_back_multiplier > 0:
+                    distance_back = abs(self.end - self.begin)
+                    remaining += (
+                        distance_back / (step_size * effective_back_multiplier)
+                    ) * self.inter_delay
+
+        if verbose:
+            hours, minutes, seconds = self._split_hms(remaining)
             self.print_main.emit(
-                f"Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s"
+                f"Estimated time remaining for {repr(self)}: {hours}h:{minutes:02d}m:{seconds:02d}s"
             )
 
-        return t_est
+        return remaining
 
     # --- JSON export/import hooks ---
     def _export_json_specific(self, json_dict: dict) -> dict:

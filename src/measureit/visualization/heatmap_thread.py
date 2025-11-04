@@ -136,9 +136,9 @@ class Heatmap(QObject):
         try:
             key = event.key()
             if key == pg.QtCore.Qt.Key_Escape:
-                # Stop the 2D sweep gracefully
+                # Pause the 2D sweep gracefully
                 try:
-                    self.sweep.stop()
+                    self.sweep.pause()
                 except Exception:
                     pass
             elif key == pg.QtCore.Qt.Key_Return or key == pg.QtCore.Qt.Key_Enter:
@@ -246,7 +246,8 @@ class Heatmap(QObject):
             )
             main_layout.addWidget(self.info_label)
 
-            if getattr(self.sweep, "progressState", None) is not None:
+            state = getattr(self.sweep, "progressState", None)
+            if state is not None and getattr(state, "progress", None) is not None:
                 progress_info = QHBoxLayout()
                 progress_info.setContentsMargins(0, 0, 0, 0)
                 progress_info.setSpacing(8)
@@ -416,7 +417,7 @@ class Heatmap(QObject):
             traceback.print_exc()
             self.figs_set = False
 
-    @pyqtSlot(dict)
+    @pyqtSlot(object)
     def add_data(self, data_dict):
         """Feeds the thread data dictionary to add to the heatmap.
 
@@ -427,7 +428,9 @@ class Heatmap(QObject):
             from the plotter thread.
         """
         try:
-            if data_dict is not None:
+            if data_dict is None:
+                self.data_to_add.append(None)
+            else:
                 # Accept legacy payloads (only 'forward'/'backward') or new ones with 'param_index' and 'out_value'
                 if "param_index" not in data_dict:
                     data_dict = dict(data_dict)  # shallow copy
@@ -525,10 +528,13 @@ class Heatmap(QObject):
         items_processed = 0
         while len(self.data_to_add) > 0 and items_processed < self.max_items_per_update:
             data_dict = self.data_to_add.popleft()
+            if data_dict is None:
+                break
             self.add_to_heatmap(data_dict)
             items_processed += 1
             self.needs_refresh = True
 
+        self._update_progress_widgets()
         # Update display with proper scaling while preserving view
         if self.image_item is not None and (self.needs_refresh or items_processed > 0):
             # Remember current view state
@@ -578,8 +584,6 @@ class Heatmap(QObject):
             view_box.setRange(xRange=view_range[0], yRange=view_range[1], padding=0)
 
             self.needs_refresh = False
-
-        self._update_progress_widgets()
 
     def _rebuild_param_box(self):
         """Populate the parameter selector with followed measurement parameters."""
@@ -790,8 +794,14 @@ class Heatmap(QObject):
         if state is None:
             return
 
-        progress_value = int(max(0.0, min(1.0, state.progress)) * 1000)
-        self.progress_bar.setValue(progress_value)
+        progress = getattr(state, "progress", None)
+        if progress is None:
+            self.progress_bar.setFormat("Progress: --")
+            self.progress_bar.setValue(0)
+        else:
+            self.progress_bar.setFormat("Progress: %p%")
+            progress_value = int(max(0.0, min(1.0, progress)) * 1000)
+            self.progress_bar.setValue(progress_value)
 
         def _format_seconds(value):
             if value is None:

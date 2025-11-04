@@ -6,6 +6,7 @@ from PyQt5.QtCore import QObject
 
 from ..tools.util import _autorange_srs, safe_get, safe_set
 from .base_sweep import BaseSweep
+from .progress import SweepState
 from .sweep0d import Sweep0D
 
 
@@ -36,6 +37,7 @@ class SweepIPS(Sweep0D, QObject):
         self.persistent_magnet = persistent_magnet
 
         self.initialized = False
+        self._completion_pending = False
         self.follow_param(self.magnet.field)
 
     def __str__(self):
@@ -58,6 +60,11 @@ class SweepIPS(Sweep0D, QObject):
             (<QCoDeS Parameter>, measurement value). The tuples are passed in order of
             time, set_param (if applicable), then all the followed parameters.
         """
+        if self._completion_pending:
+            self._completion_pending = False
+            self.mark_done()
+            return None
+
         if not self.initialized:
             self.print_main.emit("Checking the status of the magnet and switch heater.")
             self.magnet.leave_persistent_mode()
@@ -77,9 +84,6 @@ class SweepIPS(Sweep0D, QObject):
 
         # Check our stop conditions- being at the end point
         if self.magnet.mode2() == "At rest":
-            self.is_running = False
-            if self.save_data:
-                self.runner.datasaver.flush_data_to_database()
             self.print_main.emit(
                 f"Done with the sweep, B={self.magnet.field.get():.2f} (T), t={t:.2f} (s)."
             )
@@ -94,7 +98,7 @@ class SweepIPS(Sweep0D, QObject):
             if self.persistent_magnet is True:
                 self.magnet.set_persistent()
 
-            self.completed.emit()
+            self._completion_pending = True
 
         persist_param = None
         if self.persist_data is not None:
@@ -109,41 +113,15 @@ class SweepIPS(Sweep0D, QObject):
                 v = safe_get(p)
                 data.append((p, v))
 
-        if self.save_data and self.is_running:
+        if self.save_data and self.progressState.state == SweepState.RUNNING:
             self.runner.datasaver.add_result(*data)
 
         self.send_updates()
 
         return data
 
-    def stop(self):
-        """Stops running any currently active sweeps."""
-        BaseSweep.stop(self)
+    def pause(self):
+        """Pauses any currently active sweeps."""
+        BaseSweep.pause(self)
         safe_set(self.instrument.activity, 0)
         self.initialized = False
-
-    def estimate_time(self, verbose=True):
-        """Returns an estimate of the amount of time the sweep will take to complete.
-
-        Parameters
-        ----------
-        verbose:
-            Controls whether the function will print out the estimate in the form hh:mm:ss (default True)
-
-        Returns:
-        -------
-        Time estimate for the sweep, in seconds
-        """
-        rate = safe_get(self.magnet.sweeprate_field)
-        B_range = abs(safe_get(self.magnet.field) - self.setpoint)
-
-        t_est = B_range * 60 / rate
-
-        hours = int(t_est / 3600)
-        minutes = int((t_est % 3600) / 60)
-        seconds = t_est % 60
-        if verbose is True:
-            self.print_main.emit(
-                f"Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s"
-            )
-        return t_est

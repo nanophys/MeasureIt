@@ -5,6 +5,7 @@ import time
 
 from PyQt5.QtCore import QThread, pyqtSignal
 
+from ..sweep.progress import SweepState
 from ..tools.util import ParameterException
 
 
@@ -26,10 +27,6 @@ class RunnerThread(QThread):
         Context manager to easily write data to a dataset.
     db_set:
         Monitors whether or not a database has been assigned.
-    kill_flag:
-        Flag to immediately end the sweep.
-    flush_flag:
-        Flushes any remaining data to database if sweep is stopped.
     runner:
         Runs measurement through QCoDeS.
 
@@ -46,7 +43,7 @@ class RunnerThread(QThread):
     """
 
     get_dataset = pyqtSignal(dict)
-    send_data = pyqtSignal(list, int)
+    send_data = pyqtSignal(object, int)
 
     def __init__(self, sweep):
         """Initializes the runner.
@@ -64,10 +61,6 @@ class RunnerThread(QThread):
             Context manager to easily write data to a dataset.
         db_set:
             Monitors whether or not a database has been assigned.
-        kill_flag:
-            Flag to immediately end the sweep.
-        flush_flag:
-            Flushes any remaining data to database if sweep is stopped.
         runner:
             Runs measurement through QCoDeS.
         """
@@ -78,8 +71,6 @@ class RunnerThread(QThread):
         self.datasaver = None
         self.dataset = None
         self.db_set = False
-        self.kill_flag = False
-        self.flush_flag = False
         self.runner = None
 
     def __del__(self):
@@ -146,47 +137,40 @@ class RunnerThread(QThread):
             self.get_dataset.emit(ds_dict)
 
         # print(f"called runner from thread: {QThread.currentThreadId()}")
-        # Check if we are still running
-        while self.kill_flag is False:
+        while True:
             t = time.monotonic()
-            # print(f'kill flag = {str(self.kill_flag)}, is_running={self.sweep.is_running}')
+            state = getattr(self.sweep.progressState, "state", None)
 
-            if self.sweep.is_running is True:
-                # Get the new data
+            data = None
+            if state == SweepState.RUNNING:
                 try:
                     data = self.sweep.update_values()
                 except ParameterException:
-                    self.sweep.stop()
+                    self.sweep.pause()
                     continue
+                self.sweep.update_progress()
 
-                finalized = data is None and not self.sweep.is_running
-                if getattr(self.sweep, "progressState", None) is not None:
-                    try:
-                        self.sweep.update_progress(finalized=finalized)
-                    except Exception:
-                        pass
-
-                # Check if we've hit the end- update_values will return None
-                if data is None:
-                    continue
-
-                # Send it to the plotter if we are going
-                # Note: we check again if running, because we won't know if we are
-                # done until we try to step the parameter once more
-                if self.plotter is not None and self.sweep.plot_data is True:
+                if (
+                    self.plotter is not None
+                    and self.sweep.plot_data is True
+                ):
                     self.send_data.emit(data, self.sweep.direction)
 
-            # Smart sleep, by checking if the whole process has taken longer than
-            # our sleep time
+            # Smart sleep: compensate for time spent executing update
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
 
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
-            if self.flush_flag is True and self.sweep.save_data is True:
-                self.datasaver.flush_data_to_database()
-                self.flush_flag = False
-            # print('at end of kill flag loop')
+            # Refresh state after possible updates
+            state = getattr(self.sweep.progressState, "state", None)
+            if state in (SweepState.DONE, SweepState.KILLED):
+                if self.sweep.save_data is True and self.datasaver is not None:
+                    self.datasaver.flush_data_to_database()
+                if state == SweepState.KILLED:
+                    break
+                # Allow DONE sweeps to exit after flushing
+                break
 
         self.exit_datasaver()
 

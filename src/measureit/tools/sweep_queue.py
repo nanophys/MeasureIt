@@ -56,8 +56,8 @@ class SweepQueue(QObject):
         Moves a sweep to a new position in the queue.
     start(rts=True)
         Begins running the first sweep in the queue.
-    stop()
-        Stops/pauses any running sweeps.
+    kill()
+        Kills any running sweeps.
     resume()
         Resumes any paused sweeps.
     is_running()
@@ -398,12 +398,12 @@ class SweepQueue(QObject):
                 f"Stopping execution of the queue."
             )
 
-    def stop(self):
-        """Stops/pauses any running sweeps."""
+    def pause(self):
+        """Pauses any running sweeps."""
         if self.current_sweep is not None:
-            self.current_sweep.stop()
+            self.current_sweep.pause()
         else:
-            print("No sweep currently running, nothing to stop")
+            print("No sweep currently running, nothing to pause")
 
     def resume(self):
         """Resumes any paused sweeps."""
@@ -412,10 +412,17 @@ class SweepQueue(QObject):
         else:
             print("No current sweep, nothing to resume!")
 
-    def is_running(self):
-        """Flag to determine whether a sweep is currently running."""
+    def kill(self):
+        """Kills any running sweeps."""
         if self.current_sweep is not None:
-            return self.current_sweep.is_running
+            self.current_sweep.kill()
+        else:
+            print("No current sweep, nothing to resume!")        
+
+    def state(self):
+        """Get the state of the currently running sweep."""
+        if self.current_sweep is not None:
+            return self.current_sweep.progressState.state
         else:
             print("Sweep queue is not currently running")
 

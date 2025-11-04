@@ -2,7 +2,6 @@
 import importlib
 import json
 import time
-from dataclasses import dataclass
 from functools import partial
 from typing import Optional
 
@@ -13,20 +12,7 @@ from qcodes.dataset.measurements import Measurement
 from .._internal.plotter_thread import Plotter
 from .._internal.runner_thread import RunnerThread
 from ..tools.util import _autorange_srs, safe_get
-
-
-@dataclass
-class ProgressState:
-    """Lightweight container tracking sweep progress."""
-
-    time_elapsed: float = 0.0
-    time_remaining: Optional[float] = None
-    progress: float = 0.0
-
-    @classmethod
-    def zero(cls) -> "ProgressState":
-        """Return a zeroed progress state."""
-        return cls(time_elapsed=0.0, time_remaining=None, progress=0.0)
+from .progress import ProgressState, SweepState
 
 
 class BaseSweep(QObject):
@@ -68,8 +54,8 @@ class BaseSweep(QObject):
     plot_bin:
         Defaults to 1. Used to plot data that has been sent to the
         data_queue list in the Plotter Thread.
-    is_running:
-        Flag to determine whether or not sweep is currently running.
+    progressState:
+        Tracks the sweep progress metadata including state information.
     t0:
          Set to monotonic time when creating Runner Thread.
     persist_data:
@@ -87,8 +73,8 @@ class BaseSweep(QObject):
         Adds SRS lock-in amplifier to keep range consistent.
     create_measurement()
         Creates a QCoDeS Measurement Object
-    stop()
-        Stops/pauses the sweep.
+    pause()
+        Pauses the sweep.
     kill()
         Ends all threads and closes any active plots.
     check_running()
@@ -173,8 +159,8 @@ class BaseSweep(QObject):
             No effect on Sweep0D. Defaults to False for Sweep1D.
         plot_bin:
             Sets the number of data points taken between updates of the plot. Defaults to 1.
-        is_running:
-            Flag to determine whether or not sweep is currently running.
+        progressState:
+            Tracks sweep timing, completion progress, and current state.
         t0:
              Set to monotonic time when creating Runner Thread.
         persist_data:
@@ -184,8 +170,6 @@ class BaseSweep(QObject):
 
         """
         QObject.__init__(self)
-
-        self.IS_MEASUREIT_SWEEP = True
 
         self._params = []
         self._srs = []
@@ -205,7 +189,6 @@ class BaseSweep(QObject):
         self.continuous = False
         self.plot_bin = plot_bin
 
-        self.is_running = False
         self.t0 = 0
 
         self.persist_data = None
@@ -227,7 +210,9 @@ class BaseSweep(QObject):
         self.plotter = None
         self.plotter_thread = None
         self.runner = None
-        self.progressState: Optional[ProgressState] = None
+        self.progressState = ProgressState()
+        self._accumulated_run_time = 0.0
+        self._run_started_at: Optional[float] = None
 
     @classmethod
     def init_from_json(cls, fn, station):
@@ -246,7 +231,7 @@ class BaseSweep(QObject):
                 Variable number of arguments, each of which must be a QCoDeS Parameter
                 that is desired to be followed.
         """
-        if self.is_running:
+        if self.progressState.state in (SweepState.RUNNING, SweepState.RAMPING):
             self.print_main.emit(
                 "Cannot update the parameter list while the sweep is running."
             )
@@ -267,7 +252,7 @@ class BaseSweep(QObject):
             *p - Variable number of arguments, each of which must be a QCoDeS Parameter
                  that is currently being tracked.
         """
-        if self.is_running:
+        if self.progressState.state in (SweepState.RUNNING, SweepState.RAMPING):
             self.print_main.emit(
                 "Cannot update the parameter list while the sweep is running."
             )
@@ -290,7 +275,7 @@ class BaseSweep(QObject):
             gain:
                 The current gain value.
         """
-        if self.is_running:
+        if self.progressState.state in (SweepState.RUNNING, SweepState.RAMPING):
             self.print_main.emit(
                 "Cannot update the srs list while the sweep is running."
             )
@@ -332,30 +317,42 @@ class BaseSweep(QObject):
 
         return self.meas
 
-    def stop(self):
-        """Stops/pauses the program from running by setting the is_running flag to false.
+    def _add_runtime_since_last_resume(self) -> None:
+        """Accumulate elapsed run time since the sweep last entered RUNNING."""
+        if self._run_started_at is None:
+            return
+        self._accumulated_run_time += max(time.monotonic() - self._run_started_at, 0.0)
+        self._run_started_at = None
 
-        The is_running flag is checked in every thread's loop to determine whether or
-        not to continue running. When sweep is stopped, all data is updated a final time
-        to ensure all completed measurements are stored.
-        """
-        if self.save_data and self.runner is not None:
-            self.runner.flush_flag = True
+    def _enter_running_state(self, *, reset_elapsed: bool) -> float:
+        """Transition into RUNNING, optionally resetting the accumulated runtime."""
+        now = time.monotonic()
+        if reset_elapsed:
+            self._accumulated_run_time = 0.0
+        self._run_started_at = now
+        self.progressState.state = SweepState.RUNNING
+        return now
 
-        if not self.is_running:
-            self.print_main.emit("Sweep not currently running. Nothing to stop.")
-        self.is_running = False
+    def pause(self):
+        """Pause the sweep by moving the progress state to PAUSED."""
+        if self.progressState.state not in (SweepState.RUNNING, SweepState.RAMPING):
+            self.print_main.emit("Sweep not currently running. Nothing to pause.")
+            return
+
+        if self.progressState.state == SweepState.RUNNING:
+            self._add_runtime_since_last_resume()
+        self.progressState.state = SweepState.PAUSED
         self.send_updates()
 
     def kill(self):
         """Ends the threads spawned by the sweep and closes any active plots."""
         # Stop any data-taking
-        self.is_running = False
+        if self.progressState.state == SweepState.RUNNING:
+            self._add_runtime_since_last_resume()
+        self.progressState.state = SweepState.KILLED
 
         # Gently shut down the runner
         if self.runner is not None:
-            self.runner.flush_flag = True
-            self.runner.kill_flag = True
             # self.runner.quit()
             if not self.runner.wait(1000):
                 self.runner.terminate()
@@ -379,15 +376,14 @@ class BaseSweep(QObject):
 
         # Reset measurement object to ensure fresh measurement for next run
         self.meas = None
+        self.send_updates()
 
     def check_running(self):
         """Returns the status of the sweep."""
-        return self.is_running
+        return self.progressState.state in (SweepState.RUNNING, SweepState.RAMPING)
 
     def start(self, persist_data=None, ramp_to_start=False):
         """Starts the sweep by creating and running the worker threads.
-
-        Can be used to both start the program and unpause after calling 'stop()'.
 
         Parameters
         ---------
@@ -397,7 +393,7 @@ class BaseSweep(QObject):
             Optional argument which gradually ramps each parameter to the starting
             point of its sweep. Default is true for Sweep1D and Sweep2D.
         """
-        if self.is_running:
+        if self.progressState.state in (SweepState.RUNNING, SweepState.RAMPING):
             self.print_main.emit("We are already running, can't start while running.")
             return
 
@@ -426,13 +422,16 @@ class BaseSweep(QObject):
         if self.runner is None:
             self.runner = RunnerThread(self)
             self.runner.get_dataset.connect(self.receive_dataset)
-            self.t0 = time.monotonic()
 
             if self.plot_data is True:
                 self.runner.add_plotter(self.plotter)
 
         # Flag that we are now running.
-        self.is_running = True
+        run_start = self._enter_running_state(reset_elapsed=True)
+        self.progressState.time_elapsed = 0.0
+        self.progressState.time_remaining = None
+        self.progressState.progress = 0.0
+        self.t0 = run_start
 
         # Save persistent data from 2D sweep
         self.persist_data = persist_data
@@ -445,76 +444,66 @@ class BaseSweep(QObject):
         ):
             self.plotter.create_figs()
         if not self.runner.isRunning():
-            self.runner.kill_flag = False
             self.runner.start()
 
     def resume(self):
         """Restarts the sweep after it has been paused."""
-        if self.is_running is False:
-            self.start(ramp_to_start=False)
-        self.send_updates(no_sp=True)
+        if self.progressState.state == SweepState.PAUSED:
+            self._enter_running_state(reset_elapsed=False)
+            self.send_updates(no_sp=True)
+        else:
+            self.print_main.emit("Sweep is not paused; use start() to begin a run.")
 
     def get_dataset(self):
         """Returns the dataset object which contains the collected data."""
         return self.dataset
 
-    def _update_progress_state(
-        self,
-        *,
-        time_elapsed: float,
-        total_time: Optional[float] = None,
-        finalized: bool = False,
-        progress: Optional[float] = None,
-        time_remaining: Optional[float] = None,
-    ) -> None:
-        """Update the cached progress state, clamping values to sensible bounds."""
-        if self.progressState is None:
-            return
+    @staticmethod
+    def _split_hms(seconds: float) -> tuple[int, int, int]:
+        """Convert seconds into hours, minutes, seconds (integer components)."""
+        seconds = max(seconds, 0.0)
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(round(seconds % 60))
+        if secs == 60:
+            secs = 0
+            minutes += 1
+        if minutes == 60:
+            minutes = 0
+            hours += 1
+        return hours, minutes, secs
 
-        elapsed = max(time_elapsed, 0.0)
+    def update_progress(self) -> None:
+        """By default, updates progress using elapsed time and estimated time remaining. Can be overridden."""
+        total_elapsed = self._accumulated_run_time
+        if self._run_started_at is not None:
+            total_elapsed += max(time.monotonic() - self._run_started_at, 0.0)
+        elapsed_value = total_elapsed
 
-        if time_remaining is not None:
-            remaining = max(time_remaining, 0.0)
-        elif total_time is not None and total_time > 0:
-            remaining = max(total_time - elapsed, 0.0)
-        elif finalized:
-            remaining = 0.0
-        else:
+        if self.progressState.progress is None:
+            progress_value: Optional[float] = None
             remaining = None
-
-        if finalized:
-            p_val = 1.0
-        elif progress is not None:
-            p_val = max(0.0, min(1.0, progress))
         else:
-            denom = elapsed + (remaining if remaining is not None else 0.0)
-            if remaining is None or denom <= 0.0:
-                p_val = max(0.0, min(1.0, self.progressState.progress))
-            else:
-                p_val = max(0.0, min(1.0, elapsed / denom))
+            remaining = self.estimate_time(verbose=False)
+            denominator = total_elapsed + remaining
+            progress_value = None if denominator <= 0 else total_elapsed / denominator
 
         self.progressState = ProgressState(
-            time_elapsed=elapsed,
+            state=self.progressState.state,
+            time_elapsed=elapsed_value,
             time_remaining=remaining,
-            progress=p_val,
+            progress=progress_value,
         )
 
-    def update_progress(self, *, finalized: bool = False) -> None:
-        """Update progress using basic elapsed timing.
-
-        Subclasses override to provide richer estimates. The default implementation
-        keeps elapsed time and marks completion when requested.
-        """
-        if self.progressState is None:
+    def mark_done(self) -> None:
+        """Transition the sweep to DONE and emit completion callbacks."""
+        if self.progressState.state in (SweepState.KILLED, SweepState.DONE):
             return
-
-        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
-        remaining = 0.0 if finalized else None
-        self._update_progress_state(
-            time_elapsed=elapsed,
-            time_remaining=remaining,
-            finalized=finalized,
-        )
+        if self.progressState.state == SweepState.RUNNING:
+            self._add_runtime_since_last_resume()
+        self.progressState.state = SweepState.DONE
+        self.send_updates()
+        self.completed.emit()
 
     @pyqtSlot(dict)
     def receive_dataset(self, ds_dict):
@@ -552,6 +541,7 @@ class BaseSweep(QObject):
             if sp_data is not None:
                 data += sp_data
             else:
+                self.mark_done()
                 return None
 
         persist_param = None
@@ -567,7 +557,11 @@ class BaseSweep(QObject):
                 v = safe_get(p)
                 data.append((p, v))
 
-        if self.save_data and self.is_running:
+        if (
+            self.save_data
+            and self.runner is not None
+            and self.progressState.state == SweepState.RUNNING
+        ):
             self.runner.datasaver.add_result(*data)
 
         self.send_updates()
@@ -595,7 +589,8 @@ class BaseSweep(QObject):
             else:
                 update_dict["setpoint"] = None
             update_dict["direction"] = self.direction
-        update_dict["status"] = self.is_running
+        update_dict["status"] = self.progressState.state == SweepState.RUNNING
+        update_dict["state"] = self.progressState.state.value
 
         self.update_signal.emit(update_dict)
 

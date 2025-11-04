@@ -6,7 +6,8 @@ from functools import partial
 from PyQt5.QtCore import QObject, pyqtSlot
 
 from ..tools.util import _autorange_srs, safe_get, safe_set
-from .base_sweep import BaseSweep, ProgressState
+from .base_sweep import BaseSweep
+from .progress import SweepState
 
 
 class SimulSweep(BaseSweep, QObject):
@@ -36,8 +37,6 @@ class SimulSweep(BaseSweep, QObject):
         Stores input parameter dictionary.
     direction:
         Tells sweep which direction to run; either 0 or 1.
-    is_ramping:
-        Flag to alert that the sweep is ramping a parameter to a staring value.
     ramp_sweep:
         Iterates parameters to their starting values before sweep begins.
     runner:
@@ -90,7 +89,6 @@ class SimulSweep(BaseSweep, QObject):
         self.set_params_dict = _p.copy()
         self.direction = 0
         self.n_steps = n_steps
-        self.is_ramping = False
         self.ramp_sweep = None
         self.err = err
 
@@ -133,8 +131,9 @@ class SimulSweep(BaseSweep, QObject):
 
         self.follow_param([p for p in self.simul_params if p is not self.set_param])
         self.persist_data = []
-        self.progressState = ProgressState.zero()
-        self._progress_total_time = None
+        if not self.continuous:
+            self.progressState.progress = 0.0
+            self.update_progress()
 
     def __str__(self):
         p_desc = ""
@@ -156,30 +155,14 @@ class SimulSweep(BaseSweep, QObject):
 
     def start(self, persist_data=None, ramp_to_start=True, ramp_multiplier=1):
         """Starts the sweep. Runs from the BaseSweep start() function."""
-        if self.is_ramping is True:
+        if self.progressState.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Still ramping. Wait until ramp is done to start the sweep."
             )
             return
-        if self.is_running is True:
+        if self.progressState.state == SweepState.RUNNING:
             self.print_main.emit("Sweep is already running.")
             return
-
-        if self.progressState is not None:
-            estimate = self.estimate_time(verbose=False)
-            if (
-                isinstance(estimate, (int, float))
-                and math.isfinite(estimate)
-                and estimate > 0
-                and not self.continuous
-            ):
-                self._progress_total_time = estimate
-            else:
-                self._progress_total_time = None
-            self._update_progress_state(
-                time_elapsed=0.0,
-                total_time=self._progress_total_time,
-            )
 
         if ramp_to_start is True:
             self.print_main.emit("Ramping to our starting setpoints.")
@@ -196,24 +179,24 @@ class SimulSweep(BaseSweep, QObject):
             self.print_main.emit("Starting our sweep.")
             super().start(persist_data=persist_data, ramp_to_start=False)
 
-    def stop(self):
-        if self.is_ramping and self.ramp_sweep is not None:
+    def pause(self):
+        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
             self.print_main.emit("Stopping the ramp.")
-            self.ramp_sweep.stop()
+            self.ramp_sweep.pause()
             self.ramp_sweep.kill()
 
-            while self.ramp_sweep.is_running:
+            while self.ramp_sweep.check_running():
                 time.sleep(0.2)
             vals_dict = {}
             for p, v in self.ramp_sweep.set_params_dict.items():
                 vals_dict[p] = v["setpoint"]
             self.done_ramping(vals_dict)
 
-        super().stop()
+        super().pause()
 
     def kill(self):
-        if self.is_ramping and self.ramp_sweep is not None:
-            self.ramp_sweep.stop()
+        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
+            self.ramp_sweep.pause()
             self.ramp_sweep.kill()
         super().kill()
 
@@ -249,16 +232,10 @@ class SimulSweep(BaseSweep, QObject):
                 ending = True
 
         if ending is True:
-            if self.save_data:
-                self.runner.datasaver.flush_data_to_database()
-            self.is_running = False
             self.print_main.emit("Done with the sweep!")
             for p, v in self.set_params_dict.items():
                 self.print_main.emit(f"{p.label} = {v['setpoint']} ({p.unit})")
             self.flip_direction()
-            self.completed.emit()
-            if self.parent is None:
-                self.runner.kill_flag = True
             return None
 
         return rets
@@ -281,6 +258,7 @@ class SimulSweep(BaseSweep, QObject):
         if sp_data is not None:
             data += sp_data
         else:
+            self.mark_done()
             return None
 
         for i, (l, _, gain) in enumerate(self._srs):
@@ -291,7 +269,7 @@ class SimulSweep(BaseSweep, QObject):
                 v = safe_get(p)
                 data.append((p, v))
 
-        if self.save_data and self.is_running:
+        if self.save_data and self.progressState.state == SweepState.RUNNING:
             self.runner.datasaver.add_result(*data)
 
         # self.send_updates()
@@ -308,12 +286,12 @@ class SimulSweep(BaseSweep, QObject):
 
     def ramp_to(self, vals_dict, start_on_finish=False, persist=None, multiplier=1):
         # Ensure we aren't currently running
-        if self.is_ramping:
+        if self.progressState.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Currently ramping. Finish current ramp before starting another."
             )
             return
-        if self.is_running:
+        if self.progressState.state == SweepState.RUNNING:
             self.print_main.emit("Already running. Stop the sweep before ramping.")
             return
 
@@ -368,14 +346,13 @@ class SimulSweep(BaseSweep, QObject):
         follow_params = [p for p in self._params if p not in ramp_params_dict.keys()]
         if follow_params:
             self.ramp_sweep.follow_param(follow_params)
-        self.is_ramping = True
-        self.is_running = False
+        self.progressState.state = SweepState.RAMPING
         self.ramp_sweep.start(ramp_to_start=False)
 
     @pyqtSlot()
     def done_ramping(self, vals_dict, start_on_finish=False, pd=None):
-        self.is_ramping = False
-        self.is_running = False
+        if self.progressState.state != SweepState.KILLED:
+            self.progressState.state = SweepState.READY
 
         # Check if we are at the value we expect, otherwise something went wrong with the ramp
         for p, v in vals_dict.items():
@@ -446,50 +423,40 @@ class SimulSweep(BaseSweep, QObject):
         -------
         Time estimate for the sweep, in seconds
         """
-        t_est = self.n_steps * self.inter_delay
 
-        hours = int(t_est / 3600)
-        minutes = int((t_est % 3600) / 60)
-        seconds = t_est % 60
-        if verbose is True:
+        if self.progressState.state == SweepState.DONE:
+            remaining = 0
+        else:
+            cfg = list(self.set_params_dict.values())[0]
+            step_mag = abs(cfg["step"])
+            current = cfg["setpoint"]
+            target = cfg["stop"]
+            distance = abs(target - current)
+            steps = max(distance / step_mag, 0)
+            remaining = steps * self.inter_delay
+
+            effective_back_multiplier = self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
+
+            if (
+                self.bidirectional
+                and effective_back_multiplier > 0
+                and (
+                    self.direction == 0
+                    or (
+                        self.t0 == 0
+                        and self.progressState.state != SweepState.RUNNING
+                    )
+                )
+            ):
+                remaining += self.n_steps / effective_back_multiplier * self.inter_delay
+
+        if verbose:
+            hours, minutes, seconds = self._split_hms(remaining)
             self.print_main.emit(
-                f"Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s"
+                f"Estimated time remaining for {repr(self)}: {hours}h:{minutes:02d}m:{seconds:02d}s"
             )
-        return t_est
 
-    def update_progress(self, *, finalized: bool = False) -> None:
-        if self.progressState is None:
-            return
-
-        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
-        total = (
-            self._progress_total_time
-            if isinstance(self._progress_total_time, (int, float))
-            and math.isfinite(self._progress_total_time)
-            and self._progress_total_time > 0
-            else None
-        )
-        remaining = None
-        if total is not None:
-            remaining = max(total - elapsed, 0.0)
-
-        is_complete = finalized or (
-            total is not None
-            and remaining is not None
-            and remaining <= 0.0
-            and not self.is_running
-        )
-        if is_complete and remaining is None:
-            remaining = 0.0
-
-        elapsed_for_state = total if is_complete and total is not None else elapsed
-
-        self._update_progress_state(
-            time_elapsed=elapsed_for_state,
-            total_time=total,
-            time_remaining=remaining,
-            finalized=is_complete,
-        )
+        return remaining
 
     # --- JSON export/import hooks ---
     def _export_json_specific(self, json_dict: dict) -> dict:

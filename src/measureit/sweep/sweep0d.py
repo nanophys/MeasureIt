@@ -1,12 +1,12 @@
 # sweep0d.py
 
-import math
 import time
 
 from PyQt5.QtCore import QObject
 
 from ..tools.util import _autorange_srs
-from .base_sweep import BaseSweep, ProgressState
+from .base_sweep import BaseSweep
+from .progress import SweepState
 
 
 class Sweep0D(BaseSweep, QObject):
@@ -56,14 +56,8 @@ class Sweep0D(BaseSweep, QObject):
 
         # Amount of time to run
         self.max_time = max_time
-        self.progressState = ProgressState.zero()
-        self._progress_total_time = (
-            max_time
-            if isinstance(max_time, (int, float))
-            and math.isfinite(max_time)
-            and max_time > 0
-            else None
-        )
+        self.progressState.progress = 0.0
+        self.update_progress()
 
     def __str__(self):
         if self.max_time is None:
@@ -99,15 +93,18 @@ class Sweep0D(BaseSweep, QObject):
             (<QCoDeS Parameter>, measurement value). The tuples are passed in order
             of time, set_param (if applicable), then all the followed parameters.
         """
-        t = time.monotonic() - self.t0
+        t = self.progressState.time_elapsed
 
         data = []
 
         if t >= self.max_time:
-            if self.save_data:
+            if (
+                self.save_data
+                and self.runner is not None
+                and self.runner.datasaver is not None
+            ):
                 self.runner.datasaver.flush_data_to_database()
-            self.is_running = False
-            self.runner.kill_flag = True
+            self.progressState.state = SweepState.DONE
             self.print_main.emit(f"Done with the sweep, t={t} (s)")
             self.completed.emit()
 
@@ -128,7 +125,7 @@ class Sweep0D(BaseSweep, QObject):
                 v = p.get()
                 data.append((p, v))
 
-        if self.save_data and self.is_running:
+        if self.save_data and self.progressState.state == SweepState.RUNNING:
             self.runner.datasaver.add_result(*data)
 
         self.send_updates()
@@ -147,46 +144,20 @@ class Sweep0D(BaseSweep, QObject):
         -------
         Time estimate for the sweep, in seconds
         """
-        if self.max_time is not None:
-            hours = int(self.max_time / 3600)
-            minutes = int((self.max_time % 3600) / 60)
-            seconds = self.max_time % 60
-            if verbose is True:
-                self.print_main.emit(
-                    f"Estimated time for {repr(self)} to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s"
-                )
-
-            return self.max_time
+        if self.progressState.state in (SweepState.READY, SweepState.RAMPING):
+            remaining = self.max_time
+        elif self.progressState.state == SweepState.DONE:
+            remaining = 0
         else:
-            if verbose is True:
-                self.print_main.emit(f"No estimated time for {repr(self)} to run.")
-            return 0
+            remaining = max(self.max_time - self.progressState.time_elapsed, 0.0)
 
-    def update_progress(self, *, finalized: bool = False) -> None:
-        if self.progressState is None:
-            return
+        if verbose:
+            hours, minutes, seconds = self._split_hms(remaining)
+            self.print_main.emit(
+                f"Estimated time remaining for {repr(self)}: {hours}h:{minutes:02d}m:{seconds:02d}s"
+            )
 
-        elapsed = time.monotonic() - self.t0 if self.t0 else 0.0
-        total = self._progress_total_time
-        remaining = None
-
-        if total is not None:
-            remaining = max(total - elapsed, 0.0)
-
-        is_complete = finalized or (
-            total is not None and remaining is not None and remaining <= 0.0
-        )
-        if is_complete and remaining is None:
-            remaining = 0.0
-
-        elapsed_for_state = total if is_complete and total is not None else elapsed
-
-        self._update_progress_state(
-            time_elapsed=elapsed_for_state,
-            total_time=total,
-            time_remaining=remaining,
-            finalized=is_complete,
-        )
+        return remaining
 
     # --- JSON export/import hooks ---
     def _export_json_specific(self, json_dict: dict) -> dict:

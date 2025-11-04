@@ -121,7 +121,7 @@ class Plotter(QObject):  # moved to legacy
         if key == " ":
             self.sweep.flip_direction()
         elif key == "escape":
-            self.sweep.stop()
+            self.sweep.pause()
         elif key == "enter":
             self.sweep.resume()
 
