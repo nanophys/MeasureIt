@@ -14,6 +14,7 @@ from qcodes import Station, initialise_or_create_database_at
 
 from ..config import get_path
 from ..sweep.base_sweep import BaseSweep
+from ..sweep.simul_sweep import SimulSweep
 from ..sweep.sweep0d import Sweep0D
 from ..sweep.sweep1d import Sweep1D
 
@@ -68,13 +69,19 @@ class SweepQueue(QObject):
 
     newSweepSignal = pyqtSignal(BaseSweep)
 
-    def __init__(self, inter_delay=1):
+    def __init__(self, inter_delay=1, post_db_delay=1.0, debug=False):
         """Initializes the queue.
 
         Parameters
         ---------
         inter_delay:
             The time (in seconds) taken between consecutive sweeps.
+        post_db_delay:
+            The time (in seconds) to wait after a DatabaseEntry before starting
+            the next sweep. This ensures the database context is fully initialized.
+            Default is 1.0 second.
+        debug:
+            If True, enables debug output for troubleshooting queue execution.
         """
         QObject.__init__(self)
         self.queue = deque([])
@@ -82,9 +89,13 @@ class SweepQueue(QObject):
         self.current_sweep = None
         self.current_action = None
         self.inter_delay = inter_delay
+        self.post_db_delay = post_db_delay
+        self.debug = debug
         self.rts = True
         # Flag to prevent concurrent begin_next() calls
         self._processing = False
+        # Track previous action to detect DatabaseEntry->Sweep transitions
+        self.previous_action = None
 
     def _exec_in_kernel(self, fn):
         """Schedule a callable to run on the Jupyter kernel thread (asyncio loop) if present.
@@ -439,63 +450,101 @@ class SweepQueue(QObject):
         """Begins the next sweep in the queue upon the completion of a sweep.
 
         Connected to completed pyqtSignals in the sweeps.
+        Refactored to eliminate recursion and race conditions.
         """
         # Prevent concurrent executions of begin_next()
         if self._processing:
+            if self.debug:
+                print("[DEBUG] begin_next() called but already processing, returning")
             return
         self._processing = True
 
-        try:
-            if isinstance(self.current_action, Sweep1D):
-                print(
-                    f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
-                    f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
-                    f"({self.current_sweep.set_param.unit})"
-                )
-            elif isinstance(self.current_action, Sweep0D):
-                print(f"Finished 0D Sweep of {self.current_sweep.max_time} (s).")
+        if self.debug:
+            print(f"[DEBUG] begin_next() called, queue length: {len(self.queue)}")
+            print(f"[DEBUG] current_action type: {type(self.current_action).__name__ if self.current_action else 'None'}")
 
+        try:
+            # Handle completion messages for the previous action if it was a sweep
             if isinstance(self.current_action, BaseSweep):
+                if isinstance(self.current_action, SimulSweep):
+                    print(f"Finished {str(self.current_action)}")
+                elif isinstance(self.current_action, Sweep1D):
+                    print(
+                        f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
+                        f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
+                        f"({self.current_sweep.set_param.unit})"
+                    )
+                elif isinstance(self.current_action, Sweep0D):
+                    print(f"Finished 0D Sweep of {self.current_sweep.max_time} (s).")
+                else:
+                    print(f"Finished {self.current_action.__class__.__name__}")
+
+                # Clean up the sweep
                 self.current_sweep.kill()
                 self.current_sweep = None
 
-            if len(self.queue) > 0:
+            # Process queue items in a loop (no recursion)
+            while len(self.queue) > 0:
+                # Store previous action for context tracking
+                self.previous_action = self.current_action
                 self.current_action = self.queue.popleft()
+
+                if self.debug:
+                    print(f"[DEBUG] Processing: {type(self.current_action).__name__}")
+
                 if isinstance(self.current_action, BaseSweep):
                     self.current_sweep = self.current_action
+
+                    # Apply post-database delay if previous was DatabaseEntry
+                    if isinstance(self.previous_action, DatabaseEntry):
+                        print(f"Waiting {self.post_db_delay}s for database initialization...")
+                        time.sleep(self.post_db_delay)
+
                     # Ensure metadata shows this sweep was launched by SweepQueue
                     self._attach_queue_metadata_provider(self.current_sweep)
-                    if isinstance(self.current_sweep, Sweep1D):
+
+                    # Print start message for ALL sweep types
+                    if isinstance(self.current_sweep, SimulSweep):
+                        print(str(self.current_sweep))
+                    elif isinstance(self.current_sweep, Sweep1D):
                         print(
                             f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
                             f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
                             f"({self.current_sweep.set_param.unit})"
                         )
                     elif isinstance(self.current_sweep, Sweep0D):
-                        print(
-                            f"Starting 0D Sweep for {self.current_sweep.max_time} seconds."
-                        )
+                        print(f"Starting 0D Sweep for {self.current_sweep.max_time} seconds.")
+                    else:
+                        print(f"Starting {self.current_sweep.__class__.__name__}")
+
                     time.sleep(self.inter_delay)
                     self.newSweepSignal.emit(self.current_sweep)
                     self.current_sweep.start()
+                    break  # Exit loop - sweep will call begin_next when done
+
                 elif isinstance(self.current_action, DatabaseEntry):
-                    # DatabaseEntry changes the database and continues to next item
-                    # Add small safety delay to allow previous sweep's database operations to complete
-                    time.sleep(0.5)
+                    # Process DatabaseEntry synchronously
+                    print(str(self.current_action))
+                    time.sleep(0.5)  # Small delay before database operation
                     self.current_action.start()
-                    # Recursively call begin_next to process the next item
-                    self._processing = False  # Reset flag before recursive call
-                    self.begin_next()
+                    # Continue loop to process next item immediately
+
                 elif callable(self.current_action):
-                    # Schedule onto the Jupyter kernel thread if available
+                    # Execute callable
                     self._exec_in_kernel(self.current_action)
+                    break  # Exit loop - callable will call begin_next when done
+
                 else:
                     print(
                         f"Invalid action found in the queue!: {str(self.current_action)}"
-                        f"Stopping execution of the queue."
+                        f" Stopping execution of the queue."
                     )
-            else:
+                    # Continue loop to try next item
+
+            # Check if we've finished everything
+            if len(self.queue) == 0 and self.current_sweep is None:
                 print("Finished all sweeps!")
+
         finally:
             self._processing = False
 
@@ -571,7 +620,7 @@ class DatabaseEntry(QObject):
         self.callback = callback
 
     def __str__(self):
-        return f"Database entry saving to {self.db} with experiment name {self.exp} and sample name {self.samp}."
+        return f"Database entry: {self.db} | Experiment: {self.exp} | Sample: {self.samp}"
 
     def __repr__(self):
         return f"Save File: ({self.db}, {self.exp}, {self.samp})"
