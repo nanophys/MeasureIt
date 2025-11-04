@@ -472,6 +472,8 @@ class SweepQueue(QObject):
                     self.current_sweep.start()
                 elif isinstance(self.current_action, DatabaseEntry):
                     # DatabaseEntry changes the database and continues to next item
+                    # Add small safety delay to allow previous sweep's database operations to complete
+                    time.sleep(0.5)
                     self.current_action.start()
                     # Recursively call begin_next to process the next item
                     self._processing = False  # Reset flag before recursive call
@@ -597,9 +599,39 @@ class DatabaseEntry(QObject):
         return DatabaseEntry(db, exp, sample)
 
     def start(self):
-        """Sets the database to the values given at initialization, then calls the callback function"""
-        initialise_or_create_database_at(self.db)
-        qc.new_experiment(name=self.exp, sample_name=self.samp)
+        """Sets the database to the values given at initialization, then calls the callback function.
+
+        Includes retry logic with exponential backoff to handle database lock errors.
+        """
+        import sqlite3
+        import time
+
+        # Retry logic for database operations
+        max_retries = 5
+        base_delay = 0.5  # Start with 0.5 seconds
+
+        for attempt in range(max_retries):
+            try:
+                initialise_or_create_database_at(self.db)
+                qc.new_experiment(name=self.exp, sample_name=self.samp)
+                # If successful, break out of retry loop
+                break
+            except (sqlite3.OperationalError, RuntimeError) as e:
+                # Check if it's a database lock error
+                if "database is locked" in str(e) or "Rolling back due to unhandled exception" in str(e):
+                    if attempt < max_retries - 1:
+                        # Calculate exponential backoff delay
+                        delay = base_delay * (2 ** attempt)
+                        print(f"Database is locked. Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(delay)
+                    else:
+                        # Final attempt failed, re-raise the error
+                        print(f"Failed to create experiment after {max_retries} attempts. Database may still be locked.")
+                        raise
+                else:
+                    # Not a database lock error, re-raise immediately
+                    raise
+
         if self.callback is not None and callable(self.callback):
             self.callback()
 
