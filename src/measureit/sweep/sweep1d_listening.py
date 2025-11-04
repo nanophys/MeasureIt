@@ -7,6 +7,8 @@ from PyQt5.QtCore import QObject, pyqtSlot
 
 from ..tools.util import safe_get, safe_set
 from .base_sweep import BaseSweep
+from .progress import SweepState
+from .sweep1d import Sweep1D
 
 try:
     from qcodes.instrument_drivers.american_magnetics import AMIModel430 as AMI430
@@ -64,8 +66,6 @@ class Sweep1D_listening(BaseSweep, QObject):
         The first parameter value where a measurement is obtained after starting.
     direction:
         Either 0 or 1 to indicate the direction of the sweep.
-    is_ramping:
-        Flag to determine whether or not sweep is currently ramping to start.
     ramp_sweep:
         Defines the sweep used to set the parameter to its starting value.
     instrument:
@@ -75,8 +75,8 @@ class Sweep1D_listening(BaseSweep, QObject):
     ---------
     start(persist_data=None, ramp_to_start=True, ramp_multiplier=1)
         Starts the sweep; runs from the BaseSweep start() function.
-    stop()
-        Stops running any currently active sweeps.
+    pause()
+        Pauses any currently active sweeps.
     kill()
         Ends the threads spawned by the sweep and closes any active plots.
     step_param()
@@ -170,12 +170,14 @@ class Sweep1D_listening(BaseSweep, QObject):
         self.continuous = continual
         self.direction = 0
         self.back_multiplier = back_multiplier
-        self.is_ramping = False
         self.ramp_sweep = None
         self.runner = runner
         self.plotter = plotter
         self.instrument = self.set_param.instrument
         self.err = err
+        self._completion_pending = False
+        self.progressState.progress = 0.0
+        self.update_progress()
 
     def __str__(self):
         return f"1D Sweep of {self.set_param} from {self.begin} to {self.end}, with step size {self.step}."
@@ -195,39 +197,41 @@ class Sweep1D_listening(BaseSweep, QObject):
         ramp_multiplier:
             Factor to control ramping speed compared to sweep speed.
         """
-        if self.is_ramping:
+        if self.progressState.state == SweepState.RAMPING:
             print("Still ramping. Wait until ramp is done to start the sweep.")
             return
-        if self.is_running:
+        if self.progressState.state == SweepState.RUNNING:
             print("Sweep is already running.")
             return
+
+        self._completion_pending = False
 
         print(f"Sweeping {self.set_param.label} to {self.end} {self.set_param.unit}")
         BaseSweep.start(self, persist_data=persist_data)
 
-    def stop(self):
-        """Stops running any currently active sweeps."""
-        if self.is_ramping and self.ramp_sweep is not None:
+    def pause(self):
+        """Pauses any currently active sweeps."""
+        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
             print("Stopping the ramp.")
-            self.ramp_sweep.stop()
+            self.ramp_sweep.pause()
             self.ramp_sweep.kill()
 
-            while self.ramp_sweep.is_running:
+            while self.ramp_sweep.check_running():
                 time.sleep(0.2)
             self.done_ramping(self.ramp_sweep.setpoint)
             # self.setpoint=self.ramp_sweep.setpoint
             # self.ramp_sweep.plotter.clear()
             # self.ramp_sweep = None
-            # self.is_ramping=False
+            # self.progressState.state = SweepState.READY
             # print(f"Stopped the ramp, the current setpoint  is {self.setpoint} {self.set_param.unit}")
         self.set_param.set(safe_get(self.set_param))
 
-        BaseSweep.stop(self)
+        BaseSweep.pause(self)
 
     def kill(self):
         """Ends the threads spawned by the sweep and closes any active plots."""
-        if self.is_ramping and self.ramp_sweep is not None:
-            self.ramp_sweep.stop()
+        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
+            self.ramp_sweep.pause()
             self.ramp_sweep.kill()
         BaseSweep.kill(self)
 
@@ -277,6 +281,11 @@ class Sweep1D_listening(BaseSweep, QObject):
         ---------
         The parameter-value pair that was measured.
         """
+        if self._completion_pending:
+            self._completion_pending = False
+            self.mark_done()
+            return None
+
         # Grab our data
         try:
             dt = self.set_param.get()
@@ -293,14 +302,9 @@ class Sweep1D_listening(BaseSweep, QObject):
 
         # Check our stop conditions- being at the end point
         if (self.set_param.get_latest() - self.end) < self.err:
-            if self.save_data:
-                self.runner.flush_flag = True
-            self.is_running = False
             print(f"Done with the sweep, {self.set_param.label}={self.set_param.get()}")
             self.flip_direction()
-            self.completed.emit()
-            if self.parent is None:
-                self.runner.kill_flag = True
+            self._completion_pending = True
 
         # Return our data pair, just like any other sweep
         return [data_pair]
@@ -339,10 +343,10 @@ class Sweep1D_listening(BaseSweep, QObject):
             Factor to alter the step size, used to ramp quicker than the sweep speed.
         """
         # Ensure we aren't currently running
-        if self.is_ramping:
+        if self.progressState.state == SweepState.RAMPING:
             print("Currently ramping. Finish current ramp before starting another.")
             return
-        if self.is_running:
+        if self.progressState.state == SweepState.RUNNING:
             print("Already running. Stop the sweep before ramping.")
             return
 
@@ -366,8 +370,7 @@ class Sweep1D_listening(BaseSweep, QObject):
             plot_data=self.plot_data,
         )
 
-        self.is_running = False
-        self.is_ramping = True
+        self.progressState.state = SweepState.RAMPING
         self.ramp_sweep.start(ramp_to_start=False)
 
         print(f"Ramping {self.set_param.label} to {value} . . . ")
@@ -396,8 +399,8 @@ class Sweep1D_listening(BaseSweep, QObject):
         pd:
             Sets persistent data if running Sweep2D.
         """
-        self.is_ramping = False
-        self.is_running = False
+        if self.progressState.state != SweepState.KILLED:
+            self.progressState.state = SweepState.READY
         # Grab the beginning
         # value = self.ramp_sweep.begin
 

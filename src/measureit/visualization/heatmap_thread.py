@@ -136,9 +136,9 @@ class Heatmap(QObject):
         try:
             key = event.key()
             if key == pg.QtCore.Qt.Key_Escape:
-                # Stop the 2D sweep gracefully
+                # Pause the 2D sweep gracefully
                 try:
-                    self.sweep.stop()
+                    self.sweep.pause()
                 except Exception:
                     pass
             elif key == pg.QtCore.Qt.Key_Return or key == pg.QtCore.Qt.Key_Enter:
@@ -246,7 +246,8 @@ class Heatmap(QObject):
             )
             main_layout.addWidget(self.info_label)
 
-            if getattr(self.sweep, "progressState", None) is not None:
+            state = getattr(self.sweep, "progressState", None)
+            if state is not None and getattr(state, "progress", None) is not None:
                 progress_info = QHBoxLayout()
                 progress_info.setContentsMargins(0, 0, 0, 0)
                 progress_info.setSpacing(8)
@@ -793,8 +794,14 @@ class Heatmap(QObject):
         if state is None:
             return
 
-        progress_value = int(max(0.0, min(1.0, state.progress)) * 1000)
-        self.progress_bar.setValue(progress_value)
+        progress = getattr(state, "progress", None)
+        if progress is None:
+            self.progress_bar.setFormat("Progress: --")
+            self.progress_bar.setValue(0)
+        else:
+            self.progress_bar.setFormat("Progress: %p%")
+            progress_value = int(max(0.0, min(1.0, progress)) * 1000)
+            self.progress_bar.setValue(progress_value)
 
         def _format_seconds(value):
             if value is None:

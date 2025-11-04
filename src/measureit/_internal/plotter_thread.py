@@ -128,7 +128,7 @@ class Plotter(QObject):  # moved to _internal
         if key == pg.QtCore.Qt.Key_Space:
             self.sweep.flip_direction()
         elif key == pg.QtCore.Qt.Key_Escape:
-            self.sweep.stop()
+            self.sweep.pause()
         elif key == pg.QtCore.Qt.Key_Return or key == pg.QtCore.Qt.Key_Enter:
             self.sweep.resume()
 
@@ -173,13 +173,14 @@ class Plotter(QObject):  # moved to _internal
 
         # Add keyboard shortcuts info
         info_label = QLabel(
-            "Keyboard Shortcuts: ESC: stop | Enter: resume | Spacebar: flip direction"
+            "Keyboard Shortcuts: ESC: pause | Enter: resume | Spacebar: flip direction"
         )
         info_label.setFont(QFont("Arial", 10))
         info_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 5px; }")
         main_layout.addWidget(info_label)
 
-        if getattr(self.sweep, "progressState", None) is not None:
+        state = getattr(self.sweep, "progressState", None)
+        if state is not None and getattr(state, "progress", None) is not None:
             progress_info = QHBoxLayout()
             progress_info.setContentsMargins(0, 0, 0, 0)
             progress_info.setSpacing(8)
@@ -416,12 +417,18 @@ class Plotter(QObject):  # moved to _internal
         if self.progress_bar is None:
             return
 
-        state = self.sweep.progressState
+        state = getattr(self.sweep, "progressState", None)
         if state is None:
             return
 
-        progress_value = int(max(0.0, min(1.0, state.progress)) * 1000)
-        self.progress_bar.setValue(progress_value)
+        progress = getattr(state, "progress", None)
+        if progress is None:
+            self.progress_bar.setFormat("Progress: --")
+            self.progress_bar.setValue(0)
+        else:
+            self.progress_bar.setFormat("Progress: %p%")
+            progress_value = int(max(0.0, min(1.0, progress)) * 1000)
+            self.progress_bar.setValue(progress_value)
 
         def _format_seconds(value):
             if value is None:

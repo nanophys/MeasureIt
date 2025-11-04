@@ -6,6 +6,7 @@ from PyQt5.QtCore import QObject
 
 from ..tools.util import _autorange_srs
 from .base_sweep import BaseSweep
+from .progress import SweepState
 
 
 class Sweep0D(BaseSweep, QObject):
@@ -55,7 +56,7 @@ class Sweep0D(BaseSweep, QObject):
 
         # Amount of time to run
         self.max_time = max_time
-        self.progressState = 0
+        self.progressState.progress = 0.0
         self.update_progress()
 
     def __str__(self):
@@ -92,15 +93,18 @@ class Sweep0D(BaseSweep, QObject):
             (<QCoDeS Parameter>, measurement value). The tuples are passed in order
             of time, set_param (if applicable), then all the followed parameters.
         """
-        t = time.monotonic() - self.t0
+        t = self.progressState.time_elapsed
 
         data = []
 
         if t >= self.max_time:
-            if self.save_data:
+            if (
+                self.save_data
+                and self.runner is not None
+                and self.runner.datasaver is not None
+            ):
                 self.runner.datasaver.flush_data_to_database()
-            self.is_running = False
-            self.runner.kill_flag = True
+            self.progressState.state = SweepState.DONE
             self.print_main.emit(f"Done with the sweep, t={t} (s)")
             self.completed.emit()
 
@@ -121,7 +125,7 @@ class Sweep0D(BaseSweep, QObject):
                 v = p.get()
                 data.append((p, v))
 
-        if self.save_data and self.is_running:
+        if self.save_data and self.progressState.state == SweepState.RUNNING:
             self.runner.datasaver.add_result(*data)
 
         self.send_updates()
@@ -140,11 +144,12 @@ class Sweep0D(BaseSweep, QObject):
         -------
         Time estimate for the sweep, in seconds
         """
-        if not self.is_running:
-            remaining = self.max_time if self.t0 == 0 else 0
+        if self.progressState.state in (SweepState.READY, SweepState.RAMPING):
+            remaining = self.max_time
+        elif self.progressState.state == SweepState.DONE:
+            remaining = 0
         else:
-            elapsed = time.monotonic() - self.t0
-            remaining = max(float(self.max_time) - elapsed, 0.0)
+            remaining = max(self.max_time - self.progressState.time_elapsed, 0.0)
 
         if verbose:
             hours, minutes, seconds = self._split_hms(remaining)
