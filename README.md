@@ -142,6 +142,25 @@ sweep.follow_param(dmm.voltage, lockin.x)
 sweep.start()
 ```
 
+### Sweep Logging
+
+- All sweeps and the `SweepQueue` now log status messages to timestamped files in
+  the MeasureIt data directory's ``logs/`` folder (see *Data Directory
+  Configuration* above). Each run creates a file named
+  ``sweeps_YYYYMMDD_HHMMSS.log`` that captures info/warning/error messages.
+- To mirror those messages inside Jupyter notebooks, attach the notebook handler
+  once per kernel:
+
+  ```python
+  from measureit import attach_notebook_logging
+
+  attach_notebook_logging()
+  ```
+
+  The handler safely marshals log output from background Qt threads back into
+  the notebook cell output, so database switches and sweep transitions are
+  visible while the queue runs.
+
 ## Documentation
 
 ### Building Documentation
