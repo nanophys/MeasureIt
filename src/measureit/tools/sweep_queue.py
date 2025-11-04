@@ -493,34 +493,34 @@ class SweepQueue(QObject):
 
         try:
             # Handle completion messages for the previous action if it was a sweep
-                if isinstance(self.current_action, BaseSweep):
-                    if isinstance(self.current_action, SimulSweep):
-                        self.log.info("Finished %s", str(self.current_action))
-                    elif isinstance(self.current_action, Sweep1D):
-                        self.log.info(
-                            "Finished sweep of %s from %s (%s) to %s (%s)",
-                            self.current_sweep.set_param.label,
-                            self.current_sweep.begin,
-                            self.current_sweep.set_param.unit,
-                            self.current_sweep.end,
-                            self.current_sweep.set_param.unit,
-                        )
-                    elif isinstance(self.current_action, Sweep0D):
-                        self.log.info(
-                            "Finished 0D Sweep of %s seconds.",
-                            self.current_sweep.max_time,
-                        )
-                    else:
-                        self.log.info(
-                            "Finished %s", self.current_action.__class__.__name__
-                        )
+            if isinstance(self.current_action, BaseSweep):
+                if isinstance(self.current_action, SimulSweep):
+                    self.log.info("Finished %s", str(self.current_action))
+                elif isinstance(self.current_action, Sweep1D):
+                    self.log.info(
+                        "Finished sweep of %s from %s (%s) to %s (%s)",
+                        self.current_sweep.set_param.label,
+                        self.current_sweep.begin,
+                        self.current_sweep.set_param.unit,
+                        self.current_sweep.end,
+                        self.current_sweep.set_param.unit,
+                    )
+                elif isinstance(self.current_action, Sweep0D):
+                    self.log.info(
+                        "Finished 0D Sweep of %s seconds.",
+                        self.current_sweep.max_time,
+                    )
+                else:
+                    self.log.info(
+                        "Finished %s", self.current_action.__class__.__name__
+                    )
 
                 # Clean up the sweep
                 self.current_sweep.kill()
                 self.current_sweep = None
 
             # Process queue items in a loop (no recursion)
-            while len(self.queue) > 0:
+            while self.queue:
                 # Store previous action for context tracking
                 self.previous_action = self.current_action
                 self.current_action = self.queue.popleft()
@@ -592,7 +592,7 @@ class SweepQueue(QObject):
                     # Continue loop to try next item
 
             # Check if we've finished everything
-            if len(self.queue) == 0 and self.current_sweep is None:
+            if not self.queue and self.current_sweep is None:
                 self.log.info("Finished all sweeps!")
 
         finally:
