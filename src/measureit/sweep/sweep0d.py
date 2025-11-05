@@ -1,6 +1,5 @@
 # sweep0d.py
 
-import time
 
 from PyQt5.QtCore import QObject
 

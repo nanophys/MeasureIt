@@ -150,10 +150,7 @@ class RunnerThread(QThread):
                     continue
                 self.sweep.update_progress()
 
-                if (
-                    self.plotter is not None
-                    and self.sweep.plot_data is True
-                ):
+                if self.plotter is not None and self.sweep.plot_data is True:
                     self.send_data.emit(data, self.sweep.direction)
 
             # Smart sleep: compensate for time spent executing update

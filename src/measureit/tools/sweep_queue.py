@@ -6,13 +6,11 @@ import types
 from collections import deque
 from collections.abc import Iterable
 from functools import partial
-from pathlib import Path
 
 import qcodes as qc
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from qcodes import Station, initialise_or_create_database_at
 
-from ..config import get_path
 from ..sweep.base_sweep import BaseSweep
 from ..sweep.sweep0d import Sweep0D
 from ..sweep.sweep1d import Sweep1D
@@ -417,7 +415,7 @@ class SweepQueue(QObject):
         if self.current_sweep is not None:
             self.current_sweep.kill()
         else:
-            print("No current sweep, nothing to resume!")        
+            print("No current sweep, nothing to resume!")
 
     def state(self):
         """Get the state of the currently running sweep."""
@@ -491,7 +489,6 @@ class SweepQueue(QObject):
         finally:
             self._processing = False
 
-
     def estimate_time(self, verbose=False):
         """Returns an estimate of the amount of time the sweep queue will take to complete.
 
@@ -519,7 +516,6 @@ class SweepQueue(QObject):
         )
 
         return t_est
-
 
 
 class DatabaseEntry(QObject):
@@ -618,15 +614,21 @@ class DatabaseEntry(QObject):
                 break
             except (sqlite3.OperationalError, RuntimeError) as e:
                 # Check if it's a database lock error
-                if "database is locked" in str(e) or "Rolling back due to unhandled exception" in str(e):
+                if "database is locked" in str(
+                    e
+                ) or "Rolling back due to unhandled exception" in str(e):
                     if attempt < max_retries - 1:
                         # Calculate exponential backoff delay
-                        delay = base_delay * (2 ** attempt)
-                        print(f"Database is locked. Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{max_retries})")
+                        delay = base_delay * (2**attempt)
+                        print(
+                            f"Database is locked. Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{max_retries})"
+                        )
                         time.sleep(delay)
                     else:
                         # Final attempt failed, re-raise the error
-                        print(f"Failed to create experiment after {max_retries} attempts. Database may still be locked.")
+                        print(
+                            f"Failed to create experiment after {max_retries} attempts. Database may still be locked."
+                        )
                         raise
                 else:
                     # Not a database lock error, re-raise immediately

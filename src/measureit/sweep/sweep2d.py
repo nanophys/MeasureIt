@@ -440,7 +440,6 @@ class Sweep2D(BaseSweep, QObject):
         The outer parameter is iterated and the inner sweep is restarted. If the stop
         condition is reached, the completed signal is emitted and the sweeps are stopped.
         """
-
         # Update heatmap rows for all allowed/selected parameters (only if plotting is enabled)
         last_plot_data = None
         if (

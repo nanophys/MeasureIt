@@ -365,13 +365,14 @@ class Heatmap(QObject):
             # Use setRect as the primary method (more reliable than transform)
             try:
                 from PyQt5.QtCore import QRectF
+
                 # setRect takes (x, y, width, height) in data coordinates
                 self.image_item.setRect(
                     QRectF(
                         self.sweep.in_start,
                         self.sweep.out_start,
-                        self.sweep.in_stop - self.sweep.in_start,   # Total width
-                        self.sweep.out_stop - self.sweep.out_start, # Total height
+                        self.sweep.in_stop - self.sweep.in_start,  # Total width
+                        self.sweep.out_stop - self.sweep.out_start,  # Total height
                     )
                 )
             except Exception:
@@ -382,7 +383,8 @@ class Heatmap(QObject):
                     # Use (N-1) for correct pixel spacing
                     transform.scale(
                         (self.sweep.in_stop - self.sweep.in_start) / (self.res_in - 1),
-                        (self.sweep.out_stop - self.sweep.out_start) / (self.res_out - 1)
+                        (self.sweep.out_stop - self.sweep.out_start)
+                        / (self.res_out - 1),
                     )
                     self.image_item.setTransform(transform)
                 except Exception:
@@ -672,6 +674,7 @@ class Heatmap(QObject):
             # Re-apply coordinate transformation after setImage (critical for correct axis scaling)
             try:
                 from PyQt5.QtCore import QRectF
+
                 self.image_item.setRect(
                     QRectF(
                         self.sweep.in_start,
@@ -687,7 +690,8 @@ class Heatmap(QObject):
                     transform.translate(self.pos[0], self.pos[1])
                     transform.scale(
                         (self.sweep.in_stop - self.sweep.in_start) / (self.res_in - 1),
-                        (self.sweep.out_stop - self.sweep.out_start) / (self.res_out - 1)
+                        (self.sweep.out_stop - self.sweep.out_start)
+                        / (self.res_out - 1),
                     )
                     self.image_item.setTransform(transform)
                 except Exception:

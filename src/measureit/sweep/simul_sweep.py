@@ -178,7 +178,10 @@ class SimulSweep(BaseSweep, QObject):
             super().start(persist_data=persist_data, ramp_to_start=False)
 
     def pause(self):
-        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
+        if (
+            self.progressState.state == SweepState.RAMPING
+            and self.ramp_sweep is not None
+        ):
             self.print_main.emit("Stopping the ramp.")
             self.ramp_sweep.pause()
             self.ramp_sweep.kill()
@@ -193,7 +196,10 @@ class SimulSweep(BaseSweep, QObject):
         super().pause()
 
     def kill(self):
-        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
+        if (
+            self.progressState.state == SweepState.RAMPING
+            and self.ramp_sweep is not None
+        ):
             self.ramp_sweep.pause()
             self.ramp_sweep.kill()
         super().kill()
@@ -348,7 +354,9 @@ class SimulSweep(BaseSweep, QObject):
         for p, v in vals_dict.items():
             # Use ramp step if available (for parameters that were ramped),
             # otherwise use sweep step (for parameters that were already at target)
-            p_step = getattr(self, 'ramp_steps', {}).get(p, self.set_params_dict[p]["step"])
+            p_step = getattr(self, "ramp_steps", {}).get(
+                p, self.set_params_dict[p]["step"]
+            )
             if abs(safe_get(p) - v) - abs(p_step / 2) > abs(p_step) * self.err:
                 self.print_main.emit(
                     f"Ramping failed (possible that the direction was changed while ramping). "
@@ -372,7 +380,7 @@ class SimulSweep(BaseSweep, QObject):
             self.ramp_sweep = None
 
         # Clear ramp steps after successful ramp
-        if hasattr(self, 'ramp_steps'):
+        if hasattr(self, "ramp_steps"):
             del self.ramp_steps
 
         if start_on_finish is True:
@@ -413,7 +421,6 @@ class SimulSweep(BaseSweep, QObject):
         -------
         Time estimate for the sweep, in seconds
         """
-
         if self.progressState.state == SweepState.DONE:
             remaining = 0
         else:
@@ -425,17 +432,16 @@ class SimulSweep(BaseSweep, QObject):
             steps = max(distance / step_mag, 0)
             remaining = steps * self.inter_delay
 
-            effective_back_multiplier = self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
+            effective_back_multiplier = (
+                self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
+            )
 
             if (
                 self.bidirectional
                 and effective_back_multiplier > 0
                 and (
                     self.direction == 0
-                    or (
-                        self.t0 == 0
-                        and self.progressState.state != SweepState.RUNNING
-                    )
+                    or (self.t0 == 0 and self.progressState.state != SweepState.RUNNING)
                 )
             ):
                 remaining += self.n_steps / effective_back_multiplier * self.inter_delay

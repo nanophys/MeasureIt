@@ -637,7 +637,7 @@ class BaseSweep(QObject):
             Arbitrary keyword arguments to be passed to the callback function
         """
         # Disconnect any existing complete_func to prevent duplicate connections
-        if hasattr(self, 'complete_func') and self.complete_func is not None:
+        if hasattr(self, "complete_func") and self.complete_func is not None:
             try:
                 self.completed.disconnect(self.complete_func)
             except (TypeError, RuntimeError):

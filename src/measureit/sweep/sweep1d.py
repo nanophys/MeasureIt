@@ -218,7 +218,10 @@ class Sweep1D(BaseSweep, QObject):
 
     def pause(self):
         """Pauses any currently active sweeps."""
-        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
+        if (
+            self.progressState.state == SweepState.RAMPING
+            and self.ramp_sweep is not None
+        ):
             self.print_main.emit("Stopping the ramp.")
             self.ramp_sweep.pause()
             self.ramp_sweep.kill()
@@ -245,7 +248,10 @@ class Sweep1D(BaseSweep, QObject):
 
     def kill(self):
         """Ends the threads spawned by the sweep and closes any active plots."""
-        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
+        if (
+            self.progressState.state == SweepState.RAMPING
+            and self.ramp_sweep is not None
+        ):
             self.ramp_sweep.pause()
             self.ramp_sweep.kill()
 
@@ -586,7 +592,9 @@ class Sweep1D(BaseSweep, QObject):
 
             if self.bidirectional and self.direction == 0:
                 effective_back_multiplier = (
-                    self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
+                    self.back_multiplier
+                    if self.back_multiplier not in (None, 0)
+                    else 1.0
                 )
                 if effective_back_multiplier > 0:
                     distance_back = abs(self.end - self.begin)
