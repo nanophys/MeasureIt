@@ -239,7 +239,8 @@ class SimulSweep(BaseSweep, QObject):
             self.print_main.emit("Done with the sweep!")
             for p, v in self.set_params_dict.items():
                 self.print_main.emit(f"{p.label} = {v['setpoint']} ({p.unit})")
-            self.flip_direction()
+            if self.bidirectional or self.continuous:
+                self.flip_direction()
             return None
 
         return rets

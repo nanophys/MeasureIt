@@ -11,6 +11,7 @@ from qcodes.dataset.measurements import Measurement
 
 from .._internal.plotter_thread import Plotter
 from .._internal.runner_thread import RunnerThread
+from ..logging_utils import get_sweep_logger
 from ..tools.util import _autorange_srs, safe_get
 from .progress import ProgressState, SweepState
 
@@ -214,6 +215,11 @@ class BaseSweep(QObject):
         self._accumulated_run_time = 0.0
         self._run_started_at: Optional[float] = None
 
+        # Configure logging for this sweep instance
+        self.logger = get_sweep_logger(self.__class__.__name__)
+        if suppress_output:
+            self.logger.debug("Sweep created with suppress_output=True")
+
     @classmethod
     def init_from_json(cls, fn, station):
         """Initializes QCoDeS station from previously saved setup."""
@@ -343,6 +349,15 @@ class BaseSweep(QObject):
             self._add_runtime_since_last_resume()
         self.progressState.state = SweepState.PAUSED
         self.send_updates()
+
+    def stop(self):
+        """Stop/pause the sweep. Alias for pause() for backward compatibility.
+
+        This method pauses the sweep execution, allowing it to be resumed later
+        with start() or resume(). This matches the behavior from older versions
+        of MeasureIt where stop() was used to pause sweeps.
+        """
+        self.pause()
 
     def kill(self):
         """Ends the threads spawned by the sweep and closes any active plots."""
@@ -657,7 +672,10 @@ class BaseSweep(QObject):
             The object to be printed
         """
         if self.suppress_output is False:
-            print(msg)
+            self.logger.info(msg)
+        else:
+            # Respect suppress_output while still keeping a trace in the log file
+            self.logger.debug(msg)
 
     @pyqtSlot()
     def no_change(self, *args, **kwargs):

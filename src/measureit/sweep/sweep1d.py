@@ -246,6 +246,13 @@ class Sweep1D(BaseSweep, QObject):
         elif isinstance(self.instrument, M4G):
             self.instrument.write("SWEEP PAUSE")
 
+    def stop(self):
+        """Stop/pause the sweep. Alias for pause() for backward compatibility.
+
+        Handles stopping of ramp sweeps if in ramping state and instrument-specific pause operations.
+        """
+        self.pause()
+
     def kill(self):
         """Ends the threads spawned by the sweep and closes any active plots."""
         if (
