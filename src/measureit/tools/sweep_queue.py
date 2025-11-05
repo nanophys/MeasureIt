@@ -1,6 +1,7 @@
 # sweep_queue.py
 import importlib
 import json
+import logging
 import time
 import types
 from collections import deque
@@ -9,10 +10,11 @@ from functools import partial
 from pathlib import Path
 
 import qcodes as qc
-from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 from qcodes import Station, initialise_or_create_database_at
 
 from ..config import get_path
+from ..logging_utils import get_sweep_logger
 from ..sweep.base_sweep import BaseSweep
 from ..sweep.simul_sweep import SimulSweep
 from ..sweep.sweep0d import Sweep0D
@@ -91,9 +93,16 @@ class SweepQueue(QObject):
         self.inter_delay = inter_delay
         self.post_db_delay = post_db_delay
         self.debug = debug
+        self.log = get_sweep_logger("queue")
+        if self.debug:
+            base_logger = get_sweep_logger()
+            for handler in base_logger.handlers:
+                handler.setLevel(logging.DEBUG)
         self.rts = True
         # Flag to prevent concurrent begin_next() calls
         self._processing = False
+        self._pending_begin_next = False
+        self._retry_scheduled = False
         # Track previous action to detect DatabaseEntry->Sweep transitions
         self.previous_action = None
 
@@ -256,9 +265,9 @@ class SweepQueue(QObject):
                 # DatabaseEntry doesn't need a complete_func since it executes synchronously
                 self.queue.append(sweep)
             else:
-                print(
-                    f"Invalid object: {str(sweep)}.\nIf this is a function handle or other callable, add it with "
-                    f"the 'append_handle' function."
+                self.log.warning(
+                    "Invalid object queued: %s. Use append_handle() for callables.",
+                    sweep,
                 )
 
     def __iadd__(self, item):
@@ -376,23 +385,28 @@ class SweepQueue(QObject):
         """
         # Check that there is something in the queue to run
         if len(self.queue) == 0:
-            print("No sweeps loaded!")
+            self.log.warning("No sweeps loaded!")
             return
 
-        print("Starting sweeps")
+        self.log.info("Starting sweeps")
         self.current_action = self.queue.popleft()
         if isinstance(self.current_action, BaseSweep):
             self.current_sweep = self.current_action
             # Ensure metadata shows this sweep was launched by SweepQueue
             self._attach_queue_metadata_provider(self.current_sweep)
             if isinstance(self.current_sweep, Sweep1D):
-                print(
-                    f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
-                    f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
-                    f"({self.current_sweep.set_param.unit})"
+                self.log.info(
+                    "Starting sweep of %s from %s (%s) to %s (%s)",
+                    self.current_sweep.set_param.label,
+                    self.current_sweep.begin,
+                    self.current_sweep.set_param.unit,
+                    self.current_sweep.end,
+                    self.current_sweep.set_param.unit,
                 )
             elif isinstance(self.current_sweep, Sweep0D):
-                print(f"Starting 0D Sweep for {self.current_sweep.max_time} (s).")
+                self.log.info(
+                    "Starting 0D Sweep for %s seconds.", self.current_sweep.max_time
+                )
             self.newSweepSignal.emit(self.current_sweep)
             self.current_sweep.start(ramp_to_start=rts)
         elif isinstance(self.current_action, DatabaseEntry):
@@ -404,9 +418,9 @@ class SweepQueue(QObject):
             # Schedule onto the Jupyter kernel thread if available
             self._exec_in_kernel(self.current_action)
         else:
-            print(
-                f"Invalid action found in the queue!: {str(self.current_action)}"
-                f"Stopping execution of the queue."
+            self.log.error(
+                "Invalid action found in the queue! %s. Stopping execution.",
+                self.current_action,
             )
 
     def pause(self):
@@ -414,7 +428,7 @@ class SweepQueue(QObject):
         if self.current_sweep is not None:
             self.current_sweep.pause()
         else:
-            print("No sweep currently running, nothing to pause")
+            self.log.info("No sweep currently running, nothing to pause")
 
     def stop(self):
         """Stop/pause the current sweep. Alias for pause() for backward compatibility.
@@ -429,21 +443,21 @@ class SweepQueue(QObject):
         if self.current_sweep is not None:
             self.current_sweep.resume()
         else:
-            print("No current sweep, nothing to resume!")
+            self.log.info("No current sweep, nothing to resume!")
 
     def kill(self):
         """Kills any running sweeps."""
         if self.current_sweep is not None:
             self.current_sweep.kill()
         else:
-            print("No current sweep, nothing to resume!")        
+            self.log.info("No current sweep, nothing to resume!")
 
     def state(self):
         """Get the state of the currently running sweep."""
         if self.current_sweep is not None:
             return self.current_sweep.progressState.state
         else:
-            print("Sweep queue is not currently running")
+            self.log.info("Sweep queue is not currently running")
 
     @pyqtSlot()
     def begin_next(self):
@@ -452,52 +466,80 @@ class SweepQueue(QObject):
         Connected to completed pyqtSignals in the sweeps.
         Refactored to eliminate recursion and race conditions.
         """
+        # If a deferred retry is landing back here, clear the scheduled flag
+        if self._retry_scheduled and not self._processing:
+            self._retry_scheduled = False
+
         # Prevent concurrent executions of begin_next()
         if self._processing:
             if self.debug:
-                print("[DEBUG] begin_next() called but already processing, returning")
+                self.log.debug(
+                    "begin_next() called but already processing, scheduling retry"
+                )
+            self._pending_begin_next = True
+            if not self._retry_scheduled:
+                self._retry_scheduled = True
+                QTimer.singleShot(0, self.begin_next)
             return
         self._processing = True
+        self._pending_begin_next = False
 
         if self.debug:
-            print(f"[DEBUG] begin_next() called, queue length: {len(self.queue)}")
-            print(f"[DEBUG] current_action type: {type(self.current_action).__name__ if self.current_action else 'None'}")
+            self.log.debug("begin_next() called, queue length: %s", len(self.queue))
+            self.log.debug(
+                "current_action type: %s",
+                type(self.current_action).__name__ if self.current_action else "None",
+            )
 
         try:
             # Handle completion messages for the previous action if it was a sweep
             if isinstance(self.current_action, BaseSweep):
                 if isinstance(self.current_action, SimulSweep):
-                    print(f"Finished {str(self.current_action)}")
+                    self.log.info("Finished %s", str(self.current_action))
                 elif isinstance(self.current_action, Sweep1D):
-                    print(
-                        f"Finished sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
-                        f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
-                        f"({self.current_sweep.set_param.unit})"
+                    self.log.info(
+                        "Finished sweep of %s from %s (%s) to %s (%s)",
+                        self.current_sweep.set_param.label,
+                        self.current_sweep.begin,
+                        self.current_sweep.set_param.unit,
+                        self.current_sweep.end,
+                        self.current_sweep.set_param.unit,
                     )
                 elif isinstance(self.current_action, Sweep0D):
-                    print(f"Finished 0D Sweep of {self.current_sweep.max_time} (s).")
+                    self.log.info(
+                        "Finished 0D Sweep of %s seconds.",
+                        self.current_sweep.max_time,
+                    )
                 else:
-                    print(f"Finished {self.current_action.__class__.__name__}")
+                    self.log.info(
+                        "Finished %s", self.current_action.__class__.__name__
+                    )
 
                 # Clean up the sweep
                 self.current_sweep.kill()
                 self.current_sweep = None
 
             # Process queue items in a loop (no recursion)
-            while len(self.queue) > 0:
+            while self.queue:
                 # Store previous action for context tracking
                 self.previous_action = self.current_action
                 self.current_action = self.queue.popleft()
 
                 if self.debug:
-                    print(f"[DEBUG] Processing: {type(self.current_action).__name__}")
+                    self.log.debug(
+                        "Processing: %s",
+                        type(self.current_action).__name__,
+                    )
 
                 if isinstance(self.current_action, BaseSweep):
                     self.current_sweep = self.current_action
 
                     # Apply post-database delay if previous was DatabaseEntry
                     if isinstance(self.previous_action, DatabaseEntry):
-                        print(f"Waiting {self.post_db_delay}s for database initialization...")
+                        self.log.info(
+                            "Waiting %s s for database initialization...",
+                            self.post_db_delay,
+                        )
                         time.sleep(self.post_db_delay)
 
                     # Ensure metadata shows this sweep was launched by SweepQueue
@@ -505,17 +547,25 @@ class SweepQueue(QObject):
 
                     # Print start message for ALL sweep types
                     if isinstance(self.current_sweep, SimulSweep):
-                        print(str(self.current_sweep))
+                        self.log.info(str(self.current_sweep))
                     elif isinstance(self.current_sweep, Sweep1D):
-                        print(
-                            f"Starting sweep of {self.current_sweep.set_param.label} from {self.current_sweep.begin} "
-                            f"({self.current_sweep.set_param.unit}) to {self.current_sweep.end} "
-                            f"({self.current_sweep.set_param.unit})"
+                        self.log.info(
+                            "Starting sweep of %s from %s (%s) to %s (%s)",
+                            self.current_sweep.set_param.label,
+                            self.current_sweep.begin,
+                            self.current_sweep.set_param.unit,
+                            self.current_sweep.end,
+                            self.current_sweep.set_param.unit,
                         )
                     elif isinstance(self.current_sweep, Sweep0D):
-                        print(f"Starting 0D Sweep for {self.current_sweep.max_time} seconds.")
+                        self.log.info(
+                            "Starting 0D Sweep for %s seconds.",
+                            self.current_sweep.max_time,
+                        )
                     else:
-                        print(f"Starting {self.current_sweep.__class__.__name__}")
+                        self.log.info(
+                            "Starting %s", self.current_sweep.__class__.__name__
+                        )
 
                     time.sleep(self.inter_delay)
                     self.newSweepSignal.emit(self.current_sweep)
@@ -524,7 +574,7 @@ class SweepQueue(QObject):
 
                 elif isinstance(self.current_action, DatabaseEntry):
                     # Process DatabaseEntry synchronously
-                    print(str(self.current_action))
+                    self.log.info(str(self.current_action))
                     time.sleep(0.5)  # Small delay before database operation
                     self.current_action.start()
                     # Continue loop to process next item immediately
@@ -535,18 +585,24 @@ class SweepQueue(QObject):
                     break  # Exit loop - callable will call begin_next when done
 
                 else:
-                    print(
-                        f"Invalid action found in the queue!: {str(self.current_action)}"
-                        f" Stopping execution of the queue."
+                    self.log.error(
+                        "Invalid action found in the queue! %s. Stopping execution of the queue.",
+                        self.current_action,
                     )
                     # Continue loop to try next item
 
             # Check if we've finished everything
-            if len(self.queue) == 0 and self.current_sweep is None:
-                print("Finished all sweeps!")
+            if not self.queue and self.current_sweep is None:
+                self.log.info("Finished all sweeps!")
 
         finally:
             self._processing = False
+            # If additional completion requests arrived during processing but
+            # no retry is queued (e.g., caller invoked begin_next manually),
+            # schedule one now so the queue keeps draining.
+            if self._pending_begin_next and not self._retry_scheduled:
+                self._retry_scheduled = True
+                QTimer.singleShot(0, self.begin_next)
 
 
     def estimate_time(self, verbose=False):
@@ -571,8 +627,11 @@ class SweepQueue(QObject):
         minutes = int((t_est % 3600) / 60)
         seconds = t_est % 60
 
-        print(
-            f"Estimated time for the SweepQueue to run: {hours}h:{minutes:2.0f}m:{seconds:2.0f}s"
+        self.log.info(
+            "Estimated time for the SweepQueue to run: %sh:%2.0fm:%2.0fs",
+            hours,
+            minutes,
+            seconds,
         )
 
         return t_est
@@ -618,6 +677,7 @@ class DatabaseEntry(QObject):
         self.exp = exp
         self.samp = samp
         self.callback = callback
+        self.log = get_sweep_logger("database")
 
     def __str__(self):
         return f"Database entry: {self.db} | Experiment: {self.exp} | Sample: {self.samp}"
@@ -679,11 +739,19 @@ class DatabaseEntry(QObject):
                     if attempt < max_retries - 1:
                         # Calculate exponential backoff delay
                         delay = base_delay * (2 ** attempt)
-                        print(f"Database is locked. Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{max_retries})")
+                        self.log.warning(
+                            "Database is locked. Retrying in %.1f seconds... (attempt %s/%s)",
+                            delay,
+                            attempt + 1,
+                            max_retries,
+                        )
                         time.sleep(delay)
                     else:
                         # Final attempt failed, re-raise the error
-                        print(f"Failed to create experiment after {max_retries} attempts. Database may still be locked.")
+                        self.log.error(
+                            "Failed to create experiment after %s attempts. Database may still be locked.",
+                            max_retries,
+                        )
                         raise
                 else:
                     # Not a database lock error, re-raise immediately

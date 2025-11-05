@@ -6,6 +6,11 @@ from qcodes import config as qc_config
 
 # Phase 2: stable top-level re-exports from subpackages
 from .config import get_data_dir, get_path, set_data_dir  # noqa: F401
+from .logging_utils import (  # noqa: F401
+    attach_notebook_logging,
+    ensure_sweep_logging,
+    get_sweep_logger,
+)
 from .sweep.gate_leakage import GateLeakage  # noqa: F401
 from .sweep.simul_sweep import SimulSweep  # noqa: F401
 from .sweep.sweep0d import Sweep0D  # noqa: F401
@@ -34,6 +39,9 @@ __all__ = [
     "get_path",
     "set_data_dir",
     "get_data_dir",
+    "ensure_sweep_logging",
+    "get_sweep_logger",
+    "attach_notebook_logging",
 ]
 
 

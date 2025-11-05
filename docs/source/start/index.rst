@@ -50,6 +50,24 @@ Jupyter Usage
      s.follow_param(inst.parabola)
      s.start()
 
+Sweep Logging
+-------------
+
+- Sweep classes and :class:`~measureit.tools.sweep_queue.SweepQueue` emit
+  structured log messages. Each session writes to
+  ``<measureit data dir>/logs/sweeps_YYYYMMDD_HHMMSS.log``.
+- To make the messages appear inside a notebook, install a handler once per
+  kernel:
+
+  .. code-block:: python
+
+     from measureit import attach_notebook_logging
+
+     attach_notebook_logging()
+
+  The helper marshals log messages from background Qt threads back onto the
+  IPython event loop so they show up alongside your notebook output.
+
 Example notebooks
 -----------------
 

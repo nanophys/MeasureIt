@@ -32,3 +32,4 @@ htmlcov/
 # macOS clutter
 .DS_Store
 /databases
+/logs
