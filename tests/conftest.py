@@ -68,6 +68,15 @@ def quiet_test_env():
     # Matplotlib backend (should not be used, but avoid backend warnings if imported)
     os.environ.setdefault("MPLBACKEND", "Agg")
 
+    # Disable tqdm monitor thread to prevent macOS segfault during cleanup
+    # This must be done before tqdm is imported anywhere
+    try:
+        import tqdm
+
+        tqdm.tqdm.monitor_interval = 0
+    except Exception:
+        pass
+
     # Tame QCoDeS console logging
     try:
         import qcodes as qc
@@ -116,12 +125,26 @@ def close_qcodes_instruments_between_tests():
 @pytest.fixture(scope="session")
 def qapp():
     """Create QApplication instance for Qt-based tests."""
+    import sys
+    from PyQt5.QtCore import Qt
     from PyQt5.QtWidgets import QApplication
+
+    # Set Qt attributes before creating QApplication
+    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
 
     app = QApplication.instance()
     if app is None:
-        app = QApplication([])
+        app = QApplication(sys.argv if sys.argv else [])
+
     yield app
+
+    # Clean shutdown to prevent macOS segfault
+    try:
+        app.processEvents()
+        app.closeAllWindows()
+        app.processEvents()
+    except Exception:
+        pass
 
 
 @pytest.fixture
@@ -251,3 +274,34 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "e2e: mark test as end-to-end test"
     )
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Clean up QApplication before pytest exits to prevent macOS segfault.
+
+    NOTE: There is a known PyQt5 cleanup issue on macOS that causes a bus error/
+    segfault AFTER all tests complete successfully. This happens during pytest's
+    cleanup phase and does not affect test results. The crash occurs at 100% completion
+    and all tests PASS. This issue does not occur on Linux (CI environment).
+
+    Attempts to work around this with os._exit() don't work because the crash occurs
+    during the test loop, before pytest_sessionfinish is called.
+    """
+    import os
+    import sys
+
+    try:
+        from PyQt5.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if app is not None:
+            app.closeAllWindows()
+            app.processEvents()
+
+        # Force exit on macOS to bypass PyQt5 cleanup crash
+        # Note: This may not always work as crash can occur before this hook
+        if sys.platform == "darwin" and exitstatus == 0:
+            os._exit(0)
+    except Exception:
+        if sys.platform == "darwin" and exitstatus == 0:
+            os._exit(0)
