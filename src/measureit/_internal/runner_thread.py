@@ -1,7 +1,9 @@
 # runner_thread.py
 
+import io
 import json
 import time
+from contextlib import redirect_stderr, redirect_stdout
 
 from PyQt5.QtCore import QThread, pyqtSignal
 
@@ -106,9 +108,15 @@ class RunnerThread(QThread):
         """
         # Check database status
         if self.sweep.save_data is True:
-            self.runner = self.sweep.meas.run()
-            self.datasaver = self.runner.__enter__()
+            capture = io.StringIO()
+            with redirect_stdout(capture), redirect_stderr(capture):
+                self.runner = self.sweep.meas.run()
+                self.datasaver = self.runner.__enter__()
             self.dataset = self.datasaver.dataset
+            banner = capture.getvalue().strip()
+            if banner:
+                for line in banner.splitlines():
+                    self.sweep.print_main.emit(line)
             # Attach MeasureIt sweep metadata once per dataset, using provider if set
             try:
                 provider = getattr(self.sweep, "get_metadata_provider", None)
