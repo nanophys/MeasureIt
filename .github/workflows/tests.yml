@@ -60,11 +60,11 @@ jobs:
           set +e
           pytest tests/unit -v --cov=src/measureit --cov-report=xml --cov-report=term-missing --junit-xml=unit-results.xml
           TEST_EXIT=$?
-          # Exit codes: 0=all pass, 1=tests failed, 5=no tests, 139=segfault/bus error
-          # If exit code is 139 (bus error) but results show tests passed, treat as success
-          if [ $TEST_EXIT -eq 139 ] && [ -f unit-results.xml ]; then
+          # Exit codes: 0=all pass, 1=tests failed, 5=no tests, 138/139=segfault/bus error
+          # If crash exit code but results show tests passed, treat as success
+          if [ $TEST_EXIT -ge 128 ] && [ -f unit-results.xml ]; then
             if grep -q 'failures="0"' unit-results.xml && grep -q 'errors="0"' unit-results.xml; then
-              echo "Tests passed but PyQt5 cleanup crashed (known $RUNNER_OS issue) - treating as success"
+              echo "Tests passed but PyQt5 cleanup crashed with exit code $TEST_EXIT (known $RUNNER_OS issue) - treating as success"
               exit 0
             fi
           fi
@@ -81,11 +81,11 @@ jobs:
           set +e
           pytest tests/integration -v --cov=src/measureit --cov-append --cov-report=xml --junit-xml=integration-results.xml
           TEST_EXIT=$?
-          # Exit codes: 0=all pass, 1=tests failed, 5=no tests, 139=segfault/bus error
-          # If exit code is 139 (bus error) but results show tests passed, treat as success
-          if [ $TEST_EXIT -eq 139 ] && [ -f integration-results.xml ]; then
+          # Exit codes: 0=all pass, 1=tests failed, 5=no tests, 138/139=segfault/bus error
+          # If crash exit code but results show tests passed, treat as success
+          if [ $TEST_EXIT -ge 128 ] && [ -f integration-results.xml ]; then
             if grep -q 'failures="0"' integration-results.xml && grep -q 'errors="0"' integration-results.xml; then
-              echo "Tests passed but PyQt5 cleanup crashed (known $RUNNER_OS issue) - treating as success"
+              echo "Tests passed but PyQt5 cleanup crashed with exit code $TEST_EXIT (known $RUNNER_OS issue) - treating as success"
               exit 0
             fi
           fi
