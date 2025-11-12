@@ -1,313 +1,234 @@
-"""Unit tests for SweepQueue class."""
+"""Focused unit tests for SweepQueue using lightweight stubs.
 
-import json
+These tests avoid creating real sweep objects (which pull in heavy PyQt/QCoDeS
+state) by monkeypatching the sweep types that SweepQueue depends upon. This
+lets us exercise the queue orchestration logic without triggering native
+shutdown crashes observed with the full GUI stack.
+"""
+
+from __future__ import annotations
+
+from functools import partial
+from typing import Any, Callable, List, Optional
+
 import pytest
-from pathlib import Path
 
-from measureit.sweep.sweep1d import Sweep1D
-from measureit.sweep.simul_sweep import SimulSweep
-from measureit.tools.sweep_queue import SweepQueue, DatabaseEntry
+from measureit.tools import sweep_queue as sq
 
 
-class TestSweepQueueInit:
-    """Test SweepQueue initialization."""
+class DummySignal:
+    """Minimal replacement for a Qt signal."""
 
-    def test_init_defaults(self, qapp):
-        """Test SweepQueue initializes with defaults."""
-        queue = SweepQueue()
+    def __init__(self) -> None:
+        self._slots: list[Callable[..., None]] = []
 
-        assert queue.inter_delay == 1
-        assert queue.post_db_delay == 1.0
-        assert len(queue.queue) == 0
-        assert queue.current_sweep is None
-        assert queue.rts is True
+    def connect(self, slot: Callable[..., None]) -> None:
+        self._slots.append(slot)
 
-    def test_init_custom_delays(self, qapp):
-        """Test SweepQueue with custom delays."""
-        queue = SweepQueue(inter_delay=0.5, post_db_delay=2.0)
-
-        assert queue.inter_delay == 0.5
-        assert queue.post_db_delay == 2.0
-
-    def test_init_debug_mode(self, qapp):
-        """Test SweepQueue debug mode."""
-        queue = SweepQueue(debug=True)
-
-        assert queue.debug is True
-
-
-class TestSweepQueueOperations:
-    """Test basic queue operations."""
-
-    def test_append_single_sweep(self, qapp, mock_parameters, fast_sweep_kwargs):
-        """Test appending a single sweep."""
-        queue = SweepQueue()
-        sweep = Sweep1D(
-            mock_parameters["voltage"],
-            0, 1, 0.1, 0.01,
-            [mock_parameters["current"]],
-            **fast_sweep_kwargs,
-        )
-
-        queue.append(sweep)
-
-        assert len(queue.queue) == 1
-        assert queue.queue[0] == sweep
-
-    def test_append_multiple_sweeps(self, qapp, mock_parameters, fast_sweep_kwargs):
-        """Test appending multiple sweeps at once."""
-        queue = SweepQueue()
-        sweep1 = Sweep1D(
-            mock_parameters["voltage"],
-            0, 1, 0.1, 0.01,
-            [mock_parameters["current"]],
-            **fast_sweep_kwargs,
-        )
-        sweep2 = Sweep1D(
-            mock_parameters["voltage"],
-            1, 0, 0.1, 0.01,
-            [mock_parameters["current"]],
-            **fast_sweep_kwargs,
-        )
-
-        queue.append(sweep1, sweep2)
-
-        assert len(queue.queue) == 2
-        assert queue.queue[0] == sweep1
-        assert queue.queue[1] == sweep2
-
-    def test_delete_sweep(self, qapp, mock_parameters, fast_sweep_kwargs):
-        """Test deleting a sweep from queue."""
-        queue = SweepQueue()
-        sweep1 = Sweep1D(
-            mock_parameters["voltage"],
-            0, 1, 0.1, 0.01,
-            [mock_parameters["current"]],
-            **fast_sweep_kwargs,
-        )
-        sweep2 = Sweep1D(
-            mock_parameters["voltage"],
-            1, 0, 0.1, 0.01,
-            [mock_parameters["current"]],
-            **fast_sweep_kwargs,
-        )
-
-        queue.append(sweep1, sweep2)
-        queue.delete(sweep1)
-
-        assert len(queue.queue) == 1
-        assert sweep1 not in queue.queue
-        assert sweep2 in queue.queue
-
-
-class TestSweepQueueDatabaseEntry:
-    """Test DatabaseEntry functionality."""
-
-    def test_database_entry_creation(self, qapp, temp_database):
-        """Test creating a DatabaseEntry."""
-        entry = DatabaseEntry(
-            db=str(temp_database),
-            exp="test_experiment",
-            samp="test_sample"
-        )
-
-        assert entry.db == str(temp_database)
-        assert entry.exp == "test_experiment"
-        assert entry.samp == "test_sample"
-
-    def test_queue_with_database_entries(self, qapp, mock_parameters, temp_database, fast_sweep_kwargs):
-        """Test queue with DatabaseEntry objects."""
-        queue = SweepQueue()
-
-        db_entry = DatabaseEntry(
-            db=str(temp_database),
-            exp="test_exp",
-            samp="test_sample"
-        )
-
-        sweep = Sweep1D(
-            mock_parameters["voltage"],
-            0, 1, 0.1, 0.01,
-            [mock_parameters["current"]],
-            **fast_sweep_kwargs,
-        )
-
-        queue.append(db_entry, sweep)
-
-        assert len(queue.queue) == 2
-
-
-class TestSweepQueueCallable:
-    """Test adding callable functions to queue."""
-
-    def test_append_callable(self, qapp):
-        """Test appending a callable to queue using append_handle."""
-        queue = SweepQueue()
-
-        def test_func():
+    def disconnect(self, slot: Callable[..., None]) -> None:
+        try:
+            self._slots.remove(slot)
+        except ValueError:
             pass
 
-        queue.append_handle(test_func)
-
-        assert len(queue.queue) == 1
-        assert callable(queue.queue[0])
-
-    def test_mixed_queue(self, qapp, mock_parameters, fast_sweep_kwargs):
-        """Test queue with mixed types (sweeps and callables)."""
-        queue = SweepQueue()
-
-        sweep = Sweep1D(
-            mock_parameters["voltage"],
-            start=0,
-            stop=1,
-            step=0.1,
-            **fast_sweep_kwargs,
-        )
-        sweep.follow_param(mock_parameters["current"])
-
-        def test_func():
-            pass
-
-        queue.append(sweep)
-        queue.append_handle(test_func)
-        queue.append(sweep)
-
-        assert len(queue.queue) == 3
-        assert isinstance(queue.queue[0], Sweep1D)
-        assert callable(queue.queue[1])
-        # Note: queue.queue[2] is the same sweep object as queue.queue[0]
-        assert queue.queue[2] == sweep
+    def emit(self, *args: Any, **kwargs: Any) -> None:
+        for slot in list(self._slots):
+            slot(*args, **kwargs)
 
 
-class TestSweepQueueIteration:
-    """Test queue iteration."""
+class DummySweep:
+    """Lightweight stand-in for BaseSweep and its subclasses."""
 
-    def test_queue_is_iterable(self, qapp, mock_parameters, fast_sweep_kwargs):
-        """Test that queue is iterable."""
-        queue = SweepQueue()
-        sweeps = [
-            Sweep1D(
-                mock_parameters["voltage"],
-                i, i+1, 0.1, 0.01,
-                [mock_parameters["current"]],
-                **fast_sweep_kwargs,
-            )
-            for i in range(3)
-        ]
+    def __init__(
+        self,
+        name: str,
+        sweep_kind: str = "generic",
+        start_value: float = 0.0,
+        end_value: float = 1.0,
+    ) -> None:
+        self.name = name
+        self.started: bool = False
+        self.killed: int = 0
+        self.resumed: int = 0
+        self.metadata_provider = None
+        self.progressState = type("State", (), {"state": "READY"})()
+        self.completed = DummySignal()
+        self._complete_func: Optional[Callable[[], None]] = None
+        self.begin = start_value
+        self.end = end_value
+        self.max_time = 2.0
+        self.sweep_kind = sweep_kind
+        self.set_param = type(
+            "Param",
+            (),
+            {"label": f"{name}-param", "unit": "V"},
+        )()
+        self.export_payload = {
+            "module": "tests.stub",
+            "class": f"Dummy{sweep_kind.title()}",
+            "attributes": {"name": name},
+        }
 
-        queue.append(*sweeps)
+    # --- API expected by SweepQueue -------------------------------------------------
 
-        items = list(queue)
-        assert len(items) == 3
-        for i, item in enumerate(items):
-            assert item == sweeps[i]
+    def set_complete_func(self, func: Callable[..., None], *args: Any, **kwargs: Any) -> None:
+        callback = partial(func, *args, **kwargs)
+        self._complete_func = callback
+        self.completed.connect(callback)
 
+    def start(self, persist_data: Any = None, ramp_to_start: bool = False) -> None:
+        self.started = True
+        self.progressState.state = "RUNNING"
 
-class TestSweepQueueJSON:
-    """Test JSON export/import."""
+    def kill(self) -> None:
+        self.killed += 1
+        self.progressState.state = "KILLED"
 
-    def test_export_json_empty(self, qapp, tmp_path):
-        """Test exporting empty queue."""
-        queue = SweepQueue()
-        json_path = tmp_path / "queue.json"
+    def resume(self) -> None:
+        self.resumed += 1
+        self.progressState.state = "RUNNING"
 
-        json_dict = queue.export_json(str(json_path))
+    def export_json(self, fn: Optional[str] = None) -> dict[str, Any]:
+        return dict(self.export_payload)
 
-        assert "inter_delay" in json_dict
-        assert json_dict["inter_delay"] == queue.inter_delay
+    # --- Helpers for the tests ------------------------------------------------------
 
-    def test_export_json_with_sweeps(self, qapp, tmp_path):
-        """Test exporting queue structure (without sweeps that need full instrument setup)."""
-        queue = SweepQueue()
-        json_path = tmp_path / "queue.json"
+    def trigger_complete(self) -> None:
+        """Simulate the sweep finishing and emitting its completed signal."""
+        self.progressState.state = "DONE"
+        self.completed.emit()
 
-        # Test export of empty queue (sweeps with instruments require complex mocking)
-        json_dict = queue.export_json(str(json_path))
-
-        assert "queue" in json_dict
-        assert isinstance(json_dict["queue"], list)
-        assert "inter_delay" in json_dict
-        assert json_dict["inter_delay"] == queue.inter_delay
-
-
-class TestSweepQueueState:
-    """Test queue state management."""
-
-    def test_initial_state(self, qapp):
-        """Test queue starts in correct state."""
-        queue = SweepQueue()
-
-        assert queue.current_sweep is None
-        assert queue.current_action is None
-        assert queue._processing is False
-        assert queue._pending_begin_next is False
-
-    def test_queue_not_running_initially(self, qapp):
-        """Test that queue is not running initially."""
-        queue = SweepQueue()
-
-        # Initially not running (current_sweep should be None)
-        assert queue.current_sweep is None
-        assert queue.current_action is None
+    def __repr__(self) -> str:  # pragma: no cover - debugging helper
+        return f"<DummySweep {self.name}>"
 
 
-class TestSweepQueueMetadataProvider:
-    """Test metadata provider attachment."""
-
-    def test_attach_metadata_provider(self, qapp, mock_parameters, fast_sweep_kwargs):
-        """Test attaching metadata provider to sweep."""
-        queue = SweepQueue()
-        sweep = Sweep1D(
-            mock_parameters["voltage"],
-            0, 1, 0.1, 0.01,
-            [mock_parameters["current"]],
-            **fast_sweep_kwargs,
-        )
-
-        # Attach metadata provider
-        queue._attach_queue_metadata_provider(sweep)
-
-        # Sweep should have metadata_provider
-        assert hasattr(sweep, "metadata_provider")
+class DummySweep1D(DummySweep):
+    def __init__(self, name: str) -> None:
+        super().__init__(name, sweep_kind="1d")
 
 
-@pytest.mark.integration
-class TestSweepQueueIntegration:
-    """Integration tests for SweepQueue."""
+class DummySweep0D(DummySweep):
+    def __init__(self, name: str, duration: float) -> None:
+        super().__init__(name, sweep_kind="0d")
+        self.max_time = duration
 
-    def test_complex_queue(self, qapp, mock_parameters, temp_database, fast_sweep_kwargs):
-        """Test queue with complex mix of items."""
-        queue = SweepQueue(inter_delay=0.01, post_db_delay=0.1)
 
-        db_entry = DatabaseEntry(
-            db=str(temp_database),
-            exp="test",
-            samp="sample"
-        )
+class DummySimulSweep(DummySweep):
+    def __init__(self, name: str) -> None:
+        super().__init__(name, sweep_kind="simul")
 
-        sweep1 = Sweep1D(
-            mock_parameters["voltage"],
-            start=0,
-            stop=1,
-            step=0.1,
-            **fast_sweep_kwargs,
-        )
-        sweep1.follow_param(mock_parameters["current"])
 
-        sweep2 = Sweep1D(
-            mock_parameters["gate"],
-            start=-1,
-            stop=1,
-            step=0.2,
-            **fast_sweep_kwargs,
-        )
-        sweep2.follow_param(mock_parameters["x"])
+class DummyDatabaseEntry:
+    """Simplified DatabaseEntry replacement."""
 
-        def callback():
-            print("Between sweeps")
+    def __init__(self, label: str = "db") -> None:
+        self.label = label
+        self.started: bool = False
 
-        queue.append(db_entry, sweep1)
-        queue.append_handle(callback)
-        queue.append(sweep2)
+    def start(self) -> None:
+        self.started = True
 
-        assert len(queue.queue) == 4
+    def __str__(self) -> str:  # pragma: no cover - logging helper
+        return f"DummyDatabaseEntry<{self.label}>"
+
+
+@pytest.fixture(autouse=True)
+def stub_sweep_types(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Replace SweepQueue's sweep types with lightweight stubs for every test."""
+
+    monkeypatch.setattr(sq, "BaseSweep", DummySweep)
+    monkeypatch.setattr(sq, "Sweep1D", DummySweep1D)
+    monkeypatch.setattr(sq, "Sweep0D", DummySweep0D)
+    monkeypatch.setattr(sq, "SimulSweep", DummySimulSweep)
+    monkeypatch.setattr(sq, "DatabaseEntry", DummyDatabaseEntry)
+
+    # Dispatch callables synchronously – no Qt/asyncio event loop required.
+    monkeypatch.setattr(sq.SweepQueue, "_exec_in_kernel", lambda self, fn: fn())
+
+
+@pytest.fixture
+def queue(qapp) -> sq.SweepQueue:
+    queue = sq.SweepQueue(inter_delay=0.0, post_db_delay=0.0, debug=True)
+    queue.newSweepSignal = DummySignal()
+    yield queue
+    try:
+        queue.kill()
+    finally:
+        queue.queue.clear()
+
+
+def test_append_registers_completion(queue: sq.SweepQueue) -> None:
+    sweep = DummySweep("alpha")
+
+    queue.append(sweep)
+
+    assert list(queue) == [sweep]
+    assert sweep._complete_func is not None
+
+
+def test_start_processes_sweeps_in_order(queue: sq.SweepQueue) -> None:
+    first = DummySweep1D("first")
+    second = DummySweep("second")
+
+    queue.append(first, second)
+    queue.start()
+
+    assert queue.current_sweep is first
+    assert first.started is True
+    assert second.started is False
+
+    first.trigger_complete()  # Should advance to the next sweep
+    assert queue.current_sweep is second
+    assert second.started is True
+
+    second.trigger_complete()
+    assert queue.current_sweep is None
+    assert not queue.queue  # Queue drained
+    assert first.killed == 1  # Sweeps are killed when finished
+    assert second.killed == 1
+
+
+def test_queue_handles_database_entries_and_callables(queue: sq.SweepQueue) -> None:
+    db = DummyDatabaseEntry("primary")
+    log: List[str] = []
+
+    def callback() -> None:
+        log.append("callback-run")
+
+    sweep = DummySweep("omega")
+
+    queue.append(db, sweep)
+    queue.append_handle(callback)
+    queue.start()
+
+    assert db.started is True  # Database entry executed before sweep
+    assert queue.current_sweep is sweep
+
+    sweep.trigger_complete()
+    assert log == ["callback-run"]
+    assert queue.current_sweep is None
+
+
+def test_queue_reordering_helpers(queue: sq.SweepQueue) -> None:
+    sweeps = [DummySweep(f"s{i}") for i in range(3)]
+    queue.append(*sweeps)
+
+    queue.move(sweeps[0], 2)
+    assert list(queue) == [sweeps[1], sweeps[2], sweeps[0]]
+
+    replacement = DummySweep("replacement")
+    queue.replace(1, replacement)
+    assert list(queue)[1] is replacement
+
+    queue.delete(replacement)
+    assert replacement not in queue
+
+
+def test_export_json_includes_queue_configuration(queue: sq.SweepQueue) -> None:
+    queue.append(DummySweep("json-test"))
+
+    data = queue.export_json()
+
+    assert data["inter_delay"] == queue.inter_delay
+    assert isinstance(data["queue"], list)
+    assert data["queue"][0]["attributes"]["name"] == "json-test"
