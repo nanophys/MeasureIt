@@ -73,3 +73,5 @@ examples/content/.ipynb_checkpoints/
 # Package build
 src/qmeasure.egg-info/
 /databases
+/.tmp_measureit
+/logs
