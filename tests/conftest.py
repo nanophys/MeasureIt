@@ -124,27 +124,25 @@ def close_qcodes_instruments_between_tests():
 
 @pytest.fixture(scope="session")
 def qapp():
-    """Create QApplication instance for Qt-based tests."""
+    """Create a shared QApplication with safe teardown guards for macOS CI."""
     import sys
+    import sip
     from PyQt5.QtCore import Qt
     from PyQt5.QtWidgets import QApplication
 
-    # Set Qt attributes before creating QApplication
     QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+    # Prevent PyQt from destroying QObject instances during interpreter shutdown.
+    try:
+        sip.setdestroyonexit(False)
+    except AttributeError:
+        pass
 
     app = QApplication.instance()
     if app is None:
-        app = QApplication(sys.argv if sys.argv else [])
+        argv = sys.argv if sys.argv else []
+        app = QApplication(argv)
 
     yield app
-
-    # Clean shutdown to prevent macOS segfault
-    try:
-        app.processEvents()
-        app.closeAllWindows()
-        app.processEvents()
-    except Exception:
-        pass
 
 
 @pytest.fixture

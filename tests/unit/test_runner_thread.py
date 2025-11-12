@@ -40,6 +40,7 @@ class TestRunnerThreadInit:
 
         # Should inherit from QThread
         from PyQt5.QtCore import QThread
+
         assert isinstance(runner, QThread)
 
 

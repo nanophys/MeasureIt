@@ -8,10 +8,13 @@ shutdown crashes observed with the full GUI stack.
 
 from __future__ import annotations
 
+import os
 from functools import partial
 from typing import Any, Callable, List, Optional
 
 import pytest
+
+os.environ.setdefault("MEASUREIT_FAKE_QT", "1")
 
 from measureit.tools import sweep_queue as sq
 
@@ -147,7 +150,7 @@ def stub_sweep_types(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def queue(qapp) -> sq.SweepQueue:
+def queue() -> sq.SweepQueue:
     queue = sq.SweepQueue(inter_delay=0.0, post_db_delay=0.0, debug=True)
     queue.newSweepSignal = DummySignal()
     yield queue
