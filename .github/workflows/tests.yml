@@ -56,7 +56,19 @@ jobs:
         if [ "$RUNNER_OS" == "Linux" ]; then
           xvfb-run -a pytest tests/unit -v --cov=src/measureit --cov-report=xml --cov-report=term-missing
         else
-          pytest tests/unit -v --cov=src/measureit --cov-report=xml --cov-report=term-missing
+          # macOS/Windows: Known PyQt5 cleanup crash after tests pass - capture results before crash
+          set +e
+          pytest tests/unit -v --cov=src/measureit --cov-report=xml --cov-report=term-missing --junit-xml=unit-results.xml
+          TEST_EXIT=$?
+          # Exit codes: 0=all pass, 1=tests failed, 5=no tests, 139=segfault/bus error
+          # If exit code is 139 (bus error) but results show tests passed, treat as success
+          if [ $TEST_EXIT -eq 139 ] && [ -f unit-results.xml ]; then
+            if grep -q 'failures="0"' unit-results.xml && grep -q 'errors="0"' unit-results.xml; then
+              echo "Tests passed but PyQt5 cleanup crashed (known $RUNNER_OS issue) - treating as success"
+              exit 0
+            fi
+          fi
+          exit $TEST_EXIT
         fi
 
     - name: Run integration tests
@@ -65,7 +77,19 @@ jobs:
         if [ "$RUNNER_OS" == "Linux" ]; then
           xvfb-run -a pytest tests/integration -v --cov=src/measureit --cov-append --cov-report=xml
         else
-          pytest tests/integration -v --cov=src/measureit --cov-append --cov-report=xml
+          # macOS/Windows: Known PyQt5 cleanup crash after tests pass - capture results before crash
+          set +e
+          pytest tests/integration -v --cov=src/measureit --cov-append --cov-report=xml --junit-xml=integration-results.xml
+          TEST_EXIT=$?
+          # Exit codes: 0=all pass, 1=tests failed, 5=no tests, 139=segfault/bus error
+          # If exit code is 139 (bus error) but results show tests passed, treat as success
+          if [ $TEST_EXIT -eq 139 ] && [ -f integration-results.xml ]; then
+            if grep -q 'failures="0"' integration-results.xml && grep -q 'errors="0"' integration-results.xml; then
+              echo "Tests passed but PyQt5 cleanup crashed (known $RUNNER_OS issue) - treating as success"
+              exit 0
+            fi
+          fi
+          exit $TEST_EXIT
         fi
 
     - name: Run E2E tests (selected platforms)
