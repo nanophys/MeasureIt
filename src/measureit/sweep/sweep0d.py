@@ -55,7 +55,7 @@ class Sweep0D(BaseSweep, QObject):
 
         # Amount of time to run
         self.max_time = max_time
-        self.progressState.progress = 0.0
+        self.progress_state.progress = 0.0
         self.update_progress()
 
     def __str__(self):
@@ -92,7 +92,7 @@ class Sweep0D(BaseSweep, QObject):
             (<QCoDeS Parameter>, measurement value). The tuples are passed in order
             of time, set_param (if applicable), then all the followed parameters.
         """
-        t = self.progressState.time_elapsed
+        t = self.progress_state.time_elapsed
 
         data = []
 
@@ -103,7 +103,7 @@ class Sweep0D(BaseSweep, QObject):
                 and self.runner.datasaver is not None
             ):
                 self.runner.datasaver.flush_data_to_database()
-            self.progressState.state = SweepState.DONE
+            self.progress_state.state = SweepState.DONE
             self.print_main.emit(f"Done with the sweep, t={t} (s)")
             self.completed.emit()
 
@@ -124,7 +124,7 @@ class Sweep0D(BaseSweep, QObject):
                 v = p.get()
                 data.append((p, v))
 
-        if self.save_data and self.progressState.state == SweepState.RUNNING:
+        if self.save_data and self.progress_state.state == SweepState.RUNNING:
             self.runner.datasaver.add_result(*data)
 
         self.send_updates()
@@ -143,12 +143,12 @@ class Sweep0D(BaseSweep, QObject):
         -------
         Time estimate for the sweep, in seconds
         """
-        if self.progressState.state in (SweepState.READY, SweepState.RAMPING):
+        if self.progress_state.state == SweepState.DONE:
+            return 0
+        if self.progress_state.state in (SweepState.READY, SweepState.RAMPING):
             remaining = self.max_time
-        elif self.progressState.state == SweepState.DONE:
-            remaining = 0
         else:
-            remaining = max(self.max_time - self.progressState.time_elapsed, 0.0)
+            remaining = max(self.max_time - self.progress_state.time_elapsed, 0.0)
 
         if verbose:
             hours, minutes, seconds = self._split_hms(remaining)

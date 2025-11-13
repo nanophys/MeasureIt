@@ -12,9 +12,9 @@ emitted from worker threads.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from datetime import datetime
 from typing import Optional
 
 from .config import get_path
@@ -33,12 +33,11 @@ def ensure_sweep_logging(use_stream: bool = True) -> logging.Logger:
         attached in addition to the rotating file handler. Disable when the
         caller wants to provide bespoke stream routing.
 
-    Returns
+    Returns:
     -------
     logging.Logger
         The configured sweep logger that other modules can use/derive from.
     """
-
     global _CONFIGURED
 
     logger = logging.getLogger(_LOGGER_NAME)
@@ -74,7 +73,6 @@ def ensure_sweep_logging(use_stream: bool = True) -> logging.Logger:
 
 def get_sweep_logger(suffix: Optional[str] = None) -> logging.Logger:
     """Return a child logger for sweep-related components."""
-
     base = ensure_sweep_logging()
     if suffix:
         return base.getChild(suffix)
@@ -108,7 +106,6 @@ class NotebookHandler(logging.Handler):
 
 def attach_notebook_logging(loop=None) -> NotebookHandler:
     """Attach a NotebookHandler to the sweep logger and return it."""
-
     logger = ensure_sweep_logging()
     handler = NotebookHandler(loop=loop)
     formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")

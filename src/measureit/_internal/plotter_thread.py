@@ -5,9 +5,18 @@ from collections import deque
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt5.QtCore import QObject, pyqtSlot
+from PyQt5.QtCore import QObject, QTimer, pyqtSlot
 from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
+
+from ..sweep.progress import SweepState
+from .progress_display import create_progress_controls, update_progress_controls
+
+_PROGRESS_SUFFIX_MAP = {
+    SweepState.RAMPING: "Ramping",
+    SweepState.PAUSED: "Paused",
+    SweepState.DONE: "Done",
+}
 
 # Configure PyQtGraph for better performance
 pg.setConfigOptions(
@@ -81,7 +90,9 @@ class Plotter(QObject):  # moved to _internal
         self.finished = False
         self.last_pass = False
         self.figs_set = False
-        self.kill_flag = False
+        self.update_timer = None
+        self.update_interval = 200  # milliseconds
+        self.max_items_per_update = 50
 
         # PyQtGraph-specific attributes
         self.widget = None
@@ -90,6 +101,7 @@ class Plotter(QObject):  # moved to _internal
         self.plot_items = {}  # Maps parameters to (forward_item, backward_item)
         self.set_plot = None
         self.set_plot_item = None
+        self.progress_controls = None
         self.progress_bar = None
         self.elapsed_label = None
         self.remaining_label = None
@@ -101,6 +113,9 @@ class Plotter(QObject):  # moved to _internal
 
     def handle_close(self, event):
         """Handle widget close event."""
+        if self.update_timer is not None:
+            self.update_timer.stop()
+            self.update_timer = None
         self.clear()
         event.accept()
 
@@ -148,6 +163,7 @@ class Plotter(QObject):  # moved to _internal
         for p in self.sweep._params:
             break_data.append((p, np.nan))
         self.data_queue.append((break_data, direction))
+        self.update_plots(force=True)
 
     def create_figs(self):
         """Creates PyQtGraph plot widgets for each parameter."""
@@ -179,27 +195,15 @@ class Plotter(QObject):  # moved to _internal
         info_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 5px; }")
         main_layout.addWidget(info_label)
 
-        state = getattr(self.sweep, "progressState", None)
-        if state is not None and getattr(state, "progress", None) is not None:
-            progress_info = QHBoxLayout()
-            progress_info.setContentsMargins(0, 0, 0, 0)
-            progress_info.setSpacing(8)
-
-            self.elapsed_label = QLabel("Elapsed: --")
-            self.remaining_label = QLabel("Remaining: --")
-
-            progress_info.addWidget(self.elapsed_label)
-            progress_info.addStretch(1)
-            progress_info.addWidget(self.remaining_label)
-
-            self.progress_bar = QProgressBar()
-            self.progress_bar.setRange(0, 1000)
-            self.progress_bar.setValue(0)
-            self.progress_bar.setTextVisible(True)
-
-            main_layout.addLayout(progress_info)
-            main_layout.addWidget(self.progress_bar)
-            self.update_progress_widgets()
+        self.progress_controls = create_progress_controls(main_layout)
+        self.progress_bar = self.progress_controls.progress_bar
+        self.elapsed_label = self.progress_controls.elapsed_label
+        self.remaining_label = self.progress_controls.remaining_label
+        update_progress_controls(
+            self.progress_controls,
+            self.sweep.progress_state,
+            suffix_map=_PROGRESS_SUFFIX_MAP,
+        )
 
         # Create PyQtGraph layout widget
         self.layout_widget = pg.GraphicsLayoutWidget()
@@ -286,6 +290,11 @@ class Plotter(QObject):  # moved to _internal
         # Show the widget
         self.widget.show()
 
+        if self.update_timer is None:
+            self.update_timer = QTimer()
+            self.update_timer.timeout.connect(self.update_plots)
+            self.update_timer.start(self.update_interval)
+
     @pyqtSlot(object, int)
     def add_data(self, data, direction):
         """Receives data from the Runner Thread.
@@ -297,34 +306,33 @@ class Plotter(QObject):  # moved to _internal
         direction:
             The direction of the sweep (0 or 1).
         """
-        self.data_queue.append((data, direction))
+        if data is not None:
+            self.data_queue.append((data, direction))
+        elif self.figs_set:
+            self.update_plots(force=True)
+        elif not self.figs_set and len(self.data_queue) > self.max_items_per_update:
+            self.data_queue = deque(list(self.data_queue)[-self.max_items_per_update :])
 
-        # Only update plots when we have enough data points or it's been a while
-        # This prevents excessive update calls that slow down the plotting
-        self.update_plots(force=data is None)
-
-    @pyqtSlot(bool)
+    @pyqtSlot()
     def update_plots(self, force=False):
         """Updates all plots with new data from the queue.
-        Optimized for high-frequency updates.
-
-        Parameters
-        ---------
-        force:
-            If True, process all queued data immediately.
+        Optimized for high-frequency updates scheduled on a timer.
         """
         if not self.figs_set:
             return
 
-        # Check if we should update - either we have enough data or force is True
-        if len(self.data_queue) < self.plot_bin and not force:
+        self.update_progress_widgets()
+
+        if not self.data_queue or (not force and len(self.data_queue) < self.plot_bin):
             return
 
-        # Process all queued data at once for better performance
-        while len(self.data_queue) > 0:
+        items_processed = 0
+        while self.data_queue and (
+            force
+            or self.max_items_per_update <= 0
+            or items_processed < self.max_items_per_update
+        ):
             temp = self.data_queue.popleft()
-            if temp[0] is None:
-                break
             data = deque(temp[0])
             direction = temp[1]
 
@@ -378,9 +386,9 @@ class Plotter(QObject):  # moved to _internal
                     self.data_arrays[param][direction_key]["x"].append(x_data_value)
                     self.data_arrays[param][direction_key]["y"].append(y_value)
 
-        # Now update all plots at once (much more efficient)
+            items_processed += 1
+
         self._update_plot_displays()
-        self.update_progress_widgets()
 
     def _update_plot_displays(self):
         """Efficiently updates all plot displays using stored data arrays.
@@ -414,40 +422,13 @@ class Plotter(QObject):  # moved to _internal
                     backward_item.setData(x_data, y_data)
 
     def update_progress_widgets(self):
-        if self.progress_bar is None:
+        if self.progress_controls is None:
             return
-
-        state = getattr(self.sweep, "progressState", None)
-        if state is None:
-            return
-
-        progress = getattr(state, "progress", None)
-        if progress is None:
-            self.progress_bar.setFormat("Progress: --")
-            self.progress_bar.setValue(0)
-        else:
-            self.progress_bar.setFormat("Progress: %p%")
-            progress_value = int(max(0.0, min(1.0, progress)) * 1000)
-            self.progress_bar.setValue(progress_value)
-
-        def _format_seconds(value):
-            if value is None:
-                return "--"
-            try:
-                if math.isinf(value):
-                    return "∞"
-            except TypeError:
-                return "--"
-            return f"{max(0.0, value):.1f} s"
-
-        if self.elapsed_label is not None:
-            self.elapsed_label.setText(
-                f"Elapsed: {_format_seconds(state.time_elapsed)}"
-            )
-        if self.remaining_label is not None:
-            self.remaining_label.setText(
-                f"Remaining: {_format_seconds(state.time_remaining)}"
-            )
+        update_progress_controls(
+            self.progress_controls,
+            self.sweep.progress_state,
+            suffix_map=_PROGRESS_SUFFIX_MAP,
+        )
 
     def get_plot_data(self, param_index):
         """Get x,y data arrays for a specific parameter.
@@ -531,6 +512,9 @@ class Plotter(QObject):  # moved to _internal
 
     def clear(self):
         """Resets plots and closes the widget."""
+        if self.update_timer is not None:
+            self.update_timer.stop()
+            self.update_timer = None
         if self.figs_set:
             self.reset()
             self.figs_set = False

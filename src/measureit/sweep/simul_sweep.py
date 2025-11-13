@@ -130,7 +130,7 @@ class SimulSweep(BaseSweep, QObject):
         self.follow_param([p for p in self.simul_params if p is not self.set_param])
         self.persist_data = []
         if not self.continuous:
-            self.progressState.progress = 0.0
+            self.progress_state.progress = 0.0
             self.update_progress()
 
     def __str__(self):
@@ -153,12 +153,12 @@ class SimulSweep(BaseSweep, QObject):
 
     def start(self, persist_data=None, ramp_to_start=True, ramp_multiplier=1):
         """Starts the sweep. Runs from the BaseSweep start() function."""
-        if self.progressState.state == SweepState.RAMPING:
+        if self.progress_state.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Still ramping. Wait until ramp is done to start the sweep."
             )
             return
-        if self.progressState.state == SweepState.RUNNING:
+        if self.progress_state.state == SweepState.RUNNING:
             self.print_main.emit("Sweep is already running.")
             return
 
@@ -176,33 +176,7 @@ class SimulSweep(BaseSweep, QObject):
         else:
             self.print_main.emit("Starting our sweep.")
             super().start(persist_data=persist_data, ramp_to_start=False)
-
-    def pause(self):
-        if (
-            self.progressState.state == SweepState.RAMPING
-            and self.ramp_sweep is not None
-        ):
-            self.print_main.emit("Stopping the ramp.")
-            self.ramp_sweep.pause()
-            self.ramp_sweep.kill()
-
-            while self.ramp_sweep.check_running():
-                time.sleep(0.2)
-            vals_dict = {}
-            for p, v in self.ramp_sweep.set_params_dict.items():
-                vals_dict[p] = v["setpoint"]
-            self.done_ramping(vals_dict)
-
-        super().pause()
-
-    def kill(self):
-        if (
-            self.progressState.state == SweepState.RAMPING
-            and self.ramp_sweep is not None
-        ):
-            self.ramp_sweep.pause()
-            self.ramp_sweep.kill()
-        super().kill()
+            self.child_sweep = None
 
     def send_updates(self, no_sp=True):
         pass
@@ -274,7 +248,7 @@ class SimulSweep(BaseSweep, QObject):
                 v = safe_get(p)
                 data.append((p, v))
 
-        if self.save_data and self.progressState.state == SweepState.RUNNING:
+        if self.save_data and self.progress_state.state == SweepState.RUNNING:
             self.runner.datasaver.add_result(*data)
 
         # self.send_updates()
@@ -283,12 +257,12 @@ class SimulSweep(BaseSweep, QObject):
 
     def ramp_to(self, vals_dict, start_on_finish=False, persist=None, multiplier=1):
         # Ensure we aren't currently running
-        if self.progressState.state == SweepState.RAMPING:
+        if self.progress_state.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Currently ramping. Finish current ramp before starting another."
             )
             return
-        if self.progressState.state == SweepState.RUNNING:
+        if self.progress_state.state == SweepState.RUNNING:
             self.print_main.emit("Already running. Stop the sweep before ramping.")
             return
 
@@ -330,7 +304,7 @@ class SimulSweep(BaseSweep, QObject):
             ramp_params_dict,
             n_steps=n_steps,
             inter_delay=self.inter_delay,
-            plot_data=True,
+            plot_data=self.plot_data,
             save_data=False,
             complete_func=partial(
                 self.done_ramping,
@@ -339,17 +313,19 @@ class SimulSweep(BaseSweep, QObject):
                 pd=persist,
             ),
         )
+        self.ramp_sweep.parent_sweep = self
         # Only follow parameters that are not being ramped to avoid circular dependencies
         follow_params = [p for p in self._params if p not in ramp_params_dict.keys()]
         if follow_params:
             self.ramp_sweep.follow_param(follow_params)
-        self.progressState.state = SweepState.RAMPING
+        self.progress_state.state = SweepState.RAMPING
+        self.child_sweep = self.ramp_sweep
         self.ramp_sweep.start(ramp_to_start=False)
 
     @pyqtSlot()
     def done_ramping(self, vals_dict, start_on_finish=False, pd=None):
-        if self.progressState.state != SweepState.KILLED:
-            self.progressState.state = SweepState.READY
+        if self.progress_state.state != SweepState.KILLED:
+            self.progress_state.state = SweepState.READY
 
         # Check if we are at the value we expect, otherwise something went wrong with the ramp
         for p, v in vals_dict.items():
@@ -366,7 +342,7 @@ class SimulSweep(BaseSweep, QObject):
                 )
 
                 if self.ramp_sweep is not None:
-                    self.ramp_sweep.kill()
+                    self.ramp_sweep.kill(update_parent=False)
                     self.ramp_sweep = None
 
                 return
@@ -377,8 +353,9 @@ class SimulSweep(BaseSweep, QObject):
             self.set_params_dict[p]["setpoint"] = v - self.set_params_dict[p]["step"]
 
         if self.ramp_sweep is not None:
-            self.ramp_sweep.kill()
+            self.ramp_sweep.kill(update_parent=False)
             self.ramp_sweep = None
+        self.child_sweep = None
 
         # Clear ramp steps after successful ramp
         if hasattr(self, "ramp_steps"):
@@ -422,30 +399,32 @@ class SimulSweep(BaseSweep, QObject):
         -------
         Time estimate for the sweep, in seconds
         """
-        if self.progressState.state == SweepState.DONE:
-            remaining = 0
-        else:
-            cfg = list(self.set_params_dict.values())[0]
-            step_mag = abs(cfg["step"])
-            current = cfg["setpoint"]
-            target = cfg["stop"]
-            distance = abs(target - current)
-            steps = max(distance / step_mag, 0)
-            remaining = steps * self.inter_delay
+        if self.progress_state.state == SweepState.DONE:
+            return 0
+        if self.continuous:
+            return None
 
-            effective_back_multiplier = (
-                self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
+        cfg = list(self.set_params_dict.values())[0]
+        step_mag = abs(cfg["step"])
+        current = cfg["setpoint"]
+        target = cfg["stop"]
+        distance = abs(target - current)
+        steps = max(distance / step_mag, 0)
+        remaining = steps * self.inter_delay
+
+        effective_back_multiplier = (
+            self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
+        )
+
+        if (
+            self.bidirectional
+            and effective_back_multiplier > 0
+            and (
+                self.direction == 0
+                or (self.t0 == 0 and self.progress_state.state != SweepState.RUNNING)
             )
-
-            if (
-                self.bidirectional
-                and effective_back_multiplier > 0
-                and (
-                    self.direction == 0
-                    or (self.t0 == 0 and self.progressState.state != SweepState.RUNNING)
-                )
-            ):
-                remaining += self.n_steps / effective_back_multiplier * self.inter_delay
+        ):
+            remaining += self.n_steps / effective_back_multiplier * self.inter_delay
 
         if verbose:
             hours, minutes, seconds = self._split_hms(remaining)

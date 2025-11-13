@@ -9,7 +9,11 @@ def test_logging_exports_available():
 
 
 def test_sweep_logging_helpers():
-    from measureit import attach_notebook_logging, ensure_sweep_logging, get_sweep_logger
+    from measureit import (
+        attach_notebook_logging,
+        ensure_sweep_logging,
+        get_sweep_logger,
+    )
     from measureit.logging_utils import NotebookHandler
 
     base_logger = ensure_sweep_logging()

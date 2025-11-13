@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Verify SweepQueue log for skipped entries."""
+
 from __future__ import annotations
 
 import argparse
@@ -11,9 +12,7 @@ from typing import Iterable
 BEGIN_RE = re.compile(
     r"measureit\.sweeps\.queue \| DEBUG \| begin_next\(\) called, queue length: (\d+)"
 )
-PROCESS_RE = re.compile(
-    r"measureit\.sweeps\.queue \| DEBUG \| Processing: (\w+)"
-)
+PROCESS_RE = re.compile(r"measureit\.sweeps\.queue \| DEBUG \| Processing: (\w+)")
 FINISH_MAP = {
     re.compile(r"Finished sweep of "): "Sweep1D",
     re.compile(r"Finished 0D Sweep"): "Sweep0D",
@@ -98,9 +97,7 @@ def check_log(path: Path) -> tuple[list[str], list[str]]:
         )
 
     if pending:
-        notes.append(
-            "Log ends with pending actions: " + ", ".join(pending)
-        )
+        notes.append("Log ends with pending actions: " + ", ".join(pending))
 
     return problems, notes
 

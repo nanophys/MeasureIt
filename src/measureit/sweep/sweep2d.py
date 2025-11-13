@@ -3,12 +3,32 @@
 import time
 from functools import partial
 
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 
 from ..visualization.heatmap_thread import Heatmap
 from .base_sweep import BaseSweep
 from .progress import SweepState
 from .sweep1d import Sweep1D
+
+
+class _Sweep2DMonitor(QThread):
+    """Background thread that periodically checks Sweep2D progress."""
+
+    tick = pyqtSignal()
+
+    def __init__(self, parent, interval_ms=200):
+        super().__init__(parent)
+        self._interval_ms = interval_ms
+        self._stop = False
+
+    def stop(self):
+        self._stop = True
+
+    def run(self):
+        self._stop = False
+        while not self._stop:
+            self.tick.emit()
+            self.msleep(self._interval_ms)
 
 
 class Sweep2D(BaseSweep, QObject):
@@ -172,6 +192,8 @@ class Sweep2D(BaseSweep, QObject):
         # Initialize the BaseSweep
         QObject.__init__(self)
         BaseSweep.__init__(self, set_param=self.set_param, *args, **kwargs)
+        self._monitor_thread = None
+        self._monitor_interval_ms = 200
 
         # Create the inner sweep object
         self.in_sweep = Sweep1D(
@@ -189,19 +211,15 @@ class Sweep2D(BaseSweep, QObject):
             plot_bin=self.plot_bin,
         )
         # Set parent reference so UI actions (e.g., ESC) can stop both inner and outer sweeps
-        self.in_sweep.parent = self
+        self.in_sweep.parent_sweep = self
         # Ensure the inner sweep writes metadata for the composite (outer) sweep
         self.in_sweep.metadata_provider = self
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
         self.in_sweep.follow_param(self.set_param)
-        # Our update_values() function iterates the outer sweep, so when the inner sweep
-        # is done, call that function automatically
-        self.in_sweep.set_complete_func(self.update_values)
-
         self.outer_delay = outer_delay
         self.inner_time = self.in_sweep.estimate_time(verbose=False)
-        self.progressState.progress = 0.0
+        self.progress_state.progress = 0.0
         self.update_progress()
         # Bubble dataset info through the outer sweep signal for convenience
         try:
@@ -302,10 +320,10 @@ class Sweep2D(BaseSweep, QObject):
         persist_data:
             Sets the outer parameter for Sweep2D.
         """
-        if self.progressState.state == SweepState.RUNNING:
+        if self.progress_state.state == SweepState.RUNNING:
             self.print_main.emit("Can't start the sweep, we're already running!")
             return
-        elif self.progressState.state == SweepState.RAMPING:
+        if self.progress_state.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Can't start the sweep, we're currently ramping the outer sweep parameter!"
             )
@@ -316,53 +334,34 @@ class Sweep2D(BaseSweep, QObject):
 
         if ramp_to_start:
             self.ramp_to(self.out_setpoint, start_on_finish=True)
-        else:
-            self.print_main.emit(
-                f"Starting the 2D Sweep. Ramping {self.set_param.label} to {self.out_stop} {self.set_param.unit}, "
-                f"while sweeping {self.in_param.label} between {self.in_start} {self.in_param.unit} and {self.in_stop} "
-                f"{self.in_param.unit}"
-            )
-
-            self.set_param.set(self.out_setpoint)
-
-            time.sleep(self.outer_delay)
-
-            run_start = self._enter_running_state(reset_elapsed=True)
-            self.progressState.time_elapsed = 0.0
-            self.progressState.time_remaining = None
-            self.progressState.progress = 0.0
-            self.t0 = run_start
-
-            if self.plot_data and self.heatmap_plotter is None:
-                # Initialize our heatmap in the main GUI thread to avoid crashes in Jupyter/Qt
-                self.heatmap_plotter = Heatmap(self)
-                self.heatmap_plotter.create_figs()
-                self.add_heatmap_data.connect(self.heatmap_plotter.add_data)
-
-            self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
-
-            self.plotter = self.in_sweep.plotter
-            self.runner = self.in_sweep.runner
-
-    def pause(self):
-        """Pauses both the inner and outer sweep."""
-        BaseSweep.pause(self)
-        self.in_sweep.pause()
-
-    def stop(self):
-        """Stop/pause the sweep. Alias for pause() for backward compatibility.
-
-        Stops both the inner and outer sweep.
-        """
-        self.pause()
-
-    def resume(self):
-        """Resumes the inner and outer sweeps."""
-        if self.progressState.state != SweepState.PAUSED:
-            self.print_main.emit("Sweep is not paused; use start() to begin a new run.")
             return
-        BaseSweep.resume(self)
-        self.in_sweep.resume()
+
+        self.print_main.emit(
+            f"Starting the 2D Sweep. Ramping {self.set_param.label} to {self.out_stop} {self.set_param.unit}, "
+            f"while sweeping {self.in_param.label} between {self.in_start} {self.in_param.unit} and {self.in_stop} "
+            f"{self.in_param.unit}"
+        )
+
+        self.set_param.set(self.out_setpoint)
+        time.sleep(self.outer_delay)
+
+        run_start = self._enter_running_state(reset_elapsed=True)
+        self.child_sweep = self.in_sweep
+        self.progress_state.time_elapsed = 0.0
+        self.progress_state.time_remaining = None
+        self.progress_state.progress = 0.0
+        self.t0 = run_start
+
+        if self.plot_data and self.heatmap_plotter is None:
+            self.heatmap_plotter = Heatmap(self)
+            self.heatmap_plotter.create_figs()
+            self.add_heatmap_data.connect(self.heatmap_plotter.add_data)
+
+        self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
+
+        self.plotter = self.in_sweep.plotter
+        self.runner = self.in_sweep.runner
+        self._start_monitor()
 
     def follow_heatmap_param(self, heatmap_para):
         """Configure which followed parameter(s) may be visualized in the heatmap.
@@ -469,37 +468,27 @@ class Sweep2D(BaseSweep, QObject):
         # Check our update condition
         self.update_rule(self.in_sweep, last_plot_data)
 
-        # If we aren't at the end, keep going
         if (
             abs(self.out_setpoint - self.out_stop) - abs(self.out_step / 2)
             > abs(self.out_step) * 1e-4
         ):
-            # time.sleep(self.outer_delay)
             self.print_main.emit(
                 f"Setting {self.set_param.label} to {self.out_setpoint + self.out_step} ({self.set_param.unit}) with {self.out_ministeps} steps"
             )
-            # increment for each ministeps
             inc = self.out_step / self.out_ministeps
             for step in range(self.out_ministeps):
                 self.set_param.set(self.out_setpoint + (step + 1) * inc)
                 time.sleep(self.outer_delay)
-            #    self.print_main.emit(f"DEBUG: now, the setpoint of out_parm is {self.set_param.get()}")
-            # update the current setpoint
-            self.out_setpoint = self.out_setpoint + self.out_step
+            self.out_setpoint += self.out_step
 
-            # Reset our plots
             self.in_sweep.reset_plots()
             self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
-        # If neither of the above are triggered, it means we are at the end of the sweep
         else:
-            if self.plot_data and self.heatmap_plotter is not None:
-                self.add_heatmap_data.emit(None)
             self.print_main.emit(
                 f"Done with the sweep, {self.set_param.label}={self.out_setpoint} "
                 f"({self.set_param.unit})"
             )
             self.mark_done()
-        self.update_progress()
 
     def get_param_setpoint(self):
         """Obtains the current value of the setpoint."""
@@ -520,9 +509,41 @@ class Sweep2D(BaseSweep, QObject):
     def send_updates(self, no_sp=False):
         pass
 
-    def kill(self):
+    def mark_done(self):
+        self._stop_monitor()
+        super().mark_done()
+
+    def _start_monitor(self):
+        if self._monitor_thread is None:
+            self._monitor_thread = _Sweep2DMonitor(
+                self, interval_ms=self._monitor_interval_ms
+            )
+            self._monitor_thread.tick.connect(self._on_monitor_tick)
+            self._monitor_thread.start()
+
+    def _stop_monitor(self):
+        if self._monitor_thread is None:
+            return
+        try:
+            self._monitor_thread.tick.disconnect(self._on_monitor_tick)
+        except Exception:
+            pass
+        self._monitor_thread.stop()
+        self._monitor_thread.wait(500)
+        self._monitor_thread = None
+
+    @pyqtSlot()
+    def _on_monitor_tick(self):
+        if (
+            self.progress_state.state != SweepState.DONE
+            and self.in_sweep.progress_state.state == SweepState.DONE
+        ):
+            self.update_values()
+        self.update_progress()
+
+    def kill(self, update_parent=True, update_child=True):
         """Ends all threads and closes any active plots."""
-        self.in_sweep.kill()
+        self._stop_monitor()
 
         # Gently shut down the heatmap
         if self.heatmap_plotter is not None:
@@ -539,6 +560,8 @@ class Sweep2D(BaseSweep, QObject):
                     pass
                 self.heatmap_thread = None
 
+        super().kill(update_parent, update_child)
+
     def ramp_to(self, value, start_on_finish=False, multiplier=1):
         """Ramps the set_param to a given value, at a rate specified by the multiplier.
 
@@ -552,12 +575,12 @@ class Sweep2D(BaseSweep, QObject):
             The multiplier for the step size, to ramp quicker than the sweep speed.
         """
         # Ensure we aren't currently running
-        if self.progressState.state == SweepState.RAMPING:
+        if self.progress_state.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Currently ramping. Finish current ramp before starting another."
             )
             return
-        if self.progressState.state == SweepState.RUNNING:
+        if self.progress_state.state == SweepState.RUNNING:
             self.print_main.emit("Already running. Stop the sweep before ramping.")
             return
 
@@ -581,11 +604,13 @@ class Sweep2D(BaseSweep, QObject):
             save_data=False,
             plot_data=True,
         )
+        self.ramp_sweep.parent_sweep = self
         for p in self._params:
             if p is not self.set_param:
                 self.ramp_sweep.follow_param(p)
 
-        self.progressState.state = SweepState.RAMPING
+        self.progress_state.state = SweepState.RAMPING
+        self.child_sweep = self.ramp_sweep
         self.ramp_sweep.start(ramp_to_start=False)
 
         self.print_main.emit(f"Ramping {self.set_param.label} to {value} . . . ")
@@ -599,17 +624,17 @@ class Sweep2D(BaseSweep, QObject):
             Sweep will be called to start immediately after ramping when set to True.
         """
         # Our outer parameter has finished ramping
-        self.progressState.state = SweepState.READY
+        self.progress_state.state = SweepState.READY
         if self.ramp_sweep is not None:
-            self.ramp_sweep.kill()
+            self.ramp_sweep.kill(update_parent=False)
             self.ramp_sweep = None
         # Check if our inner parameter has finished
-        while self.in_sweep.progressState.state == SweepState.RAMPING:
-            time.sleep(0.5)
+        while self.in_sweep.progress_state.state == SweepState.RAMPING:
+            time.sleep(0.2)
 
         # If so, tell the system we are done
-        if self.progressState.state != SweepState.KILLED:
-            self.progressState.state = SweepState.READY
+        if self.progress_state.state != SweepState.KILLED:
+            self.progress_state.state = SweepState.READY
         self.print_main.emit("Done ramping!")
 
         if start_on_finish:
@@ -627,14 +652,19 @@ class Sweep2D(BaseSweep, QObject):
         -------
         Time estimate for the sweep, in seconds
         """
-        if self.progressState.state == SweepState.DONE:
-            remaining = 0
-        elif not self.out_step:
+        if self.progress_state.state == SweepState.DONE:
+            return 0
+        if not self.out_step:
             remaining = self.inner_time
         else:
             step_mag = abs(self.out_step)
             steps = abs(self.out_stop - self.out_setpoint) / step_mag
-            remaining = max(steps * self.outer_delay + (steps + 1) * self.inner_time, 0)
+            remaining = max(
+                steps * self.outer_delay
+                + steps * self.inner_time
+                + self.in_sweep.estimate_time(verbose=False),
+                0,
+            )
 
         if verbose:
             hours, minutes, seconds = self._split_hms(remaining)

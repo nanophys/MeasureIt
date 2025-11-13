@@ -57,8 +57,6 @@ class Sweep1D(BaseSweep, QObject):
         Sets a function to be executed upon completion of the sweep.
     x_axis_time:
         Defaults to 0 to allow the 'set_param' to be plotted on the x-axis.
-    parent:
-        Sets a parent Sweep2D object.
     continual:
         Causes sweep to continuously run back and forth between start and stop points.
     plot_bin:
@@ -141,9 +139,6 @@ class Sweep1D(BaseSweep, QObject):
         self.begin = start
         self.end = stop
         self.step = step
-        # Parent Sweep2D reference (set by Sweep2D)
-        self.parent = None
-
         # Make sure the step is in the right direction
         if (self.end - self.begin) > 0:
             self.step = abs(self.step)
@@ -161,9 +156,7 @@ class Sweep1D(BaseSweep, QObject):
         self.magnet_initialized = False
         self._ami_completion_pending = False
         self._m4g_completion_pending = False
-        if not self.continuous:
-            self.progressState.progress = 0.0
-            self.update_progress()
+        self.update_progress()
 
     def __str__(self):
         return f"1D Sweep of {self.set_param.label} from {self.begin} to {self.end}, with step size {self.step}."
@@ -183,12 +176,12 @@ class Sweep1D(BaseSweep, QObject):
         ramp_multiplier:
             Factor to control ramping speed compared to sweep speed.
         """
-        if self.progressState.state == SweepState.RAMPING:
+        if self.progress_state.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Still ramping. Wait until ramp is done to start the sweep."
             )
             return
-        if self.progressState.state == SweepState.RUNNING:
+        if self.progress_state.state == SweepState.RUNNING:
             self.print_main.emit("Sweep is already running.")
             return
 
@@ -215,28 +208,11 @@ class Sweep1D(BaseSweep, QObject):
                 f"Sweeping {self.set_param.label} to {self.end} ({self.set_param.unit})"
             )
             BaseSweep.start(self, persist_data=persist_data)
+            self.child_sweep = None
 
-    def pause(self):
-        """Pauses any currently active sweeps."""
-        if (
-            self.progressState.state == SweepState.RAMPING
-            and self.ramp_sweep is not None
-        ):
-            self.print_main.emit("Stopping the ramp.")
-            self.ramp_sweep.pause()
-            self.ramp_sweep.kill()
-
-            while self.ramp_sweep.check_running():
-                time.sleep(0.2)
-            self.done_ramping(self.ramp_sweep.setpoint)
-            # self.setpoint=self.ramp_sweep.setpoint
-            # self.ramp_sweep.plotter.clear()
-            # self.ramp_sweep = None
-            # self.progressState.state = SweepState.READY
-            # self.print_main.emit(f"Stopped the ramp, the current setpoint  is {self.setpoint} {self.set_param.unit}")
-
-        BaseSweep.pause(self)
-
+    def pause(self, update_parent=True, update_child=True):
+        if not super().pause(update_parent, update_child):
+            return False
         if isinstance(self.instrument, AMI430):
             self.instrument.pause()
             self.magnet_initialized = False
@@ -245,24 +221,7 @@ class Sweep1D(BaseSweep, QObject):
             self.magnet_initialized = False
         elif isinstance(self.instrument, M4G):
             self.instrument.write("SWEEP PAUSE")
-
-    def stop(self):
-        """Stop/pause the sweep. Alias for pause() for backward compatibility.
-
-        Handles stopping of ramp sweeps if in ramping state and instrument-specific pause operations.
-        """
-        self.pause()
-
-    def kill(self):
-        """Ends the threads spawned by the sweep and closes any active plots."""
-        if (
-            self.progressState.state == SweepState.RAMPING
-            and self.ramp_sweep is not None
-        ):
-            self.ramp_sweep.pause()
-            self.ramp_sweep.kill()
-
-        BaseSweep.kill(self)
+        return True
 
     def step_param(self):
         """Iterates the parameter and checks for our stop condition.
@@ -434,12 +393,12 @@ class Sweep1D(BaseSweep, QObject):
             Factor to alter the step size, used to ramp quicker than the sweep speed.
         """
         # Ensure we aren't currently running
-        if self.progressState.state == SweepState.RAMPING:
+        if self.progress_state.state == SweepState.RAMPING:
             self.print_main.emit(
                 "Currently ramping. Finish current ramp before starting another."
             )
             return
-        if self.progressState.state == SweepState.RUNNING:
+        if self.progress_state.state == SweepState.RUNNING:
             self.print_main.emit("Already running. Stop the sweep before ramping.")
             return
 
@@ -463,8 +422,10 @@ class Sweep1D(BaseSweep, QObject):
             plot_data=self.plot_data,
         )
         self.ramp_sweep.follow_param(self._params)
+        self.ramp_sweep.parent_sweep = self
 
-        self.progressState.state = SweepState.RAMPING
+        self.progress_state.state = SweepState.RAMPING
+        self.child_sweep = self.ramp_sweep
         self.ramp_sweep.start(ramp_to_start=False)
 
         self.print_main.emit(
@@ -484,8 +445,8 @@ class Sweep1D(BaseSweep, QObject):
         pd:
             Sets persistent data if running Sweep2D.
         """
-        if self.progressState.state != SweepState.KILLED:
-            self.progressState.state = SweepState.READY
+        if self.progress_state.state != SweepState.KILLED:
+            self.progress_state.state = SweepState.READY
         # Grab the beginning
         # value = self.ramp_sweep.begin
 
@@ -501,7 +462,7 @@ class Sweep1D(BaseSweep, QObject):
             )
 
             if self.ramp_sweep is not None:
-                self.ramp_sweep.kill()
+                self.ramp_sweep.kill(update_parent=False)
                 self.ramp_sweep = None
 
             return
@@ -515,7 +476,7 @@ class Sweep1D(BaseSweep, QObject):
         #    self.ramp_sweep.plotter.clear()
 
         if self.ramp_sweep is not None:
-            self.ramp_sweep.kill()
+            self.ramp_sweep.kill(update_parent=False)
             self.ramp_sweep = None
 
         if start_on_finish is True:
@@ -550,64 +511,63 @@ class Sweep1D(BaseSweep, QObject):
 
     def estimate_time(self, verbose=True):
         """Estimate remaining time from the current sweep state."""
-        if self.progressState.state == SweepState.DONE:
-            remaining = 0
-        else:
-            if isinstance(self.instrument, AMI430):
-                rate = safe_get(self.instrument.ramp_rate)
-                if not rate:
-                    return 0.0
-                units = safe_get(self.instrument.ramp_rate_units)
-                current = self.setpoint
-                target = self.end
-                distance = abs(target - current)
-                if units == 0:
-                    remaining = distance / rate
-                else:
-                    remaining = distance * 60 / rate
-
-                if self.bidirectional and self.direction == 0:
-                    distance_back = abs(self.end - self.begin)
-                    if units == 0:
-                        remaining += distance_back / rate
-                    else:
-                        remaining += distance_back * 60 / rate
-                return remaining
-
-            if isinstance(self.instrument, M4G):
-                try:
-                    rate = abs(float(self.instrument.range0_rate()))
-                except Exception:
-                    return 0.0
-                if rate <= 0:
-                    return 0.0
-                current_value = self.setpoint
-                distance = abs(self.end - current_value)
-                remaining = distance / rate
-                if self.bidirectional and self.direction == 0:
-                    remaining += abs(self.end - self.begin) / rate
-                return remaining
-
-            current_value = self.setpoint
-
-            step_size = abs(self.step)
-            if step_size == 0:
+        if self.progress_state.state == SweepState.DONE:
+            return 0
+        if self.continuous:
+            return None
+        if isinstance(self.instrument, AMI430):
+            rate = safe_get(self.instrument.ramp_rate)
+            if not rate:
                 return 0.0
-
-            distance = abs(self.end - current_value)
-            remaining = (distance / step_size) * self.inter_delay
+            units = safe_get(self.instrument.ramp_rate_units)
+            current = self.setpoint
+            target = self.end
+            distance = abs(target - current)
+            if units == 0:
+                remaining = distance / rate
+            else:
+                remaining = distance * 60 / rate
 
             if self.bidirectional and self.direction == 0:
-                effective_back_multiplier = (
-                    self.back_multiplier
-                    if self.back_multiplier not in (None, 0)
-                    else 1.0
-                )
-                if effective_back_multiplier > 0:
-                    distance_back = abs(self.end - self.begin)
-                    remaining += (
-                        distance_back / (step_size * effective_back_multiplier)
-                    ) * self.inter_delay
+                distance_back = abs(self.end - self.begin)
+                if units == 0:
+                    remaining += distance_back / rate
+                else:
+                    remaining += distance_back * 60 / rate
+            return remaining
+
+        if isinstance(self.instrument, M4G):
+            try:
+                rate = abs(float(self.instrument.range0_rate()))
+            except Exception:
+                return 0.0
+            if rate <= 0:
+                return 0.0
+            current_value = self.setpoint
+            distance = abs(self.end - current_value)
+            remaining = distance / rate
+            if self.bidirectional and self.direction == 0:
+                remaining += abs(self.end - self.begin) / rate
+            return remaining
+
+        current_value = self.setpoint
+
+        step_size = abs(self.step)
+        if step_size == 0:
+            return 0.0
+
+        distance = abs(self.end - current_value)
+        remaining = (distance / step_size) * self.inter_delay
+
+        if self.bidirectional and self.direction == 0:
+            effective_back_multiplier = (
+                self.back_multiplier if self.back_multiplier not in (None, 0) else 1.0
+            )
+            if effective_back_multiplier > 0:
+                distance_back = abs(self.end - self.begin)
+                remaining += (
+                    distance_back / (step_size * effective_back_multiplier)
+                ) * self.inter_delay
 
         if verbose:
             hours, minutes, seconds = self._split_hms(remaining)
@@ -665,7 +625,3 @@ class Sweep1D(BaseSweep, QObject):
             return {f"{self.set_param.instrument.name}.{self.set_param.name}"}
         except Exception:
             return set()
-
-    def __del__(self):
-        """Destructor. Should delete all child threads and close all figures when the sweep object is deleted."""
-        self.kill()

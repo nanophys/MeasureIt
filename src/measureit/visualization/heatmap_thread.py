@@ -12,11 +12,22 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
-    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
+
+from .._internal.progress_display import (
+    create_progress_controls,
+    update_progress_controls,
+)
+from ..sweep.progress import SweepState
+
+_PROGRESS_SUFFIX_MAP = {
+    SweepState.RAMPING: "Ramping",
+    SweepState.PAUSED: "Paused",
+    SweepState.DONE: "Done",
+}
 
 # Configure PyQtGraph for better performance
 pg.setConfigOptions(
@@ -109,6 +120,7 @@ class Heatmap(QObject):
         self.out_keys = []
         self.in_keys = []
         self.info_label = None
+        self.progress_controls = None
         self.progress_bar = None
         self.elapsed_label = None
         self.remaining_label = None
@@ -246,27 +258,24 @@ class Heatmap(QObject):
             )
             main_layout.addWidget(self.info_label)
 
+            shortcut_label = QLabel(
+                "Keyboard Shortcuts: ESC: pause | Enter: resume | Spacebar: flip direction"
+            )
+            shortcut_label.setFont(QFont("Arial", 10))
+            shortcut_label.setStyleSheet(
+                "QLabel { background-color: #f7f7f7; padding: 4px; }"
+            )
+            main_layout.addWidget(shortcut_label)
+
             state = getattr(self.sweep, "progressState", None)
             if state is not None and getattr(state, "progress", None) is not None:
-                progress_info = QHBoxLayout()
-                progress_info.setContentsMargins(0, 0, 0, 0)
-                progress_info.setSpacing(8)
-
-                self.elapsed_label = QLabel("Elapsed: --")
-                self.remaining_label = QLabel("Remaining: --")
-
-                progress_info.addWidget(self.elapsed_label)
-                progress_info.addStretch(1)
-                progress_info.addWidget(self.remaining_label)
-
-                self.progress_bar = QProgressBar()
-                self.progress_bar.setRange(0, 1000)
-                self.progress_bar.setValue(0)
-                self.progress_bar.setTextVisible(True)
-
-                main_layout.addLayout(progress_info)
-                main_layout.addWidget(self.progress_bar)
-                self._update_progress_widgets()
+                self.progress_controls = create_progress_controls(main_layout)
+                self.progress_bar = self.progress_controls.progress_bar
+                self.elapsed_label = self.progress_controls.elapsed_label
+                self.remaining_label = self.progress_controls.remaining_label
+                update_progress_controls(
+                    self.progress_controls, state, suffix_map=_PROGRESS_SUFFIX_MAP
+                )
 
             # Controls row (colormap picker, auto-levels, reset)
             controls = QHBoxLayout()
@@ -394,6 +403,7 @@ class Heatmap(QObject):
             self.widget.closeEvent = self.handle_close
             self.widget.keyPressEvent = self.handle_key_press
             self.widget.setFocusPolicy(pg.QtCore.Qt.StrongFocus)
+            self.widget.setFocus()
 
             # Show the widget
             self.widget.show()
@@ -430,9 +440,7 @@ class Heatmap(QObject):
             from the plotter thread.
         """
         try:
-            if data_dict is None:
-                self.data_to_add.append(None)
-            else:
+            if data_dict is not None:
                 # Accept legacy payloads (only 'forward'/'backward') or new ones with 'param_index' and 'out_value'
                 if "param_index" not in data_dict:
                     data_dict = dict(data_dict)  # shallow copy
@@ -530,8 +538,6 @@ class Heatmap(QObject):
         items_processed = 0
         while len(self.data_to_add) > 0 and items_processed < self.max_items_per_update:
             data_dict = self.data_to_add.popleft()
-            if data_dict is None:
-                break
             self.add_to_heatmap(data_dict)
             items_processed += 1
             self.needs_refresh = True
@@ -791,40 +797,14 @@ class Heatmap(QObject):
         self._auto_levels_enabled = bool(checked)
 
     def _update_progress_widgets(self):
-        if self.progress_bar is None:
+        if self.progress_controls is None:
             return
 
-        state = getattr(self.sweep, "progressState", None)
-        if state is None:
-            return
-
-        progress = getattr(state, "progress", None)
-        if progress is None:
-            self.progress_bar.setFormat("Progress: --")
-            self.progress_bar.setValue(0)
-        else:
-            self.progress_bar.setFormat("Progress: %p%")
-            progress_value = int(max(0.0, min(1.0, progress)) * 1000)
-            self.progress_bar.setValue(progress_value)
-
-        def _format_seconds(value):
-            if value is None:
-                return "--"
-            try:
-                if math.isinf(value):
-                    return "∞"
-            except TypeError:
-                return "--"
-            return f"{max(0.0, value):.1f} s"
-
-        if self.elapsed_label is not None:
-            self.elapsed_label.setText(
-                f"Elapsed: {_format_seconds(state.time_elapsed)}"
-            )
-        if self.remaining_label is not None:
-            self.remaining_label.setText(
-                f"Remaining: {_format_seconds(state.time_remaining)}"
-            )
+        update_progress_controls(
+            self.progress_controls,
+            self.sweep.progress_state,
+            suffix_map=_PROGRESS_SUFFIX_MAP,
+        )
 
     def _reset_view(self):
         try:

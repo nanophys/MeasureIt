@@ -5,7 +5,6 @@ import time
 from PyQt5.QtCore import QObject
 
 from ..tools.util import _autorange_srs, safe_get, safe_set
-from .base_sweep import BaseSweep
 from .progress import SweepState
 from .sweep0d import Sweep0D
 
@@ -113,15 +112,17 @@ class SweepIPS(Sweep0D, QObject):
                 v = safe_get(p)
                 data.append((p, v))
 
-        if self.save_data and self.progressState.state == SweepState.RUNNING:
+        if self.save_data and self.progress_state.state == SweepState.RUNNING:
             self.runner.datasaver.add_result(*data)
 
         self.send_updates()
 
         return data
 
-    def pause(self):
+    def pause(self, update_parent=True, update_child=True):
         """Pauses any currently active sweeps."""
-        BaseSweep.pause(self)
+        if not super().pause(update_parent, update_child):
+            return False
         safe_set(self.instrument.activity, 0)
         self.initialized = False
+        return True

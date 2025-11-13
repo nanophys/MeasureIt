@@ -138,7 +138,7 @@ class GateLeakage(Sweep1D, QObject):
 
         step_data = self.step_param()
         if step_data is None:
-            if self.progressState.state != SweepState.KILLED:
+            if self.progress_state.state != SweepState.KILLED:
                 self.mark_done()
             return None
 
@@ -157,7 +157,7 @@ class GateLeakage(Sweep1D, QObject):
                 v = p.get()
                 data.append((p, v))
 
-        if self.save_data and self.progressState.state == SweepState.RUNNING:
+        if self.save_data and self.progress_state.state == SweepState.RUNNING:
             self.runner.datasaver.add_result(*data)
 
         self.send_updates()
@@ -186,8 +186,10 @@ class GateLeakage(Sweep1D, QObject):
 
     def estimate_time(self, verbose=True):
         """Gate leakage sweeps are event-driven; report no deterministic estimate."""
+        if self.progress_state.state == SweepState.DONE:
+            return 0
         if verbose:
             self.print_main.emit(
                 f"No estimated time remaining for {repr(self)} (non-deterministic sweep)."
             )
-        return 0.0
+        return None

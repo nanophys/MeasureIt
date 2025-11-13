@@ -139,7 +139,7 @@ class RunnerThread(QThread):
         # print(f"called runner from thread: {QThread.currentThreadId()}")
         while True:
             t = time.monotonic()
-            state = getattr(self.sweep.progressState, "state", None)
+            state = self.sweep.progress_state.state
 
             data = None
             if state == SweepState.RUNNING:
@@ -148,10 +148,13 @@ class RunnerThread(QThread):
                 except ParameterException:
                     self.sweep.pause()
                     continue
-                self.sweep.update_progress()
 
                 if self.plotter is not None and self.sweep.plot_data is True:
                     self.send_data.emit(data, self.sweep.direction)
+
+                if data is None:
+                    self.sweep.mark_done()
+                self.sweep.update_progress()
 
             # Smart sleep: compensate for time spent executing update
             sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
@@ -160,7 +163,7 @@ class RunnerThread(QThread):
                 time.sleep(sleep_time)
 
             # Refresh state after possible updates
-            state = getattr(self.sweep.progressState, "state", None)
+            state = getattr(self.sweep.progress_state, "state", None)
             if state in (SweepState.DONE, SweepState.KILLED):
                 if self.sweep.save_data is True and self.datasaver is not None:
                     self.datasaver.flush_data_to_database()
