@@ -72,6 +72,7 @@ class RunnerThread(QThread):
         self.dataset = None
         self.db_set = False
         self.runner = None
+        self.flush_data = False
 
     def __del__(self):
         """Standard destructor."""
@@ -165,11 +166,11 @@ class RunnerThread(QThread):
             # Refresh state after possible updates
             state = getattr(self.sweep.progress_state, "state", None)
             if state in (SweepState.DONE, SweepState.KILLED):
-                if self.sweep.save_data is True and self.datasaver is not None:
-                    self.datasaver.flush_data_to_database()
-                if state == SweepState.KILLED:
-                    break
-                # Allow DONE sweeps to exit after flushing
+                self.flush_data = True
+            if self.flush_data and self.sweep.save_data is True and self.datasaver is not None:
+                self.datasaver.flush_data_to_database()
+                self.flush_data = False
+            if state == SweepState.KILLED:
                 break
 
         self.exit_datasaver()
