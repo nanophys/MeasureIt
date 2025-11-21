@@ -537,6 +537,18 @@ class BlueFors(Instrument):
 
         self.connect_message()
 
+    def get_idn(self) -> Dict[str, str]:
+        """
+        Return a static identification dictionary so QCoDeS does not attempt to
+        send SCPI *IDN? queries, which are unsupported by the HTTP API.
+        """
+        return {
+            "vendor": "BlueFors",
+            "model": "TemperatureControllerHTTP",
+            "serial": self._api._base_url,
+            "firmware": "MeasureIt BlueFors HTTP driver",
+        }
+
     def _register_temperature_parameter(
         self, parameter_name: str, channel: Optional[int], description: str
     ) -> None:
