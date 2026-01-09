@@ -2,6 +2,7 @@
 import importlib
 import json
 import logging
+import os
 import time
 import types
 from collections.abc import Iterable
@@ -11,6 +12,66 @@ import qcodes as qc
 from PyQt5.QtCore import QObject, QThread, QTimer, pyqtSignal, pyqtSlot
 from qcodes import Station, initialise_or_create_database_at
 
+_USE_FAKE_QT = os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"}
+
+if not _USE_FAKE_QT:
+    from PyQt5.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot  # type: ignore
+else:
+    class _FakeSignalInstance:
+        def __init__(self):
+            self._slots = []
+
+        def connect(self, slot):
+            self._slots.append(slot)
+
+        def disconnect(self, slot):
+            try:
+                self._slots.remove(slot)
+            except ValueError:
+                pass
+
+        def emit(self, *args, **kwargs):
+            for slot in list(self._slots):
+                slot(*args, **kwargs)
+
+    class _FakeSignalDescriptor:
+        def __init__(self):
+            self._attr_name = None
+
+        def __set_name__(self, owner, name):
+            self._attr_name = f"__fake_signal_{name}"
+
+        def __get__(self, obj, owner):
+            if obj is None:
+                return self
+            signal = obj.__dict__.get(self._attr_name)
+            if signal is None:
+                signal = _FakeSignalInstance()
+                obj.__dict__[self._attr_name] = signal
+            return signal
+
+    class QObject:
+        def __init__(self, parent=None):
+            self._parent = parent
+
+        def deleteLater(self):
+            pass
+
+    class QTimer:
+        @staticmethod
+        def singleShot(delay, callback):
+            callback()
+
+    def pyqtSignal(*args, **kwargs):
+        return _FakeSignalDescriptor()
+
+    def pyqtSlot(*args, **kwargs):
+        def decorator(func):
+            return func
+
+        return decorator
+
+from ..config import get_path
 from ..logging_utils import get_sweep_logger
 from ..sweep.abstract_sweep import AbstractSweep, SweepState
 from ..sweep.base_sweep import BaseSweep

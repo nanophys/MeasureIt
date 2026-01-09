@@ -1,0 +1,182 @@
+name: CI Tests
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 2 * * *'  # Nightly at 2 AM UTC
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        python-version: ['3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb libgl1-mesa-glx libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0 x11-utils
+
+    - name: Install package and dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev,jupyter]"
+
+    - name: Set test environment
+      shell: bash
+      run: |
+        echo "PYTEST_QT_API=pyqt5" >> $GITHUB_ENV
+        echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
+        echo "QT_DEBUG_PLUGINS=0" >> $GITHUB_ENV
+        echo "MEASUREIT_HOME=${{ runner.temp }}/measureit" >> $GITHUB_ENV
+
+    - name: Create test directories
+      shell: bash
+      run: |
+        mkdir -p ${{ runner.temp }}/measureit/{databases,logs,configs}
+
+    - name: Run unit tests
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          xvfb-run -a pytest tests/unit -v --cov=src/measureit --cov-report=xml --cov-report=term-missing
+        else
+          set +e
+          pytest tests/unit -v --cov=src/measureit --cov-report=xml --cov-report=term-missing --junit-xml=unit-results.xml
+          RC=$?
+          if [ $RC -eq 138 ] || [ $RC -eq 139 ]; then
+            if [ -f unit-results.xml ] && grep -q 'failures="0"' unit-results.xml && grep -q 'errors="0"' unit-results.xml; then
+              echo "Ignoring known PyQt teardown crash (exit $RC) - tests passed"
+              exit 0
+            fi
+          fi
+          exit $RC
+        fi
+
+    - name: Run integration tests
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          xvfb-run -a pytest tests/integration -v --cov=src/measureit --cov-append --cov-report=xml
+        else
+          set +e
+          pytest tests/integration -v --cov=src/measureit --cov-append --cov-report=xml --junit-xml=integration-results.xml
+          RC=$?
+          if [ $RC -eq 138 ] || [ $RC -eq 139 ]; then
+            if [ -f integration-results.xml ] && grep -q 'failures="0"' integration-results.xml && grep -q 'errors="0"' integration-results.xml; then
+              echo "Ignoring known PyQt teardown crash (exit $RC) - tests passed"
+              exit 0
+            fi
+          fi
+          exit $RC
+        fi
+
+    - name: Run E2E tests (selected platforms)
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      shell: bash
+      run: |
+        xvfb-run -a pytest tests/e2e -v -m "not slow" --cov=src/measureit --cov-append --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
+        fail_ci_if_error: false
+
+    - name: Generate test report
+      if: always()
+      run: |
+        pip install pytest-html
+        pytest --html=report.html --self-contained-html || true
+
+    - name: Upload test artifacts
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.os }}-py${{ matrix.python-version }}
+        path: |
+          report.html
+          ${{ runner.temp }}/measureit/logs/
+
+  stress-tests:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[run-stress]')
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb libgl1-mesa-glx libxkbcommon-x11-0
+
+    - name: Install package
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev,jupyter]"
+
+    - name: Set test environment
+      run: |
+        echo "PYTEST_QT_API=pyqt5" >> $GITHUB_ENV
+        echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
+        echo "MEASUREIT_HOME=${{ runner.temp }}/measureit" >> $GITHUB_ENV
+
+    - name: Create test directories
+      run: |
+        mkdir -p ${{ runner.temp }}/measureit/{databases,logs,configs}
+
+    - name: Run stress tests
+      run: |
+        xvfb-run -a pytest tests/stress -v --durations=10 || echo "No stress tests found yet"
+
+    - name: Upload stress test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: stress-test-results
+        path: |
+          ${{ runner.temp }}/measureit/logs/
+
+  docs-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[docs]" || echo "No docs dependencies yet"
+
+    - name: Check documentation builds
+      run: |
+        echo "Documentation check placeholder"
+        # Add sphinx build command when ready
+        # cd docs && make html

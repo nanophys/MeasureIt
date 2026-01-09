@@ -1,35 +1,77 @@
+# Python
 __pycache__/
-.ipynb_checkpoints/
-.idea/
-docs/source/_build/
-# Python packaging artifacts
-*.egg-info/
-*.egg
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
 dist/
+downloads/
+eggs/
 .eggs/
-# In-tree egg-info (PEP 517 backends may write here)
-src/*.egg-info/
-.DS_Store
-.vscode/settings.json
-*.pyc
-*.ipynb
-!examples/*.ipynb
-!examples/content/*.ipynb
-!tests/*.ipynb
-build/
-Drivers/attodry.py
-databases/testdatabase.db
-databases/testdatabase.db-shm
-databases/testdatabase.db-wal
-build/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing
 .pytest_cache/
-.ruff_cache/
-.mypy_cache/
 .coverage
 .coverage.*
-.venv/
 htmlcov/
-# macOS clutter
+.tox/
+.nox/
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
+
+# QCoDeS databases
+databases/
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Documentation
+docs/_build/
+docs/.DS_Store
+
+# Examples
+examples/.DS_Store
+examples/.ipynb_checkpoints/
+examples/content/.ipynb_checkpoints/
+
+# Package build
+src/qmeasure.egg-info/
 /databases
+/.tmp_measureit
 /logs

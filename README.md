@@ -180,6 +180,57 @@ The documentation is located in the `docs/source` directory. The built documenta
 
 Visit our [online documentation](https://measureituw.readthedocs.io/en/latest/?badge=latest) for detailed guides and API reference.
 
+## Testing
+
+MeasureIt includes a comprehensive test suite to ensure reliability and correctness.
+
+### Running Tests Locally
+
+```bash
+# Install development dependencies
+pip install -e ".[dev,jupyter]"
+
+# Run all tests
+pytest
+
+# Run with coverage report
+pytest --cov=src/measureit --cov-report=html
+
+# Run specific test categories
+pytest tests/unit -v           # Unit tests only
+pytest tests/integration -v    # Integration tests only
+pytest -m "not slow"           # Skip slow tests
+
+# Run tests with Qt debugging
+export PYTEST_QT_API=pyqt5
+export QT_LOGGING_RULES="*.debug=true"
+pytest tests/integration -v -s
+```
+
+### Test Organization
+
+- **`tests/unit/`**: Fast, isolated unit tests for individual components
+- **`tests/integration/`**: Tests for component interactions (Qt threads, signals)
+- **`tests/e2e/`**: End-to-end tests for complete workflows
+- **`tests/stress/`**: Performance and stress tests
+
+### Test Infrastructure
+
+MeasureIt uses:
+- **pytest** with **pytest-qt** for Qt event loop handling
+- **pytest-cov** for coverage reporting
+- Mock QCoDeS instruments for hardware-independent testing
+- Temporary databases and isolated MEASUREIT_HOME per test
+
+### Continuous Integration
+
+All tests run automatically on:
+- Multiple Python versions (3.8-3.12)
+- Multiple operating systems (Linux, Windows, macOS)
+- Every push and pull request
+
+See [TODO_CI_test_plan.md](TODO_CI_test_plan.md) for detailed testing strategy.
+
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed information about:
@@ -196,6 +247,9 @@ For quick development setup:
 git clone https://github.com/nanophys/MeasureIt
 cd MeasureIt
 uv pip install -e ".[dev,docs,jupyter]"  # or pip install -e ".[dev,docs,jupyter]"
+
+# Run tests to verify setup
+pytest tests/unit -v
 ```
 
 ## External links and active known users

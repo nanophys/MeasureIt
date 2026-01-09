@@ -176,8 +176,8 @@ class Plotter(QObject):  # moved to _internal
         if self.sweep.set_param is not None:
             num_plots += 1
 
-        # Calculate grid layout
-        columns = math.ceil(math.sqrt(num_plots))
+        # Calculate grid layout (ensure columns >= 1 to avoid division by zero)
+        columns = max(1, math.ceil(math.sqrt(num_plots)))
         rows = math.ceil(num_plots / columns)
 
         # Create main widget and layout

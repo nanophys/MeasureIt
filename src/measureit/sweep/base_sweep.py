@@ -396,12 +396,19 @@ class BaseSweep(AbstractSweep):
 
         # If we don't have a plotter yet want to plot, create it and the figures
         if self.plotter is None and self.plot_data is True:
-            # Keep Plotter in the main GUI thread for Qt/Jupyter safety
-            self.plotter = Plotter(self, self.plot_bin)
-            self.plotter.create_figs()
+            num_plots = len(self._params) + (1 if self.set_param is not None else 0)
+            if num_plots == 0:
+                # Warn but don't mutate plot_data; just skip plotter for this run
+                self.logger.warning(
+                    "plot_data=True but no parameters to plot. Skipping plot creation."
+                )
+            else:
+                # Keep Plotter in the main GUI thread for Qt/Jupyter safety
+                self.plotter = Plotter(self, self.plot_bin)
+                self.plotter.create_figs()
 
-            self.add_break.connect(self.plotter.add_break)
-            self.reset_plot.connect(self.plotter.reset)
+                self.add_break.connect(self.plotter.add_break)
+                self.reset_plot.connect(self.plotter.reset)
 
         # If we don't have a runner, create it and tell it of the plotter,
         # which is where it will send data to be plotted
@@ -409,7 +416,7 @@ class BaseSweep(AbstractSweep):
             self.runner = RunnerThread(self)
             self.runner.get_dataset.connect(self.receive_dataset)
 
-            if self.plot_data is True:
+            if self.plotter is not None:
                 self.runner.add_plotter(self.plotter)
 
         run_start = super().start()
