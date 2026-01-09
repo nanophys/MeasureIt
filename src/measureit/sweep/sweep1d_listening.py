@@ -387,7 +387,8 @@ class Sweep1D_listening(BaseSweep, QObject):
             )
 
             if self.ramp_sweep is not None:
-                self.ramp_sweep.kill()
+                self.ramp_sweep.parent_sweep = None
+                self.ramp_sweep.kill(update_parent=False)
                 self.ramp_sweep = None
 
             return
@@ -399,6 +400,7 @@ class Sweep1D_listening(BaseSweep, QObject):
         #    self.ramp_sweep.plotter.clear()
 
         if self.ramp_sweep is not None:
+            self.ramp_sweep.parent_sweep = None
             self.ramp_sweep.kill(update_parent=False)
             self.ramp_sweep = None
 

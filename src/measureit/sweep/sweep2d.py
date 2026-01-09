@@ -626,7 +626,8 @@ class Sweep2D(BaseSweep, QObject):
         # Our outer parameter has finished ramping
         self.progress_state.state = SweepState.READY
         if self.ramp_sweep is not None:
-            self.ramp_sweep.kill(update_parent=False)
+            self.ramp_sweep.parent_sweep = None
+            self.ramp_sweep.kill()
             self.ramp_sweep = None
         # Check if our inner parameter has finished
         while self.in_sweep.progress_state.state == SweepState.RAMPING:

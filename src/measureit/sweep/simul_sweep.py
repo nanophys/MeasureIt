@@ -342,7 +342,8 @@ class SimulSweep(BaseSweep, QObject):
                 )
 
                 if self.ramp_sweep is not None:
-                    self.ramp_sweep.kill(update_parent=False)
+                    self.ramp_sweep.parent_sweep = None
+                    self.ramp_sweep.kill()
                     self.ramp_sweep = None
 
                 return
@@ -353,7 +354,8 @@ class SimulSweep(BaseSweep, QObject):
             self.set_params_dict[p]["setpoint"] = v - self.set_params_dict[p]["step"]
 
         if self.ramp_sweep is not None:
-            self.ramp_sweep.kill(update_parent=False)
+            self.ramp_sweep.parent_sweep = None
+            self.ramp_sweep.kill()
             self.ramp_sweep = None
         self.child_sweep = None
 

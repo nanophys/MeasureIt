@@ -270,7 +270,7 @@ class SweepQueue(AbstractSweep):
         self.past_actions.insert(0, action)
         if isinstance(action, BaseSweep):
             action.parent_sweep = None
-            self.child_sweep = action
+            action.kill()
         self.current_action = None
 
     def append(self, *s):
@@ -568,7 +568,6 @@ class SweepQueue(AbstractSweep):
                     )
                 else:
                     self.log.info("Finished %s", current_action.__class__.__name__)
-                current_action.kill(update_parent=False)
                 self._complete_current_action()
             elif current_action is not None:
                 # Non-sweep actions complete immediately once we're here
@@ -618,7 +617,6 @@ class SweepQueue(AbstractSweep):
 
         current = self.current_action
         if isinstance(current, BaseSweep):
-            self.child_sweep = current
             state = current.progress_state.state
             if state in (SweepState.DONE, SweepState.KILLED) and not self._processing:
                 self.begin_next()
