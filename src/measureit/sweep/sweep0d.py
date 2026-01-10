@@ -4,7 +4,7 @@ import time
 
 from PyQt5.QtCore import QObject
 
-from ..tools.util import _autorange_srs
+from ..tools.util import _autorange_srs, safe_get
 from .base_sweep import BaseSweep
 from .progress import SweepState
 
@@ -122,7 +122,7 @@ class Sweep0D(BaseSweep, QObject):
 
         for i, p in enumerate(self._params):
             if p is not persist_param:
-                v = p.get()
+                v = safe_get(p)
                 data.append((p, v))
 
         if self.save_data and self.progressState.state == SweepState.RUNNING:

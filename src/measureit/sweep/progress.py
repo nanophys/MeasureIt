@@ -12,6 +12,7 @@ class SweepState(Enum):
     PAUSED = "paused"
     DONE = "done"
     KILLED = "killed"
+    ERROR = "error"
 
 
 @dataclass
@@ -22,6 +23,8 @@ class ProgressState:
     time_elapsed: Optional[float] = None
     time_remaining: Optional[float] = None
     progress: Optional[float] = None
+    error_message: Optional[str] = None
+    error_count: int = 0
 
 
 __all__ = ["ProgressState", "SweepState"]

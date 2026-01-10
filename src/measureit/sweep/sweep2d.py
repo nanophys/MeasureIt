@@ -189,6 +189,7 @@ class Sweep2D(BaseSweep, QObject):
             plot_data=self.plot_data,
             back_multiplier=self.back_multiplier,
             plot_bin=self.plot_bin,
+            max_retries=self.max_retries,
         )
         # Set parent reference so UI actions (e.g., ESC) can stop both inner and outer sweeps
         self.in_sweep.parent = self
@@ -327,7 +328,8 @@ class Sweep2D(BaseSweep, QObject):
                 f"{self.in_param.unit}"
             )
 
-            self.set_param.set(self.out_setpoint)
+            if not self.try_set(self.set_param, self.out_setpoint):
+                return
 
             time.sleep(self.outer_delay)
 
@@ -367,6 +369,17 @@ class Sweep2D(BaseSweep, QObject):
             return
         BaseSweep.resume(self)
         self.in_sweep.resume()
+
+    def mark_error(self, error_message: str, _from_runner: bool = False) -> None:
+        """Transition the sweep to ERROR state with an error message.
+
+        Note: We don't call self.in_sweep.kill() here because mark_error is called
+        from within the inner sweep's runner thread. Calling kill() would try to
+        wait for the thread to finish from within itself, causing a deadlock.
+        The inner runner thread will exit naturally when it sees the ERROR state.
+        """
+        # Just call base implementation - inner runner will exit on its own
+        BaseSweep.mark_error(self, error_message, _from_runner=_from_runner)
 
     def follow_heatmap_param(self, heatmap_para):
         """Configure which followed parameter(s) may be visualized in the heatmap.
@@ -506,7 +519,8 @@ class Sweep2D(BaseSweep, QObject):
             # increment for each ministeps
             inc = self.out_step / self.out_ministeps
             for step in range(self.out_ministeps):
-                self.set_param.set(self.out_setpoint + (step + 1) * inc)
+                if not self.try_set(self.set_param, self.out_setpoint + (step + 1) * inc):
+                    return
                 time.sleep(self.outer_delay)
             #    self.print_main.emit(f"DEBUG: now, the setpoint of out_parm is {self.set_param.get()}")
             # update the current setpoint
@@ -590,7 +604,8 @@ class Sweep2D(BaseSweep, QObject):
         if abs(value - curr_value) <= self.out_step * self.err:
             # self.print_main.emit(f"Already within {self.step} of the desired ramp value. Current value: {curr_value},
             # ramp setpoint: {value}.\nSetting our setpoint directly to the ramp value.")
-            self.set_param.set(value)
+            if not self.try_set(self.set_param, value):
+                return
             self.done_ramping(start_on_finish=True)
             return
 
@@ -650,14 +665,32 @@ class Sweep2D(BaseSweep, QObject):
         start_on_finish:
             Sweep will be called to start immediately after ramping when set to True.
         """
+        # Check if the ramp sweep itself failed with an error
+        if self.ramp_sweep is not None and self.ramp_sweep.progressState.state == SweepState.ERROR:
+            error_msg = self.ramp_sweep.progressState.error_message or "Ramp sweep failed"
+            self.print_main.emit(f"Outer ramp sweep failed: {error_msg}")
+            self.ramp_sweep.kill()
+            self.ramp_sweep = None
+            self.outer_ramp = False
+            self.mark_error(f"Outer ramp to start failed: {error_msg}")
+            return
+
         # Our outer parameter has finished ramping
         self.outer_ramp = False
         if self.ramp_sweep is not None:
             self.ramp_sweep.kill()
             self.ramp_sweep = None
+
         # Check if our inner parameter has finished
         while self.in_sweep.progressState.state == SweepState.RAMPING:
             time.sleep(0.5)
+
+        # Check if inner sweep ended with an error during ramping
+        if self.in_sweep.progressState.state == SweepState.ERROR:
+            error_msg = self.in_sweep.progressState.error_message or "Inner ramp sweep failed"
+            self.print_main.emit(f"Inner ramp sweep failed: {error_msg}")
+            self.mark_error(f"Inner ramp to start failed: {error_msg}")
+            return
 
         # If so, tell the system we are done
         if self.progressState.state != SweepState.KILLED:

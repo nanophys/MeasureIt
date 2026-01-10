@@ -4,7 +4,7 @@ import time
 
 from PyQt5.QtCore import QObject
 
-from ..tools.util import _autorange_srs, safe_get, safe_set
+from ..tools.util import _autorange_srs, safe_get
 from .base_sweep import BaseSweep
 from .progress import SweepState
 from .sweep0d import Sweep0D
@@ -67,14 +67,23 @@ class SweepIPS(Sweep0D, QObject):
 
         if not self.initialized:
             self.print_main.emit("Checking the status of the magnet and switch heater.")
-            self.magnet.leave_persistent_mode()
+            try:
+                self.magnet.leave_persistent_mode()
+            except Exception as e:
+                self.mark_error(f"Failed to leave persistent mode: {e}")
+                return None
             time.sleep(1)
 
             # Set the field setpoint
-            self.magnet.field_setpoint.set(self.setpoint)
+            if not self.try_set(self.magnet.field_setpoint, self.setpoint):
+                return None
             time.sleep(0.5)
             # Set us to go to setpoint
-            self.magnet.activity(1)
+            try:
+                self.magnet.activity(1)
+            except Exception as e:
+                self.mark_error(f"Failed to set magnet activity: {e}")
+                return None
             self.initialized = True
 
         data = []
@@ -83,20 +92,37 @@ class SweepIPS(Sweep0D, QObject):
         data.append(("time", t))
 
         # Check our stop conditions- being at the end point
-        if self.magnet.mode2() == "At rest":
-            self.print_main.emit(
-                f"Done with the sweep, B={self.magnet.field.get():.2f} (T), t={t:.2f} (s)."
-            )
+        try:
+            magnet_mode = self.magnet.mode2()
+        except Exception as e:
+            self.mark_error(f"Failed to read magnet mode: {e}")
+            return None
+
+        if magnet_mode == "At rest":
+            try:
+                current_field = safe_get(self.magnet.field)
+                self.print_main.emit(
+                    f"Done with the sweep, B={current_field:.2f} (T), t={t:.2f} (s)."
+                )
+            except Exception as e:
+                self.print_main.emit(f"Done with the sweep, t={t:.2f} (s). (Could not read field: {e})")
 
             # Set status to 'hold'
-            self.magnet.activity(0)
+            try:
+                self.magnet.activity(0)
+            except Exception as e:
+                self.mark_error(f"Failed to set magnet to hold: {e}")
+                return None
             time.sleep(1)
             self.magnet_initialized = False
 
             self.print_main.emit("Done with the sweep!")
 
             if self.persistent_magnet is True:
-                self.magnet.set_persistent()
+                try:
+                    self.magnet.set_persistent()
+                except Exception as e:
+                    self.print_main.emit(f"Warning: Failed to set persistent mode: {e}")
 
             self._completion_pending = True
 
@@ -123,5 +149,8 @@ class SweepIPS(Sweep0D, QObject):
     def pause(self):
         """Pauses any currently active sweeps."""
         BaseSweep.pause(self)
-        safe_set(self.instrument.activity, 0)
+        try:
+            self.magnet.activity(0)
+        except Exception as e:
+            self.print_main.emit(f"Warning: Failed to pause magnet: {e}")
         self.initialized = False

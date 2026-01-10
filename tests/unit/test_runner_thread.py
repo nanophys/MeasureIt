@@ -245,3 +245,166 @@ class TestRunnerThreadIntegration:
 
         assert runner.plotter == mock_plotter
         assert runner.sweep == sweep
+
+
+class TestRunnerThreadErrorHandling:
+    """Test error handling in RunnerThread."""
+
+    def test_progress_state_has_error_fields(self, mock_parameters, fast_sweep_kwargs):
+        """Test that ProgressState has error tracking fields."""
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            0, 1, 0.1,
+            **fast_sweep_kwargs,
+        )
+
+        assert hasattr(sweep.progressState, "error_message")
+        assert hasattr(sweep.progressState, "error_count")
+        assert sweep.progressState.error_message is None
+        assert sweep.progressState.error_count == 0
+
+    def test_sweep_state_has_error_state(self):
+        """Test that SweepState enum has ERROR state."""
+        assert hasattr(SweepState, "ERROR")
+        assert SweepState.ERROR.value == "error"
+
+    def test_mark_error_transitions_state(self, mock_parameters, fast_sweep_kwargs):
+        """Test that mark_error transitions sweep to ERROR state."""
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            0, 1, 0.1,
+            **fast_sweep_kwargs,
+        )
+        sweep.progressState.state = SweepState.RUNNING
+
+        sweep.mark_error("Test error message")
+
+        assert sweep.progressState.state == SweepState.ERROR
+        assert sweep.progressState.error_message == "Test error message"
+
+    def test_mark_error_emits_completed_signal_by_default(self, mock_parameters, fast_sweep_kwargs):
+        """Test that mark_error emits completed signal so listeners know sweep ended."""
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            0, 1, 0.1,
+            **fast_sweep_kwargs,
+        )
+        sweep.progressState.state = SweepState.RUNNING
+
+        completed_called = []
+        sweep.completed.connect(lambda: completed_called.append(True))
+
+        sweep.mark_error("Test error message")
+
+        assert len(completed_called) == 1
+
+    def test_mark_error_can_defer_completed_signal(self, mock_parameters, fast_sweep_kwargs):
+        """Test that mark_error can defer completed signal to avoid blocking main thread.
+
+        emit_error_completed() schedules signal emission via QueuedConnection.
+        """
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            0, 1, 0.1,
+            **fast_sweep_kwargs,
+        )
+        sweep.progressState.state = SweepState.RUNNING
+
+        completed_called = []
+        sweep.completed.connect(lambda: completed_called.append(True))
+
+        # When called from runner thread, defer signal emission
+        sweep.mark_error("Test error", _from_runner=True)
+        assert len(completed_called) == 0
+
+        # Directly call the slot that emit_error_completed() schedules
+        # (In real code, this runs via QueuedConnection in main thread)
+        sweep._do_emit_error_signals()
+        assert len(completed_called) == 1
+
+    def test_mark_error_ignored_when_done(self, mock_parameters, fast_sweep_kwargs):
+        """Test that mark_error is ignored when sweep is DONE."""
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            0, 1, 0.1,
+            **fast_sweep_kwargs,
+        )
+        sweep.progressState.state = SweepState.DONE
+
+        sweep.mark_error("Test error message")
+
+        assert sweep.progressState.state == SweepState.DONE
+        assert sweep.progressState.error_message is None
+
+    def test_mark_error_ignored_when_killed(self, mock_parameters, fast_sweep_kwargs):
+        """Test that mark_error is ignored when sweep is KILLED."""
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            0, 1, 0.1,
+            **fast_sweep_kwargs,
+        )
+        sweep.progressState.state = SweepState.KILLED
+
+        sweep.mark_error("Test error message")
+
+        assert sweep.progressState.state == SweepState.KILLED
+        assert sweep.progressState.error_message is None
+
+    def test_clear_error_resets_error_state(self, mock_parameters, fast_sweep_kwargs):
+        """Test that clear_error resets error tracking."""
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            0, 1, 0.1,
+            **fast_sweep_kwargs,
+        )
+        sweep.progressState.state = SweepState.ERROR
+        sweep.progressState.error_message = "Test error"
+        sweep.progressState.error_count = 3
+
+        sweep.clear_error()
+
+        assert sweep.progressState.state == SweepState.READY
+        assert sweep.progressState.error_message is None
+        assert sweep.progressState.error_count == 0
+
+    def test_start_clears_error_state(self, mock_parameters, fast_sweep_kwargs):
+        """Test that start() clears previous error state."""
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            0, 1, 0.1,
+            **fast_sweep_kwargs,
+        )
+        sweep.follow_param(mock_parameters["current"])
+        sweep.progressState.state = SweepState.ERROR
+        sweep.progressState.error_message = "Previous error"
+        sweep.progressState.error_count = 3
+
+        sweep.start(ramp_to_start=False)
+
+        assert sweep.progressState.state == SweepState.RUNNING
+        assert sweep.progressState.error_message is None
+        assert sweep.progressState.error_count == 0
+
+        sweep.kill()
+
+    def test_send_updates_includes_error_info(self, mock_parameters, fast_sweep_kwargs):
+        """Test that send_updates includes error information."""
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            0, 1, 0.1,
+            **fast_sweep_kwargs,
+        )
+        sweep.progressState.error_message = "Test error"
+        sweep.progressState.error_count = 2
+
+        received_updates = []
+
+        def capture_update(update_dict):
+            received_updates.append(update_dict)
+
+        sweep.update_signal.connect(capture_update)
+        sweep.send_updates()
+
+        assert len(received_updates) == 1
+        assert received_updates[0]["error_message"] == "Test error"
+        assert received_updates[0]["error_count"] == 2

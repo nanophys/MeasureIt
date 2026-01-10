@@ -153,9 +153,16 @@ class RunnerThread(QThread):
             if state == SweepState.RUNNING:
                 try:
                     data = self.sweep.update_values()
-                except ParameterException:
-                    self.sweep.pause()
-                    continue
+                except ParameterException as e:
+                    # safe_set already retried once and gave up - immediately transition to ERROR
+                    # This prevents the sweep from continuing to the next setpoint with bad data
+                    # Don't emit completed signal here - defer it until after loop exits
+                    # to avoid blocking the main event loop
+                    self.sweep.mark_error(
+                        f"Parameter operation failed: {e}",
+                        _from_runner=True
+                    )
+                    break  # Exit loop immediately to avoid race conditions
                 self.sweep.update_progress()
 
                 if (
@@ -172,15 +179,21 @@ class RunnerThread(QThread):
 
             # Refresh state after possible updates
             state = getattr(self.sweep.progressState, "state", None)
-            if state in (SweepState.DONE, SweepState.KILLED):
+            if state in (SweepState.DONE, SweepState.KILLED, SweepState.ERROR):
                 if self.sweep.save_data is True and self.datasaver is not None:
                     self.datasaver.flush_data_to_database()
-                if state == SweepState.KILLED:
+                if state in (SweepState.KILLED, SweepState.ERROR):
                     break
                 # Allow DONE sweeps to exit after flushing
                 break
 
         self.exit_datasaver()
+
+        # Emit completed signal for ERROR state after loop exits
+        # This is deferred to avoid blocking the main event loop during exception handling
+        # Note: Use progressState.state (not local state var) since break may occur before state refresh
+        if self.sweep.progressState.state == SweepState.ERROR:
+            self.sweep.emit_error_completed()
 
     def exit_datasaver(self):
         if self.datasaver is not None:

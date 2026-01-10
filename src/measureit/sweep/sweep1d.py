@@ -4,7 +4,7 @@ import time
 
 from PyQt5.QtCore import QObject, pyqtSlot
 
-from ..tools.util import safe_get, safe_set
+from ..tools.util import safe_get
 from .base_sweep import BaseSweep
 from .progress import SweepState
 
@@ -143,8 +143,6 @@ class Sweep1D(BaseSweep, QObject):
         self.begin = start
         self.end = stop
         self.step = step
-        # Parent Sweep2D reference (set by Sweep2D)
-        self.parent = None
 
         # Make sure the step is in the right direction
         if (self.end - self.begin) > 0:
@@ -240,7 +238,7 @@ class Sweep1D(BaseSweep, QObject):
             self.instrument.pause()
             self.magnet_initialized = False
         elif isinstance(self.instrument, OxfordInstruments_IPS120):
-            safe_set(self.instrument.activity, 0)
+            self.try_set(self.instrument.activity, 0)
             self.magnet_initialized = False
         elif isinstance(self.instrument, M4G):
             self.instrument.write("SWEEP PAUSE")
@@ -280,7 +278,8 @@ class Sweep1D(BaseSweep, QObject):
             > abs(self.step) * self.err
         ):
             self.setpoint = self.setpoint + self.step
-            safe_set(self.set_param, self.setpoint)
+            if not self.try_set(self.set_param, self.setpoint):
+                return None
             return [(self.set_param, self.setpoint)]
         # If we want to go both ways, we flip the start and stop, and run again
         elif self.continuous:
@@ -339,10 +338,12 @@ class Sweep1D(BaseSweep, QObject):
         # Return our data pair, just like any other sweep
         return [data_pair]
 
-    def step_M4G(self):
+    def step_M4G(self, _retry_count=0):
         """Function to deal with sweeps of Cryomagnetics M4G Magnet Supply. Instead of setting intermediate points, we set the endpoint at the
         beginning, then ask it for the current field while it is ramping.
         """
+        MAX_M4G_RETRIES = 100
+
         if self._m4g_completion_pending:
             self._m4g_completion_pending = False
             return None
@@ -359,19 +360,22 @@ class Sweep1D(BaseSweep, QObject):
         else:
             self.instrument.field(self.end)
 
-        # Grab our data
+        # Grab our data with proper error handling
         try:
-            dt = self.set_param.get()
-        except Exception as e:
-            self.print_main.emit(e)
-            time.sleep(self.inter_delay)
-            dt = self.set_param.get()
-        try:
+            dt = safe_get(self.set_param)
             data_pair = (self.set_param, dt)
             self.setpoint = dt
-        except:
-            self.print_main.emit("got bad data, trying again")
-            return self.step_M4G()
+        except Exception as e:
+            if _retry_count >= MAX_M4G_RETRIES:
+                error_msg = (
+                    f"M4G field read failed after {MAX_M4G_RETRIES} retries: {e}"
+                )
+                self.print_main.emit(error_msg)
+                self.mark_error(error_msg)
+                return None
+            self.print_main.emit(f"M4G read error (retry {_retry_count + 1}/{MAX_M4G_RETRIES}): {e}")
+            time.sleep(self.inter_delay)
+            return self.step_M4G(_retry_count=_retry_count + 1)
         # Check our stop conditions- being at the end point
         if (
             abs(self.instrument.field() - self.end) <= 0.001
@@ -491,32 +495,48 @@ class Sweep1D(BaseSweep, QObject):
         pd:
             Sets persistent data if running Sweep2D.
         """
+        # Check if the ramp sweep itself failed with an error
+        if self.ramp_sweep is not None and self.ramp_sweep.progressState.state == SweepState.ERROR:
+            error_msg = self.ramp_sweep.progressState.error_message or "Ramp sweep failed"
+            self.print_main.emit(f"Ramp sweep failed: {error_msg}")
+            self.ramp_sweep.kill()
+            self.ramp_sweep = None
+            self.mark_error(f"Ramp to start failed: {error_msg}")
+            return
+
         if self.progressState.state != SweepState.KILLED:
             self.progressState.state = SweepState.READY
         # Grab the beginning
         # value = self.ramp_sweep.begin
 
         # Check if we are at the value we expect, otherwise something went wrong with the ramp
-        if (
-            abs(safe_get(self.set_param) - value) - abs(self.step / 2)
-            > abs(self.step) * 1e-4
-        ):
-            self.print_main.emit(
+        actual_value = safe_get(self.set_param)
+        position_error = abs(actual_value - value) - abs(self.step / 2)
+        tolerance = abs(self.step) * 1e-4
+        if position_error > tolerance:
+            error_msg = (
                 f"Ramping failed (possible that the direction was changed while ramping). "
                 f"Expected {self.set_param.label} final value: {value}. Actual value: "
-                f"{safe_get(self.set_param)}. Stopping the sweep."
+                f"{actual_value}. Error: {position_error:.6g}, Tolerance: {tolerance:.6g}. "
+                f"If tolerance is too tight, consider increasing step size."
             )
+            self.print_main.emit(error_msg)
 
             if self.ramp_sweep is not None:
                 self.ramp_sweep.kill()
                 self.ramp_sweep = None
 
+            self.mark_error(error_msg)
             return
 
         self.print_main.emit(
             f"Done ramping {self.set_param.label} to {value} ({self.set_param.unit})"
         )
-        safe_set(self.set_param, value)
+        if not self.try_set(self.set_param, value):
+            if self.ramp_sweep is not None:
+                self.ramp_sweep.kill()
+                self.ramp_sweep = None
+            return
         self.setpoint = value - self.step
         # if self.ramp_sweep is not None and self.ramp_sweep.plotter is not None:
         #    self.ramp_sweep.plotter.clear()

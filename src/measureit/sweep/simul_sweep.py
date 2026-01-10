@@ -5,7 +5,7 @@ from functools import partial
 
 from PyQt5.QtCore import QObject, pyqtSlot
 
-from ..tools.util import _autorange_srs, safe_get, safe_set
+from ..tools.util import _autorange_srs, safe_get
 from .base_sweep import BaseSweep
 from .progress import SweepState
 
@@ -217,7 +217,8 @@ class SimulSweep(BaseSweep, QObject):
                 > abs(v["step"]) * self.err
             ):
                 v["setpoint"] = v["setpoint"] + v["step"]
-                safe_set(p, v["setpoint"])
+                if not self.try_set(p, v["setpoint"]):
+                    return None
                 rets.append((p, v["setpoint"]))
 
             # If we want to go both ways, we flip the start and stop, and run again
@@ -352,6 +353,15 @@ class SimulSweep(BaseSweep, QObject):
 
     @pyqtSlot()
     def done_ramping(self, vals_dict, start_on_finish=False, pd=None):
+        # Check if the ramp sweep itself failed with an error
+        if self.ramp_sweep is not None and self.ramp_sweep.progressState.state == SweepState.ERROR:
+            error_msg = self.ramp_sweep.progressState.error_message or "Ramp sweep failed"
+            self.print_main.emit(f"Ramp sweep failed: {error_msg}")
+            self.ramp_sweep.kill()
+            self.ramp_sweep = None
+            self.mark_error(f"Ramp to start failed: {error_msg}")
+            return
+
         if self.progressState.state != SweepState.KILLED:
             self.progressState.state = SweepState.READY
 
@@ -360,22 +370,32 @@ class SimulSweep(BaseSweep, QObject):
             # Use ramp step if available (for parameters that were ramped),
             # otherwise use sweep step (for parameters that were already at target)
             p_step = getattr(self, 'ramp_steps', {}).get(p, self.set_params_dict[p]["step"])
-            if abs(safe_get(p) - v) - abs(p_step / 2) > abs(p_step) * self.err:
-                self.print_main.emit(
+            actual_value = safe_get(p)
+            position_error = abs(actual_value - v) - abs(p_step / 2)
+            tolerance = abs(p_step) * self.err
+            if position_error > tolerance:
+                error_msg = (
                     f"Ramping failed (possible that the direction was changed while ramping). "
-                    f"Expected {p.label} final value: {v}. Actual value: {safe_get(p)}. "
-                    f"Stopping the sweep."
+                    f"Expected {p.label} final value: {v}. Actual value: {actual_value}. "
+                    f"Error: {position_error:.6g}, Tolerance: {tolerance:.6g} (err={self.err}). "
+                    f"If tolerance is too tight, consider increasing 'err' parameter."
                 )
+                self.print_main.emit(error_msg)
 
                 if self.ramp_sweep is not None:
                     self.ramp_sweep.kill()
                     self.ramp_sweep = None
 
+                self.mark_error(error_msg)
                 return
 
         self.print_main.emit("Done ramping!")
         for p, v in vals_dict.items():
-            safe_set(p, v)
+            if not self.try_set(p, v):
+                if self.ramp_sweep is not None:
+                    self.ramp_sweep.kill()
+                    self.ramp_sweep = None
+                return
             self.set_params_dict[p]["setpoint"] = v - self.set_params_dict[p]["step"]
 
         if self.ramp_sweep is not None:

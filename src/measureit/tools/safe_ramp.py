@@ -1,4 +1,5 @@
 from ..sweep.sweep1d import Sweep1D
+from .util import safe_get
 
 
 def safe_ramp(param, setpoint, rate=0.01, plot_data=True):
@@ -13,7 +14,7 @@ def safe_ramp(param, setpoint, rate=0.01, plot_data=True):
     }
 
     # Example sweep here is voltage
-    start = param()
+    start = safe_get(param)  # Use safe_get for proper error handling
     stop = setpoint  # stop voltage
 
     if start != stop:

@@ -75,6 +75,7 @@ else:
 from ..config import get_path
 from ..logging_utils import get_sweep_logger
 from ..sweep.base_sweep import BaseSweep
+from ..sweep.progress import SweepState
 from ..sweep.simul_sweep import SimulSweep
 from ..sweep.sweep0d import Sweep0D
 from ..sweep.sweep1d import Sweep1D
@@ -509,7 +510,7 @@ class SweepQueue(QObject):
         if self.current_sweep is not None:
             self.current_sweep.kill()
         else:
-            self.log.info("No current sweep, nothing to resume!")
+            self.log.info("No current sweep, nothing to kill!")
 
     def state(self):
         """Get the state of the currently running sweep."""
@@ -553,6 +554,27 @@ class SweepQueue(QObject):
         try:
             # Handle completion messages for the previous action if it was a sweep
             if isinstance(self.current_action, BaseSweep):
+                # Check if sweep ended with an error
+                sweep_state = getattr(
+                    self.current_action.progressState, "state", None
+                )
+                if sweep_state == SweepState.ERROR:
+                    error_msg = getattr(
+                        self.current_action.progressState, "error_message", "Unknown error"
+                    )
+                    self.log.error(
+                        "Sweep %s ended with error: %s",
+                        self.current_action.__class__.__name__,
+                        error_msg,
+                    )
+                    # Clean up and stop the queue on error
+                    # Guard against None in case of double completion signal
+                    if self.current_sweep is not None:
+                        self.current_sweep.kill()
+                        self.current_sweep = None
+                    self.log.error("Stopping queue due to sweep error.")
+                    return  # Stop processing the queue
+
                 if isinstance(self.current_action, SimulSweep):
                     self.log.info("Finished %s", str(self.current_action))
                 elif isinstance(self.current_action, Sweep1D):

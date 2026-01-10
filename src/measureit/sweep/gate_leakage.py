@@ -3,7 +3,7 @@ import time
 import numpy as np
 from PyQt5.QtCore import QObject
 
-from ..tools.util import _autorange_srs
+from ..tools.util import _autorange_srs, safe_get
 from .progress import SweepState
 from .sweep1d import Sweep1D
 
@@ -95,9 +95,10 @@ class GateLeakage(Sweep1D, QObject):
             return self.step_param()
         else:
             self.setpoint += self.step
-            self.set_param.set(self.setpoint)
+            if not self.try_set(self.set_param, self.setpoint):
+                return None
 
-            v = self.track_param.get()
+            v = safe_get(self.track_param)
 
             # Check if current exceeds threshold
             if abs(v) >= abs(self.max_I):
@@ -154,7 +155,7 @@ class GateLeakage(Sweep1D, QObject):
 
         for i, p in enumerate(self._params):
             if p is not persist_param and p is not self.track_param:
-                v = p.get()
+                v = safe_get(p)
                 data.append((p, v))
 
         if self.save_data and self.progressState.state == SweepState.RUNNING:

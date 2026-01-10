@@ -5,14 +5,14 @@ import time
 from functools import partial
 from typing import Optional
 
-from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QMetaObject, QObject, Qt, pyqtSignal, pyqtSlot
 from qcodes import Station
 from qcodes.dataset.measurements import Measurement
 
 from .._internal.plotter_thread import Plotter
 from .._internal.runner_thread import RunnerThread
 from ..logging_utils import get_sweep_logger
-from ..tools.util import _autorange_srs, safe_get
+from ..tools.util import _autorange_srs, safe_get, safe_set
 from .progress import ProgressState, SweepState
 
 
@@ -129,6 +129,7 @@ class BaseSweep(QObject):
         plot_bin=1,
         back_multiplier=1,
         suppress_output=False,
+        max_retries=3,
     ):
         """Initializer for both classes, called by BaseSweep.__init__() in Sweep0D and Sweep1D classes.
 
@@ -168,6 +169,9 @@ class BaseSweep(QObject):
             Always none except in Sweep2D, takes one set_param, allows sweeping of 2 parameters.
         datasaver:
             Initiated by Runner Thread to enable saving and export of data.
+        max_retries:
+            Maximum number of consecutive parameter set/get failures before transitioning
+            to ERROR state. Defaults to 3.
 
         """
         QObject.__init__(self)
@@ -186,6 +190,7 @@ class BaseSweep(QObject):
         self.meas = None
         self.dataset = None
         self.suppress_output = suppress_output
+        self.max_retries = max_retries
 
         self.continuous = False
         self.plot_bin = plot_bin
@@ -212,6 +217,12 @@ class BaseSweep(QObject):
         self.plotter_thread = None
         self.runner = None
         self.progressState = ProgressState()
+        # Parent sweep reference (set by outer sweeps like Sweep2D for their inner sweep)
+        # Must be explicitly set to None to override QObject.parent() method
+        self.parent = None
+        # Flag to track if error signals need to be emitted via deferred path
+        # Set True in mark_error(_from_runner=True), cleared in _do_emit_error_signals
+        self._error_completion_pending = False
         self._accumulated_run_time = 0.0
         self._run_started_at: Optional[float] = None
 
@@ -365,6 +376,7 @@ class BaseSweep(QObject):
         if self.progressState.state == SweepState.RUNNING:
             self._add_runtime_since_last_resume()
         self.progressState.state = SweepState.KILLED
+        self._error_completion_pending = False  # Clear to prevent stale flag
 
         # Gently shut down the runner
         if self.runner is not None:
@@ -412,6 +424,10 @@ class BaseSweep(QObject):
             self.print_main.emit("We are already running, can't start while running.")
             return
 
+        # Clear any previous error state before starting
+        if self.progressState.state == SweepState.ERROR:
+            self.clear_error()
+
         # Check if we have a measurement object
         if self.meas is None:
             self._create_measurement()
@@ -453,6 +469,8 @@ class BaseSweep(QObject):
         self.progressState.time_elapsed = 0.0
         self.progressState.time_remaining = None
         self.progressState.progress = 0.0
+        self.progressState.error_count = 0
+        self.progressState.error_message = None
         self.t0 = run_start
 
         # Save persistent data from 2D sweep
@@ -515,6 +533,8 @@ class BaseSweep(QObject):
             time_elapsed=elapsed_value,
             time_remaining=remaining,
             progress=progress_value,
+            error_message=self.progressState.error_message,
+            error_count=self.progressState.error_count,
         )
 
     def mark_done(self) -> None:
@@ -526,6 +546,113 @@ class BaseSweep(QObject):
         self.progressState.state = SweepState.DONE
         self.send_updates()
         self.completed.emit()
+
+    def mark_error(self, error_message: str, _from_runner: bool = False) -> None:
+        """Transition the sweep to ERROR state with an error message.
+
+        Parameters
+        ----------
+        error_message:
+            Description of the error that caused the sweep to fail.
+        _from_runner:
+            Internal flag. When True (called from runner thread), skip all signal
+            emissions to avoid blocking the main event loop. Signals are emitted
+            later via emit_error_completed().
+        """
+        if self.progressState.state in (SweepState.KILLED, SweepState.DONE, SweepState.ERROR):
+            return
+        if self.progressState.state == SweepState.RUNNING:
+            self._add_runtime_since_last_resume()
+        self.progressState.state = SweepState.ERROR
+        self.progressState.error_message = error_message
+
+        # Propagate error to parent sweep (e.g., Sweep2D when inner Sweep1D fails)
+        parent = getattr(self, "parent", None)
+        if parent is not None and hasattr(parent, "mark_error"):
+            parent.mark_error(f"Inner sweep error: {error_message}", _from_runner=_from_runner)
+
+        # Only emit signals if NOT called from runner thread
+        if not _from_runner:
+            self.print_main.emit(f"Sweep error: {error_message}")
+            self.send_updates()
+            if parent is None:
+                self.completed.emit()
+        else:
+            # Mark that we need deferred signal emission via _do_emit_error_signals
+            self._error_completion_pending = True
+
+    def emit_error_completed(self) -> None:
+        """Schedule error signal emission in the main thread.
+
+        Called by runner thread after the loop exits. Uses QMetaObject.invokeMethod
+        to schedule signal emission in the main thread via Qt.QueuedConnection,
+        preventing kernel stalls when the main event loop is busy.
+        """
+        if self.progressState.state == SweepState.ERROR:
+            # Schedule signal emission in main thread to avoid blocking
+            QMetaObject.invokeMethod(
+                self, "_do_emit_error_signals", Qt.QueuedConnection
+            )
+
+    @pyqtSlot()
+    def _do_emit_error_signals(self) -> None:
+        """Actually emit error signals. Runs in main thread via QueuedConnection.
+
+        Only emits if _error_completion_pending is True (set by mark_error with _from_runner=True).
+        This prevents double completion when mark_error is called from UI.
+        """
+        if self.progressState.state != SweepState.ERROR:
+            return
+
+        # Only emit if signals were deferred (not already emitted in mark_error)
+        if not self._error_completion_pending:
+            return
+        self._error_completion_pending = False
+
+        self.print_main.emit(f"Sweep error: {self.progressState.error_message}")
+        self.send_updates()
+
+        # Propagate to parent if exists
+        parent = getattr(self, "parent", None)
+        if parent is not None and hasattr(parent, "emit_error_completed"):
+            parent.emit_error_completed()
+        else:
+            self.completed.emit()
+
+    def clear_error(self) -> None:
+        """Clear error state and reset error tracking. Call before resuming after an error."""
+        self.progressState.error_count = 0
+        self.progressState.error_message = None
+        self._error_completion_pending = False  # Clear to prevent stale flag across runs
+        if self.progressState.state == SweepState.ERROR:
+            self.progressState.state = SweepState.READY
+
+    def try_set(self, param, value) -> bool:
+        """Set a parameter safely, transitioning to ERROR state on failure.
+
+        Uses safe_set which retries once on failure. If it still fails,
+        logs the error and transitions the sweep to ERROR state.
+
+        Parameters
+        ----------
+        param:
+            The QCoDeS parameter to set.
+        value:
+            The value to set the parameter to.
+
+        Returns
+        -------
+        bool
+            True if the set succeeded, False if it failed (sweep is now in ERROR state).
+        """
+        try:
+            safe_set(param, value)
+            return True
+        except Exception as e:
+            error_msg = f"Failed to set {param.label} to {value}: {e}"
+            self.print_main.emit(error_msg)
+            self.mark_error(error_msg)
+            return False
 
     @pyqtSlot(dict)
     def receive_dataset(self, ds_dict):
@@ -613,6 +740,8 @@ class BaseSweep(QObject):
             update_dict["direction"] = self.direction
         update_dict["status"] = self.progressState.state == SweepState.RUNNING
         update_dict["state"] = self.progressState.state.value
+        update_dict["error_message"] = self.progressState.error_message
+        update_dict["error_count"] = self.progressState.error_count
 
         self.update_signal.emit(update_dict)
 

@@ -5,7 +5,7 @@ import time
 
 from PyQt5.QtCore import QObject, pyqtSlot
 
-from ..tools.util import safe_get, safe_set
+from ..tools.util import safe_get
 from .base_sweep import BaseSweep
 from .progress import SweepState
 from .sweep1d import Sweep1D
@@ -174,7 +174,6 @@ class Sweep1D_listening(BaseSweep, QObject):
         self.runner = runner
         self.plotter = plotter
         self.instrument = self.set_param.instrument
-        self.err = err
         self._completion_pending = False
         self.progressState.progress = 0.0
         self.update_progress()
@@ -224,7 +223,7 @@ class Sweep1D_listening(BaseSweep, QObject):
             # self.ramp_sweep = None
             # self.progressState.state = SweepState.READY
             # print(f"Stopped the ramp, the current setpoint  is {self.setpoint} {self.set_param.unit}")
-        self.set_param.set(safe_get(self.set_param))
+        self.try_set(self.set_param, safe_get(self.set_param))
 
         BaseSweep.pause(self)
 
@@ -271,7 +270,7 @@ class Sweep1D_listening(BaseSweep, QObject):
         #         self.runner.kill_flag = True
         #     return None
 
-    def step_K2450(self):
+    def step_K2450(self, _retry_count=0):
         """Used to control sweeps of K2450 Instrument.
 
         The endpoint is determined prior to the sweep, and the current
@@ -281,30 +280,37 @@ class Sweep1D_listening(BaseSweep, QObject):
         ---------
         The parameter-value pair that was measured.
         """
+        MAX_K2450_RETRIES = 3
+
         if self._completion_pending:
             self._completion_pending = False
             self.mark_done()
             return None
 
-        # Grab our data
+        # Grab our data with proper error handling
         try:
-            dt = self.set_param.get()
-        except Exception as e:
-            print(e)
-            time.sleep(self.inter_delay)
-            dt = self.set_param.get()
-        try:
+            dt = safe_get(self.set_param)
             data_pair = (self.set_param, dt)
             self.setpoint = dt
-        except:
-            print("got bad data, trying again")
-            return self.step_K2450()
+        except Exception as e:
+            if _retry_count >= MAX_K2450_RETRIES:
+                error_msg = f"K2450 read failed after {MAX_K2450_RETRIES} retries: {e}"
+                self.print_main.emit(error_msg)
+                self.mark_error(error_msg)
+                return None
+            self.print_main.emit(f"K2450 read error (retry {_retry_count + 1}/{MAX_K2450_RETRIES}): {e}")
+            time.sleep(self.inter_delay)
+            return self.step_K2450(_retry_count=_retry_count + 1)
 
         # Check our stop conditions- being at the end point
-        if (self.set_param.get_latest() - self.end) < self.err:
-            print(f"Done with the sweep, {self.set_param.label}={self.set_param.get()}")
-            self.flip_direction()
-            self._completion_pending = True
+        try:
+            latest_value = self.set_param.get_latest()
+            if abs(latest_value - self.end) < self.err:
+                self.print_main.emit(f"Done with the sweep, {self.set_param.label}={dt}")
+                self.flip_direction()
+                self._completion_pending = True
+        except Exception as e:
+            self.print_main.emit(f"Warning: Could not check stop condition: {e}")
 
         # Return our data pair, just like any other sweep
         return [data_pair]
@@ -330,7 +336,7 @@ class Sweep1D_listening(BaseSweep, QObject):
         if self.plot_data is True and self.plotter is not None:
             self.add_break.emit(self.direction)
 
-    def ramp_to(self, value, start_on_finish=False, multiplier=1):
+    def ramp_to(self, value, start_on_finish=False, persist=None, multiplier=1):
         """Ramps the set_param to a given value, at a rate dictated by the multiplier.
 
         Parameters
@@ -339,22 +345,22 @@ class Sweep1D_listening(BaseSweep, QObject):
             The desired starting value for the sweep.
         start_on_finish:
             Flag to determine whether to begin the sweep as soon as ramp is finished.
+        persist:
+            Persistent data to pass through to the sweep.
         multiplier:
             Factor to alter the step size, used to ramp quicker than the sweep speed.
         """
         # Ensure we aren't currently running
         if self.progressState.state == SweepState.RAMPING:
-            print("Currently ramping. Finish current ramp before starting another.")
+            self.print_main.emit("Currently ramping. Finish current ramp before starting another.")
             return
         if self.progressState.state == SweepState.RUNNING:
-            print("Already running. Stop the sweep before ramping.")
+            self.print_main.emit("Already running. Stop the sweep before ramping.")
             return
 
         # Check if we are already at the value
         curr_value = safe_get(self.set_param)
         if abs(value - curr_value) - abs(self.step / 2) < abs(self.step) * 1e-4:
-            # print(f"Already within {self.step} of the desired ramp value. Current value: {curr_value},
-            # ramp setpoint: {value}.\nSetting our setpoint directly to the ramp value.")
             self.done_ramping(value, start_on_finish, persist)
             return
 
@@ -373,7 +379,7 @@ class Sweep1D_listening(BaseSweep, QObject):
         self.progressState.state = SweepState.RAMPING
         self.ramp_sweep.start(ramp_to_start=False)
 
-        print(f"Ramping {self.set_param.label} to {value} . . . ")
+        self.print_main.emit(f"Ramping {self.set_param.label} to {value} . . . ")
 
     def ramp_to_zero(self):
         """Ramps the set_param to 0, at the same rate as already specified."""
@@ -399,33 +405,44 @@ class Sweep1D_listening(BaseSweep, QObject):
         pd:
             Sets persistent data if running Sweep2D.
         """
+        # Check if the ramp sweep itself failed with an error
+        if self.ramp_sweep is not None and self.ramp_sweep.progressState.state == SweepState.ERROR:
+            error_msg = self.ramp_sweep.progressState.error_message or "Ramp sweep failed"
+            self.print_main.emit(f"Ramp sweep failed: {error_msg}")
+            self.ramp_sweep.kill()
+            self.ramp_sweep = None
+            self.mark_error(f"Ramp to start failed: {error_msg}")
+            return
+
         if self.progressState.state != SweepState.KILLED:
             self.progressState.state = SweepState.READY
-        # Grab the beginning
-        # value = self.ramp_sweep.begin
 
         # Check if we are at the value we expect, otherwise something went wrong with the ramp
-        if (
-            abs(safe_get(self.set_param) - value) - abs(self.step / 2)
-            > abs(self.step) * 1e-2
-        ):
-            print(
+        actual_value = safe_get(self.set_param)
+        position_error = abs(actual_value - value) - abs(self.step / 2)
+        tolerance = abs(self.step) * 1e-2
+        if position_error > tolerance:
+            error_msg = (
                 f"Ramping failed (possible that the direction was changed while ramping). "
-                f"Expected {self.set_param.label} final value: {value}. Actual value: {safe_get(self.set_param)}. "
-                f"Stopping the sweep."
+                f"Expected {self.set_param.label} final value: {value}. Actual value: {actual_value}. "
+                f"Error: {position_error:.6g}, Tolerance: {tolerance:.6g}."
             )
+            self.print_main.emit(error_msg)
 
             if self.ramp_sweep is not None:
                 self.ramp_sweep.kill()
                 self.ramp_sweep = None
 
+            self.mark_error(error_msg)
             return
 
-        print(f"Done ramping {self.set_param.label} to {value}")
-        safe_set(self.set_param, value)
+        self.print_main.emit(f"Done ramping {self.set_param.label} to {value}")
+        if not self.try_set(self.set_param, value):
+            if self.ramp_sweep is not None:
+                self.ramp_sweep.kill()
+                self.ramp_sweep = None
+            return
         self.setpoint = value - self.step
-        # if self.ramp_sweep is not None and self.ramp_sweep.plotter is not None:
-        #    self.ramp_sweep.plotter.clear()
 
         if self.ramp_sweep is not None:
             self.ramp_sweep.kill()
