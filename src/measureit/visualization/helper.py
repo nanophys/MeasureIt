@@ -51,15 +51,21 @@ def print_all_metadata(expand_all=False):
                 if key == "measureit" and isinstance(value, str):
                     try:
                         parsed = json.loads(value)
+                        attrs = parsed.get("attributes", {})
+                        launched_by = attrs.get("launched_by", "")
                         html += f"""
                         <details {"open" if expand_all else ""}>
                             <summary><span class="metadata-key">🔬 {key}</span></summary>
                             <div class="json-content">
                                 <strong>Class:</strong> {parsed.get("class", "Unknown")}<br>
                                 <strong>Module:</strong> {parsed.get("module", "Unknown")}<br>
-                                <strong>Attributes:</strong><br>
                         """
-                        for attr_key, attr_val in parsed.get("attributes", {}).items():
+                        if launched_by:
+                            html += f"<strong>Launched by:</strong> {launched_by}<br>"
+                        html += "<strong>Attributes:</strong><br>"
+                        for attr_key, attr_val in attrs.items():
+                            if attr_key == "launched_by":
+                                continue  # Already displayed above
                             html += f"&nbsp;&nbsp;• {attr_key}: {attr_val}<br>"
 
                         if parsed.get("follow_params"):
@@ -106,15 +112,21 @@ def print_metadata(dataset, expand_all=False):
         if key == "measureit" and isinstance(value, str):
             try:
                 parsed = json.loads(value)
+                attrs = parsed.get("attributes", {})
+                launched_by = attrs.get("launched_by", "")
                 html += f"""
                 <details {"open" if expand_all else ""}>
                     <summary><span class="metadata-key">🔬 {key}</span></summary>
                     <div class="json-content">
                         <strong>Class:</strong> {parsed.get("class", "Unknown")}<br>
                         <strong>Module:</strong> {parsed.get("module", "Unknown")}<br>
-                        <strong>Attributes:</strong><br>
                 """
-                for attr_key, attr_val in parsed.get("attributes", {}).items():
+                if launched_by:
+                    html += f"<strong>Launched by:</strong> {launched_by}<br>"
+                html += "<strong>Attributes:</strong><br>"
+                for attr_key, attr_val in attrs.items():
+                    if attr_key == "launched_by":
+                        continue  # Already displayed above
                     html += f"&nbsp;&nbsp;• {attr_key}: {attr_val}<br>"
 
                 if parsed.get("follow_params"):
