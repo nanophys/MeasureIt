@@ -2,6 +2,7 @@
 import importlib
 import json
 import time
+from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from functools import partial
 from typing import Optional
 
@@ -483,8 +484,13 @@ class BaseSweep(QObject):
             and self.plotter.figs_set is False
         ):
             self.plotter.create_figs()
-        if not self.runner.isRunning():
-            self.runner.start()
+
+        # Wait for runner to finish if still running (e.g., from previous sweep iteration)
+        # This prevents a race condition where the runner is shutting down but isRunning()
+        # still returns True, causing runner.start() to be skipped while state is RUNNING
+        if self.runner.isRunning():
+            self.runner.wait()
+        self.runner.start()
 
     def resume(self):
         """Restarts the sweep after it has been paused."""
@@ -561,6 +567,10 @@ class BaseSweep(QObject):
         """
         if self.progressState.state in (SweepState.KILLED, SweepState.DONE, SweepState.ERROR):
             return
+
+        # Log the error at ERROR level
+        self.logger.error(error_message)
+
         if self.progressState.state == SweepState.RUNNING:
             self._add_runtime_since_last_resume()
         self.progressState.state = SweepState.ERROR
@@ -653,6 +663,57 @@ class BaseSweep(QObject):
             self.print_main.emit(error_msg)
             self.mark_error(error_msg)
             return False
+
+    @staticmethod
+    def _snap_to_step(value: float, origin: float, step: float) -> float:
+        """Snap value to nearest point on grid: origin + n*step.
+
+        This fixes floating point precision errors that accumulate during
+        sequential setpoint += step operations. For example, after 90 forward
+        and 90 backward steps with step=1e-8, the setpoint might be
+        -6.28e-23 instead of 0.0, which fails parameter validation.
+
+        Parameters
+        ----------
+        value:
+            The value to snap (e.g., setpoint after arithmetic).
+        origin:
+            The grid origin (e.g., sweep start value).
+        step:
+            The step size defining the grid spacing.
+
+        Returns
+        -------
+        float
+            The value snapped to the nearest grid point.
+        """
+        if step == 0:
+            return value
+        step = abs(step)
+
+        # Use Decimal arithmetic to avoid reintroducing binary float rounding
+        # when multiplying the (possibly non-power-of-two) step size.
+        with localcontext() as ctx:
+            ctx.prec = 50  # extra headroom for small steps and large origins
+            d_step = Decimal(str(step))
+            d_origin = Decimal(str(origin))
+            d_value = Decimal(str(value))
+
+            n = ((d_value - d_origin) / d_step).to_integral_value(
+                rounding=ROUND_HALF_EVEN
+            )
+            snapped = d_origin + n * d_step
+
+            # Quantize to the finest precision needed (min of step and origin exponents)
+            # to preserve precision when origin has more decimal places than step.
+            step_exponent = d_step.normalize().as_tuple().exponent
+            origin_exponent = d_origin.normalize().as_tuple().exponent if d_origin != 0 else 0
+            min_exponent = min(step_exponent, origin_exponent)
+            if min_exponent < 0:
+                quantizer = Decimal(1).scaleb(min_exponent)
+                snapped = snapped.quantize(quantizer, rounding=ROUND_HALF_EVEN)
+
+        return float(snapped)
 
     @pyqtSlot(dict)
     def receive_dataset(self, ds_dict):

@@ -121,6 +121,9 @@ class SimulSweep(BaseSweep, QObject):
         for p, v in self.set_params_dict.items():
             self.simul_params.append(p)
 
+            # Store original start as snap origin - doesn't change when direction flips
+            v["_snap_origin"] = v["start"]
+
             # Make sure the step is in the right direction
             if (v["stop"] - v["start"]) > 0:
                 v["step"] = abs(v["step"])
@@ -128,6 +131,7 @@ class SimulSweep(BaseSweep, QObject):
                 v["step"] = (-1) * abs(v["step"])
 
             v["setpoint"] = safe_get(p) - v["step"]
+            v["setpoint"] = self._snap_to_step(v["setpoint"], v["_snap_origin"], v["step"])
 
         self.follow_param([p for p in self.simul_params if p is not self.set_param])
         self.persist_data = []
@@ -217,6 +221,7 @@ class SimulSweep(BaseSweep, QObject):
                 > abs(v["step"]) * self.err
             ):
                 v["setpoint"] = v["setpoint"] + v["step"]
+                v["setpoint"] = self._snap_to_step(v["setpoint"], v["_snap_origin"], v["step"])
                 if not self.try_set(p, v["setpoint"]):
                     return None
                 rets.append((p, v["setpoint"]))
@@ -397,6 +402,11 @@ class SimulSweep(BaseSweep, QObject):
                     self.ramp_sweep = None
                 return
             self.set_params_dict[p]["setpoint"] = v - self.set_params_dict[p]["step"]
+            self.set_params_dict[p]["setpoint"] = self._snap_to_step(
+                self.set_params_dict[p]["setpoint"],
+                self.set_params_dict[p]["_snap_origin"],
+                self.set_params_dict[p]["step"]
+            )
 
         if self.ramp_sweep is not None:
             self.ramp_sweep.kill()
@@ -420,6 +430,7 @@ class SimulSweep(BaseSweep, QObject):
                 v["stop"] = temp
                 v["step"] = -1 * v["step"] / self.back_multiplier
                 v["setpoint"] -= v["step"]
+                v["setpoint"] = self._snap_to_step(v["setpoint"], v["_snap_origin"], v["step"])
         else:
             self.direction = 1
             for p, v in self.set_params_dict.items():
@@ -428,6 +439,7 @@ class SimulSweep(BaseSweep, QObject):
                 v["stop"] = temp
                 v["step"] = -1 * v["step"] * self.back_multiplier
                 v["setpoint"] -= v["step"]
+                v["setpoint"] = self._snap_to_step(v["setpoint"], v["_snap_origin"], v["step"])
 
         if self.plot_data is True and self.plotter is not None:
             self.plotter.add_break(self.direction)

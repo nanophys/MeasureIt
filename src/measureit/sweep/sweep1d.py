@@ -144,6 +144,10 @@ class Sweep1D(BaseSweep, QObject):
         self.end = stop
         self.step = step
 
+        # Store the original start for snapping - always use the same grid origin
+        # regardless of direction flips to avoid float precision issues
+        self._snap_origin = start
+
         # Make sure the step is in the right direction
         if (self.end - self.begin) > 0:
             self.step = abs(self.step)
@@ -151,6 +155,7 @@ class Sweep1D(BaseSweep, QObject):
             self.step = (-1) * abs(self.step)
 
         self.setpoint = self.begin - self.step
+        self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
         self.bidirectional = bidirectional
         self.continuous = continual
         self.direction = 0
@@ -278,6 +283,7 @@ class Sweep1D(BaseSweep, QObject):
             > abs(self.step) * self.err
         ):
             self.setpoint = self.setpoint + self.step
+            self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
             if not self.try_set(self.set_param, self.setpoint):
                 return None
             return [(self.set_param, self.setpoint)]
@@ -417,6 +423,7 @@ class Sweep1D(BaseSweep, QObject):
         self.end = temp
         self.step = -1 * self.step
         self.setpoint -= self.step
+        self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
 
         if self.plot_data is True and self.plotter is not None:
             self.add_break.emit(self.direction)
@@ -538,6 +545,7 @@ class Sweep1D(BaseSweep, QObject):
                 self.ramp_sweep = None
             return
         self.setpoint = value - self.step
+        self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
         # if self.ramp_sweep is not None and self.ramp_sweep.plotter is not None:
         #    self.ramp_sweep.plotter.clear()
 
@@ -567,9 +575,12 @@ class Sweep1D(BaseSweep, QObject):
             self.end = new_params[1]
             self.step = new_params[2]
             self.inter_delay = 1 / new_params[3]
+            # Update snap origin for the new grid
+            self._snap_origin = new_params[0]
 
         # Reset our setpoint
         self.setpoint = self.begin - self.step
+        self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
 
         # Reset our plots
         self.plotter = None

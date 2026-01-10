@@ -95,6 +95,7 @@ class GateLeakage(Sweep1D, QObject):
             return self.step_param()
         else:
             self.setpoint += self.step
+            self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
             if not self.try_set(self.set_param, self.setpoint):
                 return None
 
@@ -109,6 +110,7 @@ class GateLeakage(Sweep1D, QObject):
                     self.leak_detected = True
                     self.flip_direction()
                     self.setpoint += self.step
+                    self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
                     print("tripped input limit")
             else:
                 self.safe_trigger_count += 1
@@ -178,6 +180,7 @@ class GateLeakage(Sweep1D, QObject):
             self.end = (-1) * self.end
             self.step = -1 * self.step
             self.setpoint -= self.step
+            self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
 
         # If backwards, go forwards, and vice versa
         if self.direction:

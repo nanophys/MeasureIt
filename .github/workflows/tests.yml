@@ -57,11 +57,15 @@ jobs:
           xvfb-run -a pytest tests/unit -v --cov=src/measureit --cov-report=xml --cov-report=term-missing
         else
           set +e
-          pytest tests/unit -v --cov=src/measureit --cov-report=xml --cov-report=term-missing --junit-xml=unit-results.xml
+          # Run without coverage to avoid PyQt5/coverage interaction crash on macOS/Windows
+          pytest tests/unit -v --no-cov
           RC=$?
+          # Check incremental results marker file for crash-safe test verification
+          MARKER_FILE="${TMPDIR:-.}/.pytest_results_marker"
           if [ $RC -eq 138 ] || [ $RC -eq 139 ]; then
-            if [ -f unit-results.xml ] && grep -q 'failures="0"' unit-results.xml && grep -q 'errors="0"' unit-results.xml; then
-              echo "Ignoring known PyQt teardown crash (exit $RC) - tests passed"
+            if [ -f "$MARKER_FILE" ] && grep -q 'failed=0' "$MARKER_FILE"; then
+              PASSED=$(grep 'passed=' "$MARKER_FILE" | cut -d= -f2)
+              echo "Ignoring known PyQt teardown crash (exit $RC) - $PASSED tests passed"
               exit 0
             fi
           fi
@@ -75,11 +79,15 @@ jobs:
           xvfb-run -a pytest tests/integration -v --cov=src/measureit --cov-append --cov-report=xml
         else
           set +e
-          pytest tests/integration -v --cov=src/measureit --cov-append --cov-report=xml --junit-xml=integration-results.xml
+          # Run without coverage to avoid PyQt5/coverage interaction crash
+          pytest tests/integration -v --no-cov
           RC=$?
+          # Check incremental results marker file for crash-safe test verification
+          MARKER_FILE="${TMPDIR:-.}/.pytest_results_marker"
           if [ $RC -eq 138 ] || [ $RC -eq 139 ]; then
-            if [ -f integration-results.xml ] && grep -q 'failures="0"' integration-results.xml && grep -q 'errors="0"' integration-results.xml; then
-              echo "Ignoring known PyQt teardown crash (exit $RC) - tests passed"
+            if [ -f "$MARKER_FILE" ] && grep -q 'failed=0' "$MARKER_FILE"; then
+              PASSED=$(grep 'passed=' "$MARKER_FILE" | cut -d= -f2)
+              echo "Ignoring known PyQt teardown crash (exit $RC) - $PASSED tests passed"
               exit 0
             fi
           fi

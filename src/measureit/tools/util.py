@@ -11,6 +11,9 @@ import qcodes as qc  # moved to tools
 from qcodes import Station, initialise_or_create_database_at
 
 from ..config import get_path
+from ..logging_utils import get_sweep_logger
+
+_log = get_sweep_logger("util")
 
 unit_dict = {
     "f": 10**-15,
@@ -61,10 +64,12 @@ def safe_set(p, value, last_try=False):
         ret = p.set(value)
     except Exception as e:
         if last_try is False:
+            _log.warning(f"Couldn't set {p.name} to {value}. Trying again. Error: {e}")
             print(f"Couldn't set {p.name} to {value}. Trying again.", e)
             time.sleep(1)
             return safe_set(p, value, last_try=True)
         else:
+            _log.error(f"Still couldn't set {p.name} to {value}. Giving up. Error: {e}")
             print(f"Still couldn't set {p.name} to {value}. Giving up.", e)
             raise ParameterException(f"Couldn't set {p.name} to {value}.", set=True)
     return ret

@@ -201,7 +201,12 @@ class Sweep2D(BaseSweep, QObject):
         # Our update_values() function iterates the outer sweep, so when the inner sweep
         # is done, call that function automatically
         self.in_sweep.set_complete_func(self.update_values)
-
+        if outer_delay < 0.1:
+            self.logger.warning(
+                f"outer_delay={outer_delay}s is too small; setting to 0.1s to protect runner thread timing."
+            )
+            outer_delay = 0.1
+        # Jan.10.2026: Ensure minimum outer_delay of 0.1s to protect runner thread and data saving.  
         self.outer_delay = outer_delay
         self.inner_time = self.in_sweep.estimate_time(verbose=False)
         self.progressState.progress = 0.0
@@ -512,19 +517,25 @@ class Sweep2D(BaseSweep, QObject):
             abs(self.out_setpoint - self.out_stop) - abs(self.out_step / 2)
             > abs(self.out_step) * 1e-4
         ):
-            # time.sleep(self.outer_delay)
+            # Calculate the next setpoint with snap to avoid float precision issues
+            next_setpoint = self.out_setpoint + self.out_step
+            next_setpoint = self._snap_to_step(next_setpoint, self.out_start, self.out_step)
+
             self.print_main.emit(
-                f"Setting {self.set_param.label} to {self.out_setpoint + self.out_step} ({self.set_param.unit}) with {self.out_ministeps} steps"
+                f"Setting {self.set_param.label} to {next_setpoint} ({self.set_param.unit}) with {self.out_ministeps} steps"
             )
             # increment for each ministeps
             inc = self.out_step / self.out_ministeps
             for step in range(self.out_ministeps):
-                if not self.try_set(self.set_param, self.out_setpoint + (step + 1) * inc):
+                # Snap each ministep value to avoid float precision errors
+                ministep_value = self.out_setpoint + (step + 1) * inc
+                ministep_value = self._snap_to_step(ministep_value, self.out_start, inc)
+                if not self.try_set(self.set_param, ministep_value):
                     return
                 time.sleep(self.outer_delay)
             #    self.print_main.emit(f"DEBUG: now, the setpoint of out_parm is {self.set_param.get()}")
             # update the current setpoint
-            self.out_setpoint = self.out_setpoint + self.out_step
+            self.out_setpoint = next_setpoint
 
             # Reset our plots
             self.in_sweep.reset_plots()
