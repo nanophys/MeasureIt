@@ -1,7 +1,12 @@
 import os
 import sys
 import types
+import logging
 from pathlib import Path
+
+# Suppress logging errors to avoid "I/O operation on closed file" spam
+# when tests finish and file handles are closed before all logging completes
+logging.raiseExceptions = False
 
 # Use a writable location for qcodes user data/logs inside the repo workspace
 os.environ.setdefault("QCODES_USER_PATH", str(Path.cwd() / ".qcodes_test"))
@@ -56,9 +61,11 @@ if os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"}:
             self._running = False
 
         def start(self):
+            # In fake Qt mode, do NOT run() synchronously - it blocks forever
+            # for RunnerThread which has an infinite loop waiting for state changes.
+            # Tests needing actual sweep execution should use real Qt (e2e tests).
             self._running = True
-            if hasattr(self, "run"):
-                self.run()
+            # Don't call run() - let tests complete without blocking
 
         def run(self):
             pass
@@ -70,6 +77,7 @@ if os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"}:
             self._running = False
 
         def wait(self, timeout=None):
+            self._running = False
             return True
 
         def isRunning(self):

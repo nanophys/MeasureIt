@@ -32,21 +32,55 @@ def wait_for_sweep_completion(sweep, timeout=10.0):
     if sweep.check_running():
         sweep.kill()
 
-    # Give time for database flush
+    # Always kill to ensure all threads (including inner sweeps) are stopped
+    # This is safe to call even if sweep is already done
+    sweep.kill()
+
+    # For Sweep2D, also explicitly kill inner sweep and wait for it
+    if hasattr(sweep, 'in_sweep') and sweep.in_sweep is not None:
+        sweep.in_sweep.kill()
+        # If inner sweep has a ramp_sweep, kill that too
+        if hasattr(sweep.in_sweep, 'ramp_sweep') and sweep.in_sweep.ramp_sweep is not None:
+            sweep.in_sweep.ramp_sweep.kill()
+
+    # For Sweep1D/SimulSweep with ramp_sweep, kill that too
+    if hasattr(sweep, 'ramp_sweep') and sweep.ramp_sweep is not None:
+        sweep.ramp_sweep.kill()
+
+    # Give time for database flush and threads to fully terminate
     time.sleep(0.5)
 
 
 def wait_for_queue_completion(queue, timeout=15.0):
     """Wait for queue to complete and ensure data is flushed."""
+    from measureit.sweep.progress import SweepState
+
     start_time = time.time()
-    while len(queue.queue) > 0 and (time.time() - start_time) < timeout:
+    # Wait for queue to be empty AND current sweep to finish (not running or ramping)
+    while (time.time() - start_time) < timeout:
+        queue_empty = len(queue.queue) == 0
+        if queue.current_sweep is None:
+            sweep_done = True
+        else:
+            state = queue.current_sweep.progressState.state
+            sweep_done = state in (
+                SweepState.DONE, SweepState.KILLED, SweepState.ERROR, SweepState.READY
+            )
+        if queue_empty and sweep_done:
+            break
         time.sleep(0.2)
 
-    # Kill queue if still running
-    if len(queue.queue) > 0:
-        queue.kill()
+    # Always kill to ensure all threads are stopped (safe to call even if done)
+    queue.kill()
 
-    # Give time for database flush
+    # Kill any current sweep that might still have threads running
+    if hasattr(queue, 'current_sweep') and queue.current_sweep is not None:
+        queue.current_sweep.kill()
+        # Also kill any ramp_sweep if present
+        if hasattr(queue.current_sweep, 'ramp_sweep') and queue.current_sweep.ramp_sweep is not None:
+            queue.current_sweep.ramp_sweep.kill()
+
+    # Give time for database flush and threads to terminate
     time.sleep(0.5)
 
 
@@ -65,7 +99,8 @@ def mock_parabola():
 
     yield instr
 
-    # Cleanup
+    # Cleanup - small delay to allow any lingering threads to terminate
+    time.sleep(0.3)
     try:
         instr.close()
     except:
@@ -90,6 +125,8 @@ def two_mock_parabolas():
 
     yield instr0, instr1
 
+    # Cleanup - small delay to allow any lingering threads to terminate
+    time.sleep(0.3)
     try:
         instr0.close()
         instr1.close()
@@ -348,6 +385,10 @@ class TestSweepQueueExecution:
         queue.start()
         wait_for_queue_completion(queue, timeout=15.0)
 
+        # Ensure all sweep threads are stopped before fixture cleanup
+        sweep1.kill()
+        sweep2.kill()
+
         # First sweep should have saved data
         ds1 = qc.load_by_id(1)
         assert ds1.number_of_results > 0
@@ -384,6 +425,9 @@ class TestSweepQueueExecution:
 
         queue.start()
         wait_for_queue_completion(queue)
+
+        # Ensure sweep threads are stopped before fixture cleanup
+        sweep.kill()
 
         # Sweep should have completed
         ds1 = qc.load_by_id(1)

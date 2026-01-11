@@ -1,6 +1,7 @@
 # test_sweep2d_inner_error.py
 """Test that Sweep2D properly enters ERROR state when inner Sweep1D fails."""
 
+import os
 import pytest
 import time
 from PyQt5.QtCore import QCoreApplication
@@ -9,6 +10,12 @@ from PyQt5.QtWidgets import QApplication
 from measureit.sweep.sweep2d import Sweep2D
 from measureit.sweep.progress import SweepState
 from tests.fixtures.mock_instruments import MockMagnet, MockGate, MockLockIn
+
+# Skip all tests in this module when in fake Qt mode (threads don't actually run)
+pytestmark = pytest.mark.skipif(
+    os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"},
+    reason="These integration tests require real Qt threads to execute sweeps"
+)
 
 
 @pytest.fixture(scope="module")

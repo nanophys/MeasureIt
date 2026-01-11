@@ -4,6 +4,16 @@ import sys
 import tempfile
 import types
 from pathlib import Path
+import signal
+import faulthandler
+
+# Enable faulthandler for SIGSEGV/SIGBUS to capture thread stacks on crashes during tests
+for _sig in (getattr(signal, "SIGSEGV", None), getattr(signal, "SIGBUS", None)):
+    if _sig is not None:
+        try:
+            faulthandler.register(_sig, all_threads=True, chain=True)
+        except Exception:
+            pass
 
 import pytest
 
@@ -29,6 +39,8 @@ if "pandas" not in sys.modules:
 def add_src_to_path():
     """Ensure `src` is on sys.path so `import measureit` works without install."""
     repo_root = Path(__file__).resolve().parents[1]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
     src = repo_root / "src"
     if str(src) not in sys.path:
         sys.path.insert(0, str(src))
@@ -123,21 +135,34 @@ def close_qcodes_instruments_between_tests():
 
 
 @pytest.fixture(autouse=True, scope="function")
-def cleanup_qt_threads(qapp):
+def cleanup_qt_threads():
     """Clean up any lingering QThreads after each test to prevent segfaults.
 
     This fixture ensures that runner threads from sweeps are properly terminated
     before pytest moves to the next test or teardown phase.
+
+    Note: Does not depend on qapp to avoid forcing Qt initialization for all tests.
     """
     yield
 
-    # Process any pending Qt events
-    qapp.processEvents()
+    # Process any pending Qt events if QApplication exists
+    try:
+        from PyQt5.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is not None:
+            app.processEvents()
+            import time
+            time.sleep(0.05)
+            app.processEvents()
+    except Exception:
+        pass
 
-    # Give threads a moment to finish naturally
-    import time
-    time.sleep(0.05)
-    qapp.processEvents()
+    # Force-stop any RunnerThreads that may still be alive to avoid Qt teardown crashes
+    try:
+        from measureit._internal.runner_thread import RunnerThread
+        RunnerThread.cleanup_all(timeout_ms=1000)
+    except Exception:
+        pass
 
 
 @pytest.fixture(scope="session")
@@ -148,7 +173,11 @@ def qapp():
     from PyQt5.QtCore import Qt
     from PyQt5.QtWidgets import QApplication
 
-    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+    # Some headless/FakeQt environments may provide a minimal QApplication without setAttribute
+    try:
+        QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+    except AttributeError:
+        pass
     # Prevent PyQt from destroying QObject instances during interpreter shutdown.
     try:
         sip.setdestroyonexit(False)
@@ -337,6 +366,13 @@ def pytest_sessionfinish(session, exitstatus):
     deleteLater() to prevent segfaults. This hook provides a backup cleanup.
     See: https://github.com/pytest-dev/pytest-qt/pull/38
     """
+    # Force cleanup of any lingering RunnerThreads to prevent hanging on exit
+    try:
+        from measureit._internal.runner_thread import RunnerThread
+        RunnerThread.cleanup_all(timeout_ms=500)
+    except Exception:
+        pass
+
     try:
         from PyQt5.QtWidgets import QApplication
 
@@ -345,3 +381,7 @@ def pytest_sessionfinish(session, exitstatus):
             app.processEvents()
     except Exception:
         pass
+
+    # Force garbage collection to trigger __del__ methods
+    import gc
+    gc.collect()

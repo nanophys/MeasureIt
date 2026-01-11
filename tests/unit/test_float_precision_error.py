@@ -12,24 +12,23 @@ Example from user:
 - Error: Couldn't set x to -6.28657265540301e-23 (should be 0.0)
 """
 
+import os
 import time
 import pytest
-from PyQt5.QtWidgets import QApplication
 from qcodes.instrument import Instrument
+
+# Skip sweep execution tests in fake Qt mode - they require real Qt threads
+FAKE_QT = os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"}
+skip_in_fake_qt = pytest.mark.skipif(
+    FAKE_QT,
+    reason="Sweep execution tests require real Qt threads"
+)
 from qcodes.parameters import Parameter
 from qcodes.validators import Numbers
 
 from measureit.sweep.sweep1d import Sweep1D
 from measureit.sweep.sweep2d import Sweep2D
 from measureit.sweep.progress import SweepState
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    yield app
 
 
 class NanoscaleInstrument(Instrument):
@@ -83,6 +82,7 @@ def nanoscale_instrument():
         pass
 
 
+@skip_in_fake_qt
 class TestFloatPrecisionInSweep1D:
     """Test floating point precision issues in Sweep1D."""
 
@@ -175,7 +175,18 @@ class TestFloatPrecisionInSweep1D:
 
         if sweep.progressState.state == SweepState.ERROR:
             error_msg = sweep.progressState.error_message or ""
-            if "-" in error_msg and "e-" in error_msg.lower():
+            # Check specifically for negative value being set (float precision bug signature)
+            # Look for patterns like "-6.28657265540301e-23" which indicates tiny negative float error
+            # Exclude normal scientific notation in error messages like "1e-12" for tolerance
+            import re
+            # Match negative numbers in scientific notation that are tiny (exponent < -15)
+            tiny_negative_pattern = r'-\d+\.?\d*e-(?:1[5-9]|[2-9]\d)'
+            if re.search(tiny_negative_pattern, error_msg):
+                pytest.fail(
+                    f"Float precision bug in ramp_to! Tried to set negative value: {error_msg}"
+                )
+            # Also check for "invalid" combined with a negative sign at the start of a number
+            if "invalid" in error_msg.lower() and re.search(r'to\s+-\d', error_msg):
                 pytest.fail(
                     f"Float precision bug in ramp_to! Tried to set negative value: {error_msg}"
                 )
@@ -183,6 +194,7 @@ class TestFloatPrecisionInSweep1D:
         sweep.kill()
 
 
+@skip_in_fake_qt
 class TestFloatPrecisionInSweep2D:
     """Test floating point precision issues in Sweep2D."""
 

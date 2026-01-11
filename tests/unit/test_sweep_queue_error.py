@@ -1,6 +1,7 @@
 # test_sweep_queue_error.py
 """Test that SweepQueue properly stops when a Sweep2D fails."""
 
+import os
 import pytest
 import time
 from PyQt5.QtCore import QCoreApplication
@@ -10,6 +11,12 @@ from measureit.sweep.sweep2d import Sweep2D
 from measureit.sweep.progress import SweepState
 from measureit.tools.sweep_queue import SweepQueue
 from tests.fixtures.mock_instruments import MockMagnet, MockGate, MockLockIn
+
+# Skip all tests in this module when in fake Qt mode (threads don't actually run)
+pytestmark = pytest.mark.skipif(
+    os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"},
+    reason="These integration tests require real Qt threads to execute sweeps"
+)
 
 
 @pytest.fixture(scope="module")
