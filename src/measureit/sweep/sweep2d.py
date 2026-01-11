@@ -578,6 +578,13 @@ class Sweep2D(BaseSweep, QObject):
 
     def kill(self):
         """Ends all threads and closes any active plots."""
+        prev_state = self.progressState.state
+        # Set KILLED state FIRST so update_values() callbacks exit early
+        if prev_state not in (SweepState.DONE, SweepState.ERROR, SweepState.KILLED):
+            self.progressState.state = SweepState.KILLED
+        if prev_state == SweepState.RUNNING:
+            self._add_runtime_since_last_resume()
+
         self.in_sweep.kill()
 
         # Gently shut down the heatmap
@@ -594,6 +601,9 @@ class Sweep2D(BaseSweep, QObject):
                 except Exception:
                     pass
                 self.heatmap_thread = None
+
+        # Run base-class cleanup to clear runner/plotter references and metadata
+        BaseSweep.kill(self)
 
     def ramp_to(self, value, start_on_finish=False, multiplier=1):
         """Ramps the set_param to a given value, at a rate specified by the multiplier.
