@@ -63,7 +63,6 @@ class GateLeakage(Sweep1D, QObject):
         QObject.__init__(self)
 
         self.follow_param(self.track_param)
-        self._completion_pending = False
 
     def step_param(self):
         """Runs Sweep1D in both directions by step size.
@@ -78,48 +77,70 @@ class GateLeakage(Sweep1D, QObject):
         A list containing the values of 'set_param' and 'track_param' for each
         setpoint until the sweep is stopped after 2 total flips.
         """
-        if self._completion_pending:
-            self._completion_pending = False
-            return None
-
         # Our ending condition is if we end up back at 0 after going forwards and backwards
         if self.flips >= 2 and abs(self.setpoint) <= abs(self.step / (3 / 2)):
             self.flips = 0
             print(f"Done with the sweep, {self.set_param.label}={self.setpoint}")
-            self._completion_pending = True
-            return [(self.set_param, -1)]
+            # Return None to signal completion without emitting a synthetic datapoint
+            # that could violate parameter validators or pollute the dataset
+            return None
 
-        if abs(self.end) != np.inf and abs(self.setpoint - self.end) <= abs(self.step):
+        # Check if we're at the end (within half a step)
+        at_end = abs(self.end) != np.inf and abs(self.setpoint - self.end) <= abs(self.step)
+
+        if at_end:
             self.flip_direction()
             print("tripped output limit")
             return self.step_param()
+
+        # Compute next setpoint and check bounds before setting
+        next_setpoint = self.setpoint + self.step
+        next_setpoint = self._snap_to_step(next_setpoint, self._snap_origin, self.step)
+
+        # Check if next setpoint exceeds sweep bounds
+        if abs(self.end) != np.inf:
+            sweep_min = min(self.begin, self.end)
+            sweep_max = max(self.begin, self.end)
+            if next_setpoint < sweep_min or next_setpoint > sweep_max:
+                # Would exceed bounds, treat as end of sweep
+                self.flip_direction()
+                print("tripped output limit (bounds check)")
+                return self.step_param()
+
+        self.setpoint = next_setpoint
+        if not self.try_set(self.set_param, self.setpoint):
+            return None
+
+        v = safe_get(self.track_param)
+
+        # Check if current exceeds threshold
+        if abs(v) >= abs(self.max_I):
+            self.leak_trigger_count += 1
+            self.safe_trigger_count = 0
+
+            if self.leak_trigger_count >= 2 and not self.leak_detected:
+                self.leak_detected = True
+                self.flip_direction()
+                # After flip, compute and check next setpoint before setting
+                post_flip_setpoint = self.setpoint + self.step
+                post_flip_setpoint = self._snap_to_step(post_flip_setpoint, self._snap_origin, self.step)
+                # Only set if within bounds
+                if abs(self.end) != np.inf:
+                    sweep_min = min(self.begin, self.end)
+                    sweep_max = max(self.begin, self.end)
+                    if sweep_min <= post_flip_setpoint <= sweep_max:
+                        self.setpoint = post_flip_setpoint
+                else:
+                    self.setpoint = post_flip_setpoint
+                print("tripped input limit")
         else:
-            self.setpoint += self.step
-            self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
-            if not self.try_set(self.set_param, self.setpoint):
-                return None
+            self.safe_trigger_count += 1
+            self.leak_trigger_count = 0
 
-            v = safe_get(self.track_param)
+            if self.safe_trigger_count >= 5 and self.leak_detected:
+                self.leak_detected = False
 
-            # Check if current exceeds threshold
-            if abs(v) >= abs(self.max_I):
-                self.leak_trigger_count += 1
-                self.safe_trigger_count = 0
-
-                if self.leak_trigger_count >= 2 and not self.leak_detected:
-                    self.leak_detected = True
-                    self.flip_direction()
-                    self.setpoint += self.step
-                    self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
-                    print("tripped input limit")
-            else:
-                self.safe_trigger_count += 1
-                self.leak_trigger_count = 0
-
-                if self.safe_trigger_count >= 5 and self.leak_detected:
-                    self.leak_detected = False
-
-            return [(self.set_param, self.setpoint), (self.track_param, v)]
+        return [(self.set_param, self.setpoint), (self.track_param, v)]
 
     def update_values(self):
         """Iterates and keeps record of independent variable data during sweep.
@@ -168,17 +189,29 @@ class GateLeakage(Sweep1D, QObject):
         return data
 
     def flip_direction(self):
-        """Changes direction of the sweep."""
+        """Changes direction of the sweep.
+
+        Note: Unlike Sweep1D, GateLeakage sweeps from a center point (start, default 0)
+        outward in both directions. After each flip, _snap_origin is updated to the new
+        begin to ensure the step grid includes the current sweep's starting point.
+        """
         self.flips += 1
+
         if self.flips >= 2 and self.setpoint > 0:
             self.step = (-1) * abs(self.step)
             self.end = (-1) * self.end
+            self.begin = self.setpoint  # New sweep starts from current position
+            self._snap_origin = self.begin
         elif self.flips >= 2 and self.setpoint < 0:
             self.step = abs(self.step)
             self.end = (-1) * self.end
+            self.begin = self.setpoint  # New sweep starts from current position
+            self._snap_origin = self.begin
         elif self.flips < 2:
             self.end = (-1) * self.end
             self.step = -1 * self.step
+            self.begin = self.setpoint  # New sweep starts from current position
+            self._snap_origin = self.begin
             self.setpoint -= self.step
             self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
 

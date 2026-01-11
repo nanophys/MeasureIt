@@ -18,7 +18,15 @@ class TestSimulSweepInit:
 
         sweep = SimulSweep(params_dict, **fast_sweep_kwargs)
 
-        assert sweep.set_params_dict == params_dict
+        # Verify original dict is NOT mutated (key fix for shallow copy bug)
+        assert "_snap_origin" not in params_dict[mock_parameters["voltage"]]
+        assert "setpoint" not in params_dict[mock_parameters["voltage"]]
+
+        # Verify sweep has the data with internal fields added
+        assert sweep.set_params_dict[mock_parameters["voltage"]]["start"] == 0
+        assert sweep.set_params_dict[mock_parameters["voltage"]]["stop"] == 1
+        assert "_snap_origin" in sweep.set_params_dict[mock_parameters["voltage"]]
+
         assert len(sweep.simul_params) >= 0
         assert sweep.direction == 0
 
@@ -326,3 +334,52 @@ class TestSimulSweepIntegration:
         sweep = SimulSweep(params_dict, n_steps=20, **fast_sweep_kwargs)
 
         assert sweep.n_steps == 20
+
+
+class TestSimulSweepNoMutation:
+    """Regression tests for parameter dict mutation bug."""
+
+    def test_caller_dict_not_mutated_by_init(self, mock_parameters, fast_sweep_kwargs):
+        """Verify SimulSweep doesn't mutate caller's dict during __init__."""
+        original_dict = {
+            mock_parameters["voltage"]: {"start": 0, "stop": 1, "step": 0.1},
+        }
+        # Capture original keys
+        original_keys = set(original_dict[mock_parameters["voltage"]].keys())
+
+        SimulSweep(original_dict, **fast_sweep_kwargs)
+
+        # Caller's dict should not have internal fields added
+        current_keys = set(original_dict[mock_parameters["voltage"]].keys())
+        assert current_keys == original_keys
+        assert "_snap_origin" not in original_dict[mock_parameters["voltage"]]
+        assert "setpoint" not in original_dict[mock_parameters["voltage"]]
+
+    def test_caller_dict_not_mutated_by_n_steps(self, mock_parameters, fast_sweep_kwargs):
+        """Verify SimulSweep doesn't mutate caller's dict when computing step from n_steps."""
+        original_dict = {
+            mock_parameters["voltage"]: {"start": 0, "stop": 1},
+        }
+        # No "step" key initially
+        assert "step" not in original_dict[mock_parameters["voltage"]]
+
+        SimulSweep(original_dict, n_steps=10, **fast_sweep_kwargs)
+
+        # Caller's dict should NOT have "step" added
+        assert "step" not in original_dict[mock_parameters["voltage"]]
+
+    def test_reuse_dict_for_multiple_sweeps(self, mock_parameters, fast_sweep_kwargs):
+        """Verify same dict can be reused for multiple sweeps without corruption."""
+        params_template = {
+            mock_parameters["voltage"]: {"start": 0, "stop": 1, "step": 0.1},
+        }
+
+        sweep1 = SimulSweep(params_template, **fast_sweep_kwargs)
+        sweep2 = SimulSweep(params_template, **fast_sweep_kwargs)
+
+        # Both sweeps should have valid, independent internal state
+        assert sweep1.set_params_dict[mock_parameters["voltage"]]["start"] == 0
+        assert sweep2.set_params_dict[mock_parameters["voltage"]]["start"] == 0
+
+        # Original should be unchanged
+        assert "_snap_origin" not in params_template[mock_parameters["voltage"]]

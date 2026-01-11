@@ -273,11 +273,14 @@ class TestFloatPrecisionInSweep2D:
 class TestFloatArithmeticPrecision:
     """Direct tests of floating point arithmetic that causes the issue."""
 
+    @pytest.mark.xfail(reason="Demonstrates raw Python float precision issue - fixed by _snap_to_step")
     def test_step_accumulation_precision(self):
         """
         Demonstrate the floating point precision issue in step calculations.
 
         When adding small steps repeatedly, floating point errors accumulate.
+        This test intentionally uses raw arithmetic without snapping to show
+        the underlying issue that _snap_to_step fixes.
         """
         start = 0.0
         step = 1e-8

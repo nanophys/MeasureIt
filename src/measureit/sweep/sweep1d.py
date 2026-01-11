@@ -144,8 +144,8 @@ class Sweep1D(BaseSweep, QObject):
         self.end = stop
         self.step = step
 
-        # Store the original start for snapping - always use the same grid origin
-        # regardless of direction flips to avoid float precision issues
+        # Store the start for snapping. Updated on direction flips to ensure
+        # the step grid always includes the current sweep's starting point.
         self._snap_origin = start
 
         # Make sure the step is in the right direction
@@ -277,18 +277,29 @@ class Sweep1D(BaseSweep, QObject):
         elif isinstance(self.instrument, M4G) and "field" in self.set_param.full_name:
             return self.step_M4G()
 
-        # If we aren't at the end, keep going
-        if (
+        # Check if we should continue (not at end yet)
+        at_end = not (
             abs(self.setpoint - self.end) - abs(self.step / 2)
             > abs(self.step) * self.err
-        ):
-            self.setpoint = self.setpoint + self.step
-            self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
-            if not self.try_set(self.set_param, self.setpoint):
-                return None
-            return [(self.set_param, self.setpoint)]
-        # If we want to go both ways, we flip the start and stop, and run again
-        elif self.continuous:
+        )
+
+        if not at_end:
+            next_setpoint = self.setpoint + self.step
+            next_setpoint = self._snap_to_step(next_setpoint, self._snap_origin, self.step)
+
+            # If next setpoint exceeds bounds, treat as end of sweep
+            sweep_min = min(self.begin, self.end)
+            sweep_max = max(self.begin, self.end)
+            if next_setpoint < sweep_min or next_setpoint > sweep_max:
+                at_end = True
+            else:
+                self.setpoint = next_setpoint
+                if not self.try_set(self.set_param, self.setpoint):
+                    return None
+                return [(self.set_param, self.setpoint)]
+
+        # End of sweep handling
+        if self.continuous:
             self.flip_direction()
             return self.step_param()
         elif self.bidirectional and self.direction == 0:
@@ -422,6 +433,11 @@ class Sweep1D(BaseSweep, QObject):
         self.begin = self.end
         self.end = temp
         self.step = -1 * self.step
+
+        # Update snap origin to new begin on every flip. This ensures the step
+        # grid always includes the current sweep's starting point.
+        self._snap_origin = self.begin
+
         self.setpoint -= self.step
         self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
 

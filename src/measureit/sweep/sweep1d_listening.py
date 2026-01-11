@@ -159,8 +159,8 @@ class Sweep1D_listening(BaseSweep, QObject):
         self.end = stop
         self.step = step
 
-        # Store the original start for snapping - always use the same grid origin
-        # regardless of direction flips to avoid float precision issues
+        # Store the start for snapping. Updated on direction flips to ensure
+        # the step grid always includes the current sweep's starting point.
         self._snap_origin = start
 
         # Make sure the step is in the right direction
@@ -336,6 +336,10 @@ class Sweep1D_listening(BaseSweep, QObject):
         self.begin = self.end
         self.end = temp
         self.step = -1 * self.step
+
+        # Update snap origin to new begin on every flip
+        self._snap_origin = self.begin
+
         self.setpoint -= self.step
         self.setpoint = self._snap_to_step(self.setpoint, self._snap_origin, self.step)
 

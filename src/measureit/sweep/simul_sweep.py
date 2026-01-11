@@ -1,4 +1,5 @@
 # simul_sweep.py
+import copy
 import math
 import time
 from functools import partial
@@ -86,7 +87,8 @@ class SimulSweep(BaseSweep, QObject):
             )
 
         self.simul_params = []
-        self.set_params_dict = _p.copy()
+        # Deep copy value dicts to avoid mutating caller's original dictionaries
+        self.set_params_dict = {p: copy.deepcopy(v) for p, v in _p.items()}
         self.direction = 0
         self.n_steps = n_steps
         self.ramp_sweep = None
@@ -121,7 +123,8 @@ class SimulSweep(BaseSweep, QObject):
         for p, v in self.set_params_dict.items():
             self.simul_params.append(p)
 
-            # Store original start as snap origin - doesn't change when direction flips
+            # Store start as snap origin. Updated on direction flips to ensure
+            # the step grid always includes the current sweep's starting point.
             v["_snap_origin"] = v["start"]
 
             # Make sure the step is in the right direction
@@ -215,27 +218,37 @@ class SimulSweep(BaseSweep, QObject):
         start_dir = self.direction
 
         for p, v in self.set_params_dict.items():
-            # If we aren't at the end, keep going
-            if (
+            # Check if we should continue (not at end yet)
+            at_end = not (
                 abs(v["setpoint"] - v["stop"]) - abs(v["step"] / 2)
                 > abs(v["step"]) * self.err
-            ):
-                v["setpoint"] = v["setpoint"] + v["step"]
-                v["setpoint"] = self._snap_to_step(v["setpoint"], v["_snap_origin"], v["step"])
-                if not self.try_set(p, v["setpoint"]):
-                    return None
-                rets.append((p, v["setpoint"]))
+            )
 
-            # If we want to go both ways, we flip the start and stop, and run again
-            elif self.bidirectional and self.direction == 0:
-                self.flip_direction()
-                return self.step_param()
-            elif self.continuous and self.direction == start_dir:
-                self.flip_direction()
-                return self.step_param()
-            # If neither of the above are triggered, it means we are at the end of the sweep
-            else:
-                ending = True
+            if not at_end:
+                next_setpoint = v["setpoint"] + v["step"]
+                next_setpoint = self._snap_to_step(next_setpoint, v["_snap_origin"], v["step"])
+
+                # If next setpoint exceeds bounds, treat as end of sweep
+                sweep_min = min(v["start"], v["stop"])
+                sweep_max = max(v["start"], v["stop"])
+                if next_setpoint < sweep_min or next_setpoint > sweep_max:
+                    at_end = True
+                else:
+                    v["setpoint"] = next_setpoint
+                    if not self.try_set(p, v["setpoint"]):
+                        return None
+                    rets.append((p, v["setpoint"]))
+
+            # End of sweep handling for this parameter
+            if at_end:
+                if self.bidirectional and self.direction == 0:
+                    self.flip_direction()
+                    return self.step_param()
+                elif self.continuous and self.direction == start_dir:
+                    self.flip_direction()
+                    return self.step_param()
+                else:
+                    ending = True
 
         if ending is True:
             self.print_main.emit("Done with the sweep!")
@@ -429,6 +442,7 @@ class SimulSweep(BaseSweep, QObject):
                 v["start"] = v["stop"]
                 v["stop"] = temp
                 v["step"] = -1 * v["step"] / self.back_multiplier
+                v["_snap_origin"] = v["start"]
                 v["setpoint"] -= v["step"]
                 v["setpoint"] = self._snap_to_step(v["setpoint"], v["_snap_origin"], v["step"])
         else:
@@ -438,6 +452,7 @@ class SimulSweep(BaseSweep, QObject):
                 v["start"] = v["stop"]
                 v["stop"] = temp
                 v["step"] = -1 * v["step"] * self.back_multiplier
+                v["_snap_origin"] = v["start"]
                 v["setpoint"] -= v["step"]
                 v["setpoint"] = self._snap_to_step(v["setpoint"], v["_snap_origin"], v["step"])
 
