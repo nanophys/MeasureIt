@@ -229,6 +229,8 @@ class Sweep2D(BaseSweep, QObject):
         # Set the function to call when the inner sweep finishes
         if update_func is None:
             self.update_rule = self.no_change
+        else:
+            self.update_rule = update_func
 
         # Initialize our heatmap plotting thread
         self.heatmap_plotter = None
@@ -660,18 +662,18 @@ class Sweep2D(BaseSweep, QObject):
             self.out_step = abs(self.out_step)
 
         # Create a new sweep to ramp our outer parameter to zero
-        zero_sweep = Sweep1D(
+        self.ramp_sweep = Sweep1D(
             self.set_param,
             self.set_param.get(),
             0,
-            self.step / self.out_ministeps,
+            self.out_step / self.out_ministeps,
             inter_delay=self.inter_delay,
             complete_func=self.done_ramping,
         )
-        zero_sweep.follow_param(self._params)
+        self.ramp_sweep.follow_param(self._params)
         self.progressState.state = SweepState.RAMPING
         self.outer_ramp = True
-        zero_sweep.start()
+        self.ramp_sweep.start()
 
     def done_ramping(self, start_on_finish=False):
         """Alerts the sweep that the ramp is finished.
