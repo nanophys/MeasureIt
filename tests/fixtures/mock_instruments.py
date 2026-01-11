@@ -140,6 +140,77 @@ class MockTemperatureController(Instrument):
         )
 
 
+class FailingParameter(Parameter):
+    """A parameter that fails to set above a threshold value."""
+
+    def __init__(self, name: str, fail_above: float = 7.8, initial_value: float = 0.0, **kwargs):
+        """Initialize failing parameter.
+
+        Args:
+            name: Parameter name
+            fail_above: Threshold above which set() will fail
+            initial_value: Initial value
+            **kwargs: Additional parameter kwargs (unit, label, etc.)
+        """
+        super().__init__(name=name, **kwargs)
+        self._value = initial_value
+        self._fail_above = fail_above
+
+    def get_raw(self) -> float:
+        """Get current value."""
+        return self._value
+
+    def set_raw(self, value: float) -> None:
+        """Set new value, fails if value exceeds threshold."""
+        if value > self._fail_above:
+            raise ValueError(f"Couldn't set {self.name} to {value}.")
+        self._value = value
+
+
+class MockMagnet(Instrument):
+    """Mock magnet power supply that fails above a threshold."""
+
+    def __init__(self, name: str, fail_above: float = 7.8, **kwargs):
+        """Initialize mock magnet.
+
+        Args:
+            name: Instrument name
+            fail_above: B field threshold above which set() will fail
+            **kwargs: Additional instrument kwargs
+        """
+        super().__init__(name, **kwargs)
+
+        self.add_parameter(
+            "B",
+            parameter_class=FailingParameter,
+            fail_above=fail_above,
+            initial_value=0.0,
+            unit="T",
+            label="Magnetic field",
+        )
+
+
+class MockGate(Instrument):
+    """Mock gate voltage source."""
+
+    def __init__(self, name: str, **kwargs):
+        """Initialize mock gate.
+
+        Args:
+            name: Instrument name
+            **kwargs: Additional instrument kwargs
+        """
+        super().__init__(name, **kwargs)
+
+        self.add_parameter(
+            "Vtg",
+            parameter_class=MockParameter,
+            initial_value=0.0,
+            unit="V",
+            label="Top-gate voltage",
+        )
+
+
 def create_mock_station():
     """Create a Station with common mock instruments.
 

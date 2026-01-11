@@ -545,7 +545,7 @@ class BaseSweep(QObject):
 
     def mark_done(self) -> None:
         """Transition the sweep to DONE and emit completion callbacks."""
-        if self.progressState.state in (SweepState.KILLED, SweepState.DONE):
+        if self.progressState.state in (SweepState.KILLED, SweepState.DONE, SweepState.ERROR):
             return
         if self.progressState.state == SweepState.RUNNING:
             self._add_runtime_since_last_resume()

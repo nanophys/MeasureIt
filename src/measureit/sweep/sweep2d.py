@@ -470,6 +470,11 @@ class Sweep2D(BaseSweep, QObject):
         condition is reached, the completed signal is emitted and the sweeps are stopped.
         """
         self.update_progress()
+
+        # Early exit if sweep is in ERROR or KILLED state - don't continue to next outer step
+        if self.progressState.state in (SweepState.ERROR, SweepState.KILLED):
+            return
+
         # If this function was called from a ramp down to 0, a special case of sweeping, deal with that
         # independently
         if self.in_sweep.progressState.state == SweepState.RAMPING:
