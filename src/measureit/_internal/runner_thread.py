@@ -3,6 +3,7 @@
 import io
 import json
 import time
+import weakref
 from contextlib import redirect_stderr, redirect_stdout
 
 from PyQt5.QtCore import QThread, pyqtSignal
@@ -44,6 +45,9 @@ class RunnerThread(QThread):
         Iterates the sweep and sends data to the plotter.
     """
 
+    # Track live RunnerThreads so test teardown can stop any stragglers
+    _instances = weakref.WeakSet()
+
     get_dataset = pyqtSignal(dict)
     send_data = pyqtSignal(object, int)
 
@@ -74,10 +78,32 @@ class RunnerThread(QThread):
         self.dataset = None
         self.db_set = False
         self.runner = None
+        self._instances.add(self)
 
     def __del__(self):
-        """Standard destructor."""
-        self.wait()
+        """Standard destructor with timeout to prevent hanging."""
+        # Use a short timeout to avoid hanging during garbage collection.
+        # If thread doesn't stop, just let it be - Python will terminate anyway.
+        try:
+            if self.isRunning():
+                self.quit()
+                self.wait(500)  # 500ms timeout
+        except Exception:
+            pass
+
+    @classmethod
+    def cleanup_all(cls, timeout_ms: int = 1000) -> None:
+        """Best-effort shutdown for any RunnerThread left alive."""
+        for runner in list(cls._instances):
+            try:
+                if runner.isRunning():
+                    runner.quit()
+                    if not runner.wait(timeout_ms):
+                        runner.terminate()
+                        runner.wait(timeout_ms)
+            except Exception:
+                # Never raise during teardown; keep looping through others
+                continue
 
     def add_plotter(self, plotter):
         """Adds the PlotterThread object.

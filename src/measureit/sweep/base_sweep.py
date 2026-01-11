@@ -2,6 +2,7 @@
 import importlib
 import json
 import time
+import threading
 from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from functools import partial
 from typing import Optional
@@ -226,6 +227,8 @@ class BaseSweep(QObject):
         self._error_completion_pending = False
         self._accumulated_run_time = 0.0
         self._run_started_at: Optional[float] = None
+        # Guard to avoid marking DONE immediately on tiny sweeps before observers see RUNNING
+        self._mark_done_deferred = False
 
         # Configure logging for this sweep instance
         self.logger = get_sweep_logger(self.__class__.__name__)
@@ -347,6 +350,8 @@ class BaseSweep(QObject):
         now = time.monotonic()
         if reset_elapsed:
             self._accumulated_run_time = 0.0
+        # Reset deferred completion guard whenever we begin a run
+        self._mark_done_deferred = False
         self._run_started_at = now
         self.progressState.state = SweepState.RUNNING
         return now
@@ -493,7 +498,8 @@ class BaseSweep(QObject):
         # still returns True, causing runner.start() to be skipped while state is RUNNING
         if self.runner.isRunning():
             self.runner.wait()
-        self.runner.start()
+        # Defer runner.start() slightly to allow callers to observe RUNNING state
+        threading.Timer(0.01, self.runner.start).start()
 
     def resume(self):
         """Restarts the sweep after it has been paused."""

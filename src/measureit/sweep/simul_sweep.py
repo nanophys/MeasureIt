@@ -202,9 +202,30 @@ class SimulSweep(BaseSweep, QObject):
         super().pause()
 
     def kill(self):
-        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
-            self.ramp_sweep.pause()
-            self.ramp_sweep.kill()
+        # Mark killed immediately to short-circuit any pending callbacks (e.g., done_ramping)
+        if self.progressState.state not in (SweepState.DONE, SweepState.ERROR, SweepState.KILLED):
+            self.progressState.state = SweepState.KILLED
+
+        # Always tear down an active ramp sweep, even if we are no longer in the RAMPING state.
+        # This prevents its runner QThread from outliving the parent sweep.
+        if self.ramp_sweep is not None:
+            try:
+                self.ramp_sweep.pause()
+            except Exception:
+                pass
+            try:
+                self.ramp_sweep.kill()
+            except Exception:
+                pass
+            # Wait briefly for the ramp runner to finish to avoid Qt teardown races
+            try:
+                runner = getattr(self.ramp_sweep, "runner", None)
+                if runner is not None and runner.isRunning():
+                    runner.wait(500)
+            except Exception:
+                pass
+            self.ramp_sweep = None
+
         super().kill()
 
     def send_updates(self, no_sp=True):
@@ -353,7 +374,8 @@ class SimulSweep(BaseSweep, QObject):
             ramp_params_dict,
             n_steps=n_steps,
             inter_delay=self.inter_delay,
-            plot_data=True,
+            # Only spawn plotter windows if the parent sweep is plotting
+            plot_data=self.plot_data,
             save_data=False,
             complete_func=partial(
                 self.done_ramping,
@@ -361,6 +383,7 @@ class SimulSweep(BaseSweep, QObject):
                 start_on_finish=start_on_finish,
                 pd=persist,
             ),
+            suppress_output=self.suppress_output,
         )
         # Only follow parameters that are not being ramped to avoid circular dependencies
         follow_params = [p for p in self._params if p not in ramp_params_dict.keys()]
