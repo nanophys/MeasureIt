@@ -38,12 +38,15 @@ def get_measureit_home() -> str:
 
 
 class ParameterException(Exception):
-    def __init__(self, message, set=False):
+    def __init__(self, message, set=False, original_exception=None):
         self.message = message
         self.set = set
+        self.original_exception = original_exception
         super().__init__(self)
 
     def __str__(self):
+        if self.original_exception is not None:
+            return f"{self.message} Original error: {self.original_exception}"
         return self.message
 
 
@@ -71,7 +74,9 @@ def safe_set(p, value, last_try=False):
         else:
             _log.error(f"Still couldn't set {p.name} to {value}. Giving up. Error: {e}")
             print(f"Still couldn't set {p.name} to {value}. Giving up.", e)
-            raise ParameterException(f"Couldn't set {p.name} to {value}.", set=True)
+            raise ParameterException(
+                f"Couldn't set {p.name} to {value}.", set=True, original_exception=e
+            )
     return ret
 
 
@@ -95,7 +100,9 @@ def safe_get(p, last_try=False):
             return safe_get(p, last_try=True)
         else:
             print(f"Still couldn't get {p.name}. Giving up.", e)
-            raise ParameterException(f"Could not get {p.name}.", set=False)
+            raise ParameterException(
+                f"Could not get {p.name}.", set=False, original_exception=e
+            )
     return ret
 
 
