@@ -2,9 +2,6 @@
 
 Measurement software based on [QCoDeS](https://qcodes.github.io/), developed in University of Washington physics.
 
-## Community information
-[Join our slack channel!](https://join.slack.com/t/measureit-workspace/shared_invite/zt-2ws3h3k2q-78XfSUNtqCjSUkydRW2MXA)
-
 ## High-Level Design
 
 MeasureIt is a measurement software package built on top of [QCoDeS](https://qcodes.github.io/) for physics experiments. The architecture follows these key patterns:
@@ -15,6 +12,10 @@ MeasureIt is a measurement software package built on top of [QCoDeS](https://qco
 - **Driver Layer**: Custom instrument drivers in the `Drivers/` module that interface with various lab equipment
 - **Notebook Workflow**: Designed for Jupyter/CLI usage; PyQt5 powers background threading and signaling
 - **Data Management**: Integration with QCoDeS for data storage and experiment management
+
+See related projects:
+- AI enhancement: [AI Integration](https://github.com/caidish/instrMCP)
+- WebUI: [Qmeasure Jupyter](https://github.com/caidish/qmeasure-jupyter) (a small jupyterlab extension for generating sweeping code)
 
 ### Key Components
 - **Base Classes**: `BaseSweep` provides the foundation with parameter following, measurement creation, and thread management
@@ -40,8 +41,7 @@ src/measureit/
 
 ### Prerequisites
 
-- Python 3.8+
-- Git 
+- Python 3.11+
 - NI DAQmx drivers: http://www.ni.com/en-us/support/downloads/drivers/download/unpackaged.ni-daqmx.291872.html
 - NI VISA package: http://www.ni.com/download/ni-visa-18.5/7973/en/
 
@@ -221,16 +221,15 @@ MeasureIt uses:
 - **pytest-cov** for coverage reporting
 - Mock QCoDeS instruments for hardware-independent testing
 - Temporary databases and isolated MEASUREIT_HOME per test
+- The pytest-qt now creates so much trouble that we do not check it in CI on github workflows. But such a test can still be run locally to verify Qt-related functionality.
 
 ### Continuous Integration
 
-All tests run automatically on:
-- Multiple Python versions (3.8-3.12)
+All unit tests run automatically on:
+- Multiple Python versions (3.11-3.13)
 - Multiple operating systems (Linux, Windows, macOS)
 - Every push and pull request
-
-See [TODO_CI_test_plan.md](TODO_CI_test_plan.md) for detailed testing strategy.
-
+  
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed information about:

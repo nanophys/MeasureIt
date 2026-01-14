@@ -72,34 +72,6 @@ jobs:
           exit $RC
         fi
 
-    - name: Run integration tests
-      shell: bash
-      run: |
-        if [ "$RUNNER_OS" == "Linux" ]; then
-          xvfb-run -a pytest tests/integration -v --cov=src/measureit --cov-append --cov-report=xml
-        else
-          set +e
-          # Run without coverage to avoid PyQt5/coverage interaction crash
-          pytest tests/integration -v --no-cov
-          RC=$?
-          # Check incremental results marker file for crash-safe test verification
-          MARKER_FILE="${TMPDIR:-.}/.pytest_results_marker"
-          if [ $RC -eq 138 ] || [ $RC -eq 139 ]; then
-            if [ -f "$MARKER_FILE" ] && grep -q 'failed=0' "$MARKER_FILE"; then
-              PASSED=$(grep 'passed=' "$MARKER_FILE" | cut -d= -f2)
-              echo "Ignoring known PyQt teardown crash (exit $RC) - $PASSED tests passed"
-              exit 0
-            fi
-          fi
-          exit $RC
-        fi
-
-    - name: Run E2E tests (selected platforms)
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
-      shell: bash
-      run: |
-        xvfb-run -a pytest tests/e2e -v -m "not slow" --cov=src/measureit --cov-append --cov-report=xml
-
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
