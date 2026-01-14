@@ -48,7 +48,7 @@ __all__ = [
 try:
     __version__ = metadata.version("qmeasure")
 except metadata.PackageNotFoundError:  # pragma: no cover - dev installs
-    __version__ = "1.1.3"
+    __version__ = "1.2.0"
 
 
 # Display data directory info on first import (only in interactive sessions)
