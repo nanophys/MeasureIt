@@ -2,7 +2,9 @@
 
 import io
 import json
+import logging
 import time
+import traceback
 import weakref
 from contextlib import redirect_stderr, redirect_stdout
 
@@ -10,6 +12,8 @@ from PyQt5.QtCore import QThread, pyqtSignal
 
 from ..sweep.progress import SweepState
 from ..tools.util import ParameterException
+
+logger = logging.getLogger(__name__)
 
 
 class RunnerThread(QThread):
@@ -132,43 +136,65 @@ class RunnerThread(QThread):
         NOTE: start() is called externally to start the thread, but run()
         defines the behavior of the thread.
         """
-        # Check database status
+        # Check database status and initialize datasaver if save_data is True
         if self.sweep.save_data is True:
-            capture = io.StringIO()
-            with redirect_stdout(capture), redirect_stderr(capture):
-                self.runner = self.sweep.meas.run()
-                self.datasaver = self.runner.__enter__()
-            self.dataset = self.datasaver.dataset
-            banner = capture.getvalue().strip()
-            if banner:
-                for line in banner.splitlines():
-                    self.sweep.print_main.emit(line)
-            # Attach MeasureIt sweep metadata once per dataset, using provider if set
             try:
-                provider = getattr(self.sweep, "get_metadata_provider", None)
-                provider = provider() if callable(provider) else None
-                if provider is None:
-                    provider = (
-                        getattr(self.sweep, "metadata_provider", None) or self.sweep
-                    )
-                meta = provider.export_json(fn=None)
+                capture = io.StringIO()
+                with redirect_stdout(capture), redirect_stderr(capture):
+                    self.runner = self.sweep.meas.run()
+                    self.datasaver = self.runner.__enter__()
+                self.dataset = self.datasaver.dataset
+                banner = capture.getvalue().strip()
+                if banner:
+                    for line in banner.splitlines():
+                        self.sweep.print_main.emit(line)
+                # Attach MeasureIt sweep metadata once per dataset, using provider if set
                 try:
-                    # Preferred signature used historically in this project
-                    self.dataset.add_metadata(
-                        tag="measureit", metadata=json.dumps(meta)
-                    )
-                except TypeError:
-                    # Fallback for older qcodes versions
-                    self.dataset.add_metadata("measureit", json.dumps(meta))
-            except Exception:
-                # Never break the run on metadata errors
-                pass
-            ds_dict = {}
-            ds_dict["db"] = self.dataset.path_to_db
-            ds_dict["run id"] = self.dataset.run_id
-            ds_dict["exp name"] = self.dataset.exp_name
-            ds_dict["sample name"] = self.dataset.sample_name
-            self.get_dataset.emit(ds_dict)
+                    provider = getattr(self.sweep, "get_metadata_provider", None)
+                    provider = provider() if callable(provider) else None
+                    if provider is None:
+                        provider = (
+                            getattr(self.sweep, "metadata_provider", None) or self.sweep
+                        )
+                    meta = provider.export_json(fn=None)
+                    try:
+                        # Preferred signature used historically in this project
+                        self.dataset.add_metadata(
+                            tag="measureit", metadata=json.dumps(meta)
+                        )
+                    except TypeError:
+                        # Fallback for older qcodes versions
+                        self.dataset.add_metadata("measureit", json.dumps(meta))
+                except Exception:
+                    # Never break the run on metadata errors
+                    pass
+                ds_dict = {}
+                ds_dict["db"] = self.dataset.path_to_db
+                ds_dict["run id"] = self.dataset.run_id
+                ds_dict["exp name"] = self.dataset.exp_name
+                ds_dict["sample name"] = self.dataset.sample_name
+                self.get_dataset.emit(ds_dict)
+            except Exception as e:
+                # Database initialization failed - mark sweep as ERROR and exit
+                # Common causes: no experiment created, database not initialized
+                error_msg = f"Database initialization failed: {e}"
+
+                # Log the full traceback for debugging
+                logger.error(
+                    "%s\n%s",
+                    error_msg,
+                    traceback.format_exc()
+                )
+
+                # Also log any captured stdout/stderr from the failed initialization
+                # Log at warning level so it's visible under typical log levels
+                captured_output = capture.getvalue().strip()
+                if captured_output:
+                    logger.warning("Captured output during failed DB init:\n%s", captured_output)
+
+                self.sweep.mark_error(error_msg, _from_runner=True)
+                self.sweep.emit_error_completed()
+                return  # Exit run() early - no point entering the main loop
 
         # print(f"called runner from thread: {QThread.currentThreadId()}")
         while True:

@@ -100,40 +100,40 @@ class TestSaveDataNoDatabaseBugE2E:
             sweep.kill()
             time.sleep(0.3)
 
-        # The bug manifests as:
-        # - State transitions to RUNNING
-        # - But no actual progress (no data points taken)
-        # - Either stalls forever or silently fails
+        # Expected behavior after fix:
+        # - Sweep should transition to ERROR state with clear error message
+        # - Should NOT stall in RUNNING state
 
-        # Document current (buggy) behavior
+        # Document behavior
         print(f"Final state: {final_state}")
         print(f"Was still running at timeout: {was_running}")
         print(f"Completed signal received: {len(completed) > 0}")
         print(f"Error messages: {error_messages}")
         print(f"Qt exceptions captured: {len(exceptions)}")
 
-        # Verify the bug: an exception was raised in the Qt event loop
-        # This confirms the runner thread crashed due to missing database
-        assert len(exceptions) > 0, (
-            "Bug reproduction: Expected Qt exception from runner thread, but none captured"
-        )
-
-        # Verify the exception is about missing experiment/database
-        exception_msgs = [str(e) for e in exceptions]
-        has_db_error = any(
-            "experiment" in msg.lower() or "database" in msg.lower()
-            for msg in exception_msgs
-        )
-        assert has_db_error, (
-            f"Bug reproduction: Expected exception about missing experiment/database, "
-            f"got: {exception_msgs}"
-        )
-
-        # Bug is confirmed if sweep stalls in RUNNING state
-        # Test passes to document that the bug exists
-        assert final_state == SweepState.RUNNING, (
-            f"Bug reproduction: Expected sweep to stall in RUNNING state, "
+        # Verify the fix: sweep should be in ERROR state, not stalled in RUNNING
+        assert final_state == SweepState.ERROR, (
+            f"Expected sweep to transition to ERROR state when database not available, "
             f"but got {final_state}. Messages: {error_messages}"
+        )
+
+        # Verify error message in progressState mentions database/experiment issue
+        error_msg = sweep.progressState.error_message or ""
+        has_db_error = "database" in error_msg.lower() or "experiment" in error_msg.lower()
+        assert has_db_error, (
+            f"Expected error message about database/experiment initialization, "
+            f"got: {error_msg}"
+        )
+
+        # Verify sweep is NOT stalled (not still running)
+        assert not was_running, (
+            "Expected sweep to stop (not stall) when database not available"
+        )
+
+        # Verify no unhandled Qt exceptions (the fix should handle errors gracefully)
+        assert len(exceptions) == 0, (
+            f"Expected no unhandled Qt exceptions after fix, but got {len(exceptions)}: "
+            f"{[str(e) for e in exceptions]}"
         )
 
     def test_sweep_works_without_database_when_save_data_false(

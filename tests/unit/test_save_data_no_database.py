@@ -1,13 +1,12 @@
 """Test for bug: sweep stalls when save_data=True but no database is registered.
 
-This test reproduces the issue where Sweep1D with save_data=True but without
-a registered QCoDeS database causes the sweep to enter a running state and stall
-(measurement does not progress).
+This test verifies that when save_data=True but no database is registered,
+the sweep properly transitions to ERROR state instead of stalling indefinitely.
 """
 
 import threading
 import time
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -15,147 +14,16 @@ from measureit.sweep.sweep1d import Sweep1D
 from measureit.sweep.progress import SweepState
 
 
-class TestSaveDataNoDatabaseBug:
-    """Test suite for the save_data=True without database bug."""
+class TestSaveDataNoDatabaseFix:
+    """Test suite verifying the fix for save_data=True without database bug."""
 
-    def test_sweep_stalls_when_save_data_true_no_database(self, mock_parameters):
-        """Test that sweep stalls when save_data=True but no database is registered.
+    def test_runner_thread_marks_error_on_database_failure(self, mock_parameters):
+        """Test that runner thread marks sweep as ERROR when database init fails.
 
-        This reproduces the bug where:
-        1. save_data=True is set
-        2. No database is registered/initialized
-        3. The sweep enters RUNNING state but measurement doesn't progress
-
-        The root cause is in runner_thread.py where self.sweep.meas.run() is called
-        which tries to access the QCoDeS database. Without a database, this can
-        either hang, fail silently, or cause undefined behavior.
-        """
-        sweep = Sweep1D(
-            mock_parameters["voltage"],
-            start=0,
-            stop=0.5,
-            step=0.1,
-            inter_delay=0.01,
-            save_data=True,  # Key: save_data is True
-            plot_data=False,
-            suppress_output=True,
-        )
-        sweep.follow_param(mock_parameters["current"])
-
-        # Track if the sweep starts but never progresses
-        sweep_started_event = threading.Event()
-        sweep_completed_event = threading.Event()
-        update_received = []
-
-        def on_update(update_dict):
-            update_received.append(update_dict)
-            if update_dict.get("status"):
-                sweep_started_event.set()
-
-        def on_completed():
-            sweep_completed_event.set()
-
-        sweep.update_signal.connect(on_update)
-        sweep.completed.connect(on_completed)
-
-        # Start the sweep without a database
-        # This should ideally fail fast or timeout, not stall indefinitely
-        sweep.start(ramp_to_start=False)
-
-        # Wait a short time for the sweep to start
-        sweep_started = sweep_started_event.wait(timeout=2.0)
-
-        # Give time for the sweep to either progress or stall
-        time.sleep(0.5)
-
-        # Check the state
-        state = sweep.progressState.state
-
-        # The bug manifests as:
-        # 1. Sweep enters RUNNING state (sweep_started is True)
-        # 2. But the sweep never completes or makes progress because
-        #    meas.run() in runner_thread fails silently or hangs
-
-        # Cleanup
-        sweep.kill()
-
-        # Verify the bug: the sweep started but never progressed/completed
-        # In a correct implementation, either:
-        # - The sweep should fail with an error (ERROR state)
-        # - Or the database should be properly initialized
-        #
-        # The bug is that it goes to RUNNING and stalls
-        if sweep_started:
-            # If it started but didn't complete within timeout, it's stalled
-            completed = sweep_completed_event.wait(timeout=0.1)
-            assert not completed or state == SweepState.ERROR, (
-                f"Bug reproduced: sweep started but stalled. "
-                f"State: {state}, Updates received: {len(update_received)}"
-            )
-
-    def test_sweep_should_error_when_no_database(self, mock_parameters):
-        """Test that sweep should transition to ERROR when database is not available.
-
-        This is the expected behavior that should be implemented to fix the bug.
-        When save_data=True but no database is registered, the sweep should:
-        1. Detect the missing database
-        2. Transition to ERROR state with a clear error message
-        3. Not stall indefinitely
-        """
-        sweep = Sweep1D(
-            mock_parameters["voltage"],
-            start=0,
-            stop=0.5,
-            step=0.1,
-            inter_delay=0.01,
-            save_data=True,
-            plot_data=False,
-            suppress_output=True,
-        )
-        sweep.follow_param(mock_parameters["current"])
-
-        error_messages = []
-
-        def capture_print(msg):
-            error_messages.append(msg)
-
-        sweep.print_main.connect(capture_print)
-
-        # Mock the measurement.run() to raise an error as it would when no DB
-        original_create_measurement = sweep._create_measurement
-
-        def mock_create_measurement():
-            meas = original_create_measurement()
-            # Simulate what happens when no database is registered
-            original_run = meas.run
-
-            def failing_run(*args, **kwargs):
-                raise RuntimeError("No experiment found. Please create one first.")
-
-            meas.run = failing_run
-            return meas
-
-        sweep._create_measurement = mock_create_measurement
-
-        sweep.start(ramp_to_start=False)
-
-        # Give time for the error to propagate
-        time.sleep(0.5)
-
-        sweep.kill()
-
-        # The sweep should have detected the error and transitioned to ERROR state
-        # (This test documents the expected fix behavior)
-
-    def test_runner_thread_handles_database_error(self, mock_parameters):
-        """Test that runner thread properly handles database initialization errors.
-
-        The runner thread calls meas.run() at line 139 of runner_thread.py.
-        If the database is not registered, this call fails. The runner should
-        catch this exception and mark the sweep as ERROR.
+        This directly tests the fix in runner_thread.py that wraps database
+        initialization in try-except and calls mark_error on failure.
         """
         from measureit._internal.runner_thread import RunnerThread
-        from qcodes.dataset.measurements import Measurement
 
         sweep = Sweep1D(
             mock_parameters["voltage"],
@@ -170,35 +38,177 @@ class TestSaveDataNoDatabaseBug:
         sweep.follow_param(mock_parameters["current"])
         sweep._create_measurement()
 
-        # Create a runner thread
-        runner = RunnerThread(sweep)
+        # Mock mark_error to track if it's called
+        mark_error_called = []
+        original_mark_error = sweep.mark_error
 
-        # Mock the measurement's run() method to simulate database error
-        mock_measurement = MagicMock()
-        mock_measurement.run.side_effect = RuntimeError(
-            "No experiment found. Please create one before running any measurements."
+        def mock_mark_error(msg, _from_runner=False):
+            mark_error_called.append((msg, _from_runner))
+            original_mark_error(msg, _from_runner=_from_runner)
+
+        sweep.mark_error = mock_mark_error
+
+        # Mock emit_error_completed to track if it's called
+        emit_error_called = []
+        original_emit = sweep.emit_error_completed
+
+        def mock_emit():
+            emit_error_called.append(True)
+            # Don't call original - it uses Qt signals that don't work in fake mode
+
+        sweep.emit_error_completed = mock_emit
+
+        # Mock the measurement's run() to simulate database error
+        mock_runner = MagicMock()
+        mock_runner.__enter__ = MagicMock(
+            side_effect=ValueError("No experiments found. Please create one first.")
         )
-        sweep.meas = mock_measurement
+        sweep.meas.run = MagicMock(return_value=mock_runner)
 
-        # This simulates what happens in runner_thread.run() when database fails
-        # Currently the code doesn't handle this error properly
-        try:
-            # In runner_thread.run(), this is called:
-            # self.runner = self.sweep.meas.run()
-            runner.runner = sweep.meas.run()
-        except RuntimeError as e:
-            # The error should be caught and the sweep should be marked as ERROR
-            # Currently this is NOT handled, which causes the stall
-            assert "No experiment found" in str(e)
+        # Create and run the runner thread synchronously (call run() directly)
+        runner = RunnerThread(sweep)
+        runner.run()  # Run synchronously instead of starting thread
+
+        # Verify mark_error was called with appropriate message
+        assert len(mark_error_called) == 1, "Expected mark_error to be called once"
+        error_msg, from_runner = mark_error_called[0]
+        assert "database" in error_msg.lower() or "experiment" in error_msg.lower(), (
+            f"Expected error message about database/experiment, got: {error_msg}"
+        )
+        assert from_runner is True, "Expected _from_runner=True"
+
+        # Verify emit_error_completed was called
+        assert len(emit_error_called) == 1, "Expected emit_error_completed to be called"
+
+        # Verify sweep is in ERROR state
+        assert sweep.progressState.state == SweepState.ERROR, (
+            f"Expected ERROR state, got {sweep.progressState.state}"
+        )
 
         runner.wait()
 
-    def test_save_data_false_works_without_database(self, mock_parameters):
-        """Test that sweep works correctly when save_data=False (no database needed).
+    def test_runner_thread_sets_error_message(self, mock_parameters):
+        """Test that error message is properly set in progressState."""
+        from measureit._internal.runner_thread import RunnerThread
 
-        This verifies that the save_data=False case works as expected,
-        which helps isolate the bug to the save_data=True case.
-        """
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            start=0,
+            stop=0.5,
+            step=0.1,
+            inter_delay=0.01,
+            save_data=True,
+            plot_data=False,
+            suppress_output=True,
+        )
+        sweep.follow_param(mock_parameters["current"])
+        sweep._create_measurement()
+
+        # Suppress emit_error_completed since it uses Qt
+        sweep.emit_error_completed = MagicMock()
+
+        # Mock database error
+        mock_runner = MagicMock()
+        mock_runner.__enter__ = MagicMock(
+            side_effect=ValueError("No experiments found.")
+        )
+        sweep.meas.run = MagicMock(return_value=mock_runner)
+
+        runner = RunnerThread(sweep)
+        runner.run()
+
+        # Verify error message is set
+        assert sweep.progressState.error_message is not None, (
+            "Expected error_message to be set"
+        )
+        assert "database" in sweep.progressState.error_message.lower(), (
+            f"Expected 'database' in error message, got: {sweep.progressState.error_message}"
+        )
+
+        runner.wait()
+
+    def test_runner_thread_exits_early_on_database_error(self, mock_parameters):
+        """Test that runner thread exits early without entering main loop on DB error."""
+        from measureit._internal.runner_thread import RunnerThread
+
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            start=0,
+            stop=0.5,
+            step=0.1,
+            inter_delay=0.01,
+            save_data=True,
+            plot_data=False,
+            suppress_output=True,
+        )
+        sweep.follow_param(mock_parameters["current"])
+        sweep._create_measurement()
+
+        # Track if update_values is called (it shouldn't be if we exit early)
+        update_values_called = []
+        original_update = sweep.update_values
+
+        def mock_update():
+            update_values_called.append(True)
+            return original_update()
+
+        sweep.update_values = mock_update
+        sweep.emit_error_completed = MagicMock()
+
+        # Mock database error
+        mock_runner = MagicMock()
+        mock_runner.__enter__ = MagicMock(
+            side_effect=RuntimeError("Database not initialized")
+        )
+        sweep.meas.run = MagicMock(return_value=mock_runner)
+
+        runner = RunnerThread(sweep)
+        runner.run()
+
+        # Verify update_values was NOT called (runner exited early)
+        assert len(update_values_called) == 0, (
+            "Expected update_values to NOT be called when database init fails"
+        )
+
+        runner.wait()
+
+    def test_runner_handles_meas_run_exception(self, mock_parameters):
+        """Test that runner handles exception from meas.run() itself."""
+        from measureit._internal.runner_thread import RunnerThread
+
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            start=0,
+            stop=0.5,
+            step=0.1,
+            inter_delay=0.01,
+            save_data=True,
+            plot_data=False,
+            suppress_output=True,
+        )
+        sweep.follow_param(mock_parameters["current"])
+        sweep._create_measurement()
+
+        sweep.emit_error_completed = MagicMock()
+
+        # Mock meas.run() to raise directly (not __enter__)
+        sweep.meas.run = MagicMock(
+            side_effect=RuntimeError("Connection to database failed")
+        )
+
+        runner = RunnerThread(sweep)
+        runner.run()
+
+        # Verify sweep is in ERROR state
+        assert sweep.progressState.state == SweepState.ERROR
+        assert "database" in sweep.progressState.error_message.lower()
+
+        runner.wait()
+
+    def test_save_data_false_skips_database_init(self, mock_parameters):
+        """Test that save_data=False skips database initialization entirely."""
+        from measureit._internal.runner_thread import RunnerThread
+
         sweep = Sweep1D(
             mock_parameters["voltage"],
             start=0,
@@ -211,63 +221,38 @@ class TestSaveDataNoDatabaseBug:
         )
         sweep.follow_param(mock_parameters["current"])
 
-        completed_event = threading.Event()
-        sweep.completed.connect(lambda: completed_event.set())
+        # Don't create measurement - it shouldn't be needed
+        # Track if meas.run is called
+        sweep.meas = MagicMock()
 
-        sweep.start(ramp_to_start=False)
+        # Set sweep to DONE after first iteration to exit loop
+        iteration_count = [0]
+        original_update = sweep.update_values
 
-        # This should complete without issues
-        # (Timeout is short because fake Qt mode doesn't actually run the thread)
-        completed_event.wait(timeout=1.0)
+        def mock_update():
+            iteration_count[0] += 1
+            if iteration_count[0] >= 2:
+                sweep.progressState.state = SweepState.DONE
+            return None
 
-        # Verify sweep can be killed properly
-        sweep.kill()
+        sweep.update_values = mock_update
+        sweep.update_progress = MagicMock()
+        sweep.progressState.state = SweepState.RUNNING
 
-        # State should be DONE, KILLED, or at least not stalled
-        assert sweep.progressState.state in (
-            SweepState.DONE,
-            SweepState.KILLED,
-            SweepState.READY,
-            SweepState.RUNNING,  # In fake Qt mode, thread may not run
-        )
+        runner = RunnerThread(sweep)
+        runner.run()
+
+        # Verify meas.run was NOT called
+        sweep.meas.run.assert_not_called()
+
+        runner.wait()
 
 
-class TestDatabaseValidation:
-    """Tests for database validation before sweep starts."""
+class TestDatabaseErrorMessages:
+    """Tests for error message quality when database is not available."""
 
-    def test_detect_missing_database_before_start(self, mock_parameters):
-        """Test detecting missing database before starting the sweep.
-
-        A proper fix would validate that the database is available
-        before allowing the sweep to start with save_data=True.
-        """
-        sweep = Sweep1D(
-            mock_parameters["voltage"],
-            start=0,
-            stop=0.5,
-            step=0.1,
-            inter_delay=0.01,
-            save_data=True,
-            plot_data=False,
-            suppress_output=True,
-        )
-        sweep.follow_param(mock_parameters["current"])
-
-        # Check if there's a way to validate database availability
-        # This documents what validation should exist
-
-        # Currently there is no validation, which causes the bug
-        # A fix would add a check like:
-        # if sweep.save_data and not database_is_available():
-        #     raise ValueError("Cannot save data: no database registered")
-
-    def test_runner_should_check_database_before_loop(self, mock_parameters):
-        """Test that runner thread should check database before entering main loop.
-
-        The runner thread should validate that the database is available
-        before entering the while True loop in run(). If validation fails,
-        it should mark the sweep as ERROR and exit.
-        """
+    def test_error_message_mentions_database(self, mock_parameters):
+        """Test that error message clearly mentions database issue."""
         from measureit._internal.runner_thread import RunnerThread
 
         sweep = Sweep1D(
@@ -282,15 +267,65 @@ class TestDatabaseValidation:
         )
         sweep.follow_param(mock_parameters["current"])
         sweep._create_measurement()
+        sweep.emit_error_completed = MagicMock()
+
+        # Simulate various database-related errors
+        test_errors = [
+            ValueError("No experiments found."),
+            RuntimeError("Database connection failed"),
+            Exception("Could not initialize experiment"),
+        ]
+
+        for test_error in test_errors:
+            # Reset state
+            sweep.progressState.state = SweepState.READY
+            sweep.progressState.error_message = None
+
+            mock_runner = MagicMock()
+            mock_runner.__enter__ = MagicMock(side_effect=test_error)
+            sweep.meas.run = MagicMock(return_value=mock_runner)
+
+            runner = RunnerThread(sweep)
+            runner.run()
+
+            # Verify error message starts with "Database initialization failed"
+            assert sweep.progressState.error_message is not None
+            assert sweep.progressState.error_message.startswith(
+                "Database initialization failed"
+            ), f"Error message should start with 'Database initialization failed', got: {sweep.progressState.error_message}"
+
+            runner.wait()
+
+    def test_original_error_preserved_in_message(self, mock_parameters):
+        """Test that the original exception message is preserved."""
+        from measureit._internal.runner_thread import RunnerThread
+
+        sweep = Sweep1D(
+            mock_parameters["voltage"],
+            start=0,
+            stop=0.5,
+            step=0.1,
+            inter_delay=0.01,
+            save_data=True,
+            plot_data=False,
+            suppress_output=True,
+        )
+        sweep.follow_param(mock_parameters["current"])
+        sweep._create_measurement()
+        sweep.emit_error_completed = MagicMock()
+
+        original_error_msg = "No experiments found. Please create one first."
+        mock_runner = MagicMock()
+        mock_runner.__enter__ = MagicMock(side_effect=ValueError(original_error_msg))
+        sweep.meas.run = MagicMock(return_value=mock_runner)
 
         runner = RunnerThread(sweep)
+        runner.run()
 
-        # The issue is in runner_thread.run() around line 136-141:
-        # if self.sweep.save_data is True:
-        #     self.runner = self.sweep.meas.run()  # This can fail!
-        #     self.datasaver = self.runner.__enter__()
-        #
-        # If meas.run() fails, there's no exception handling,
-        # causing the thread to crash silently and the sweep to stall.
+        # Verify original error message is included
+        assert original_error_msg in sweep.progressState.error_message, (
+            f"Original error '{original_error_msg}' should be in error message, "
+            f"got: {sweep.progressState.error_message}"
+        )
 
         runner.wait()
