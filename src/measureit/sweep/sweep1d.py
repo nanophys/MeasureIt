@@ -477,7 +477,7 @@ class Sweep1D(BaseSweep, QObject):
 
         # Check if we are already at the value
         curr_value = safe_get(self.set_param)
-        if abs(value - curr_value) - abs(self.step / 2) < abs(self.step) * 1e-4:
+        if abs(value - curr_value) - abs(self.step / 2) < abs(self.step) * self.err:
             # self.print_main.emit(f"Already within {self.step} of the desired ramp value. Current value: {curr_value},
             # ramp setpoint: {value}.\nSetting our setpoint directly to the ramp value.")
             self.done_ramping(value, start_on_finish, persist)
@@ -544,13 +544,13 @@ class Sweep1D(BaseSweep, QObject):
         # Check if we are at the value we expect, otherwise something went wrong with the ramp
         actual_value = safe_get(self.set_param)
         position_error = abs(actual_value - value) - abs(self.step / 2)
-        tolerance = abs(self.step) * 1e-4
+        tolerance = abs(self.step) * self.err
         if position_error > tolerance:
             error_msg = (
                 f"Ramping failed (possible that the direction was changed while ramping). "
                 f"Expected {self.set_param.label} final value: {value}. Actual value: "
                 f"{actual_value}. Error: {position_error:.6g}, Tolerance: {tolerance:.6g}. "
-                f"If tolerance is too tight, consider increasing step size."
+                f"If tolerance is too tight, consider increasing the 'err' parameter (current: {self.err})."
             )
             self.print_main.emit(error_msg)
 

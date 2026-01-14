@@ -522,7 +522,7 @@ class Sweep2D(BaseSweep, QObject):
         # If we aren't at the end, keep going
         if (
             abs(self.out_setpoint - self.out_stop) - abs(self.out_step / 2)
-            > abs(self.out_step) * 1e-4
+            > abs(self.out_step) * self.err
         ):
             # Calculate the next setpoint with snap to avoid float precision issues
             next_setpoint = self.out_setpoint + self.out_step
