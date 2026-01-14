@@ -257,9 +257,18 @@ class Sweep1D(BaseSweep, QObject):
 
     def kill(self):
         """Ends the threads spawned by the sweep and closes any active plots."""
-        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
-            self.ramp_sweep.pause()
-            self.ramp_sweep.kill()
+        # Always tear down active ramp sweep, regardless of state
+        # (error may have occurred during ramping, leaving ramp_sweep active)
+        if self.ramp_sweep is not None:
+            try:
+                self.ramp_sweep.pause()
+            except Exception:
+                pass
+            try:
+                self.ramp_sweep.kill()
+            except Exception:
+                pass
+            self.ramp_sweep = None
 
         BaseSweep.kill(self)
 

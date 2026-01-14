@@ -381,9 +381,9 @@ class BaseSweep(QObject):
         # Stop any data-taking
         if self.progressState.state == SweepState.RUNNING:
             self._add_runtime_since_last_resume()
-        # Only set KILLED if not already in a terminal state (DONE, ERROR, KILLED)
-        # This preserves the actual outcome for post-run inspection
-        if self.progressState.state not in (SweepState.DONE, SweepState.ERROR, SweepState.KILLED):
+        # Set KILLED if not already DONE or KILLED
+        # ERROR state transitions to KILLED since user explicitly called kill()
+        if self.progressState.state not in (SweepState.DONE, SweepState.KILLED):
             self.progressState.state = SweepState.KILLED
         self._error_completion_pending = False  # Clear to prevent stale flag
 

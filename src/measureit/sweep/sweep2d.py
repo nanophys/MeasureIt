@@ -580,7 +580,8 @@ class Sweep2D(BaseSweep, QObject):
         """Ends all threads and closes any active plots."""
         prev_state = self.progressState.state
         # Set KILLED state FIRST so update_values() callbacks exit early
-        if prev_state not in (SweepState.DONE, SweepState.ERROR, SweepState.KILLED):
+        # ERROR state transitions to KILLED since user explicitly called kill()
+        if prev_state not in (SweepState.DONE, SweepState.KILLED):
             self.progressState.state = SweepState.KILLED
         if prev_state == SweepState.RUNNING:
             self._add_runtime_since_last_resume()

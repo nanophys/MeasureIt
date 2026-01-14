@@ -203,7 +203,8 @@ class SimulSweep(BaseSweep, QObject):
 
     def kill(self):
         # Mark killed immediately to short-circuit any pending callbacks (e.g., done_ramping)
-        if self.progressState.state not in (SweepState.DONE, SweepState.ERROR, SweepState.KILLED):
+        # ERROR state transitions to KILLED since user explicitly called kill()
+        if self.progressState.state not in (SweepState.DONE, SweepState.KILLED):
             self.progressState.state = SweepState.KILLED
 
         # Always tear down an active ramp sweep, even if we are no longer in the RAMPING state.
