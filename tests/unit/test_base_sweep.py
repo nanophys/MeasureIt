@@ -78,6 +78,82 @@ class TestBaseSweepFollowParam:
         assert mock_parameters["current"] not in sweep._params
         assert mock_parameters["x"] in sweep._params
 
+    def test_follow_param_rejects_string_enum(self, mock_parameter):
+        """Test that follow_param rejects parameters with string Enum validators."""
+        from qcodes.validators import Enum
+
+        sweep = BaseSweep(save_data=False, plot_data=False)
+
+        # Create a parameter with string enum validator
+        enum_param = mock_parameter("unit", initial_value="V")
+        enum_param.vals = Enum("V", "A", "mV")
+
+        sweep.follow_param(enum_param)
+
+        # Parameter should NOT be added
+        assert len(sweep._params) == 0
+        assert enum_param not in sweep._params
+
+    def test_follow_param_rejects_strings_validator(self, mock_parameter):
+        """Test that follow_param rejects parameters with Strings validators."""
+        from qcodes.validators import Strings
+
+        sweep = BaseSweep(save_data=False, plot_data=False)
+
+        string_param = mock_parameter("mode", initial_value="auto")
+        string_param.vals = Strings()
+
+        sweep.follow_param(string_param)
+
+        assert len(sweep._params) == 0
+
+    def test_follow_param_rejects_bool_validator(self, mock_parameter):
+        """Test that follow_param rejects parameters with Bool validators."""
+        from qcodes.validators import Bool
+
+        sweep = BaseSweep(save_data=False, plot_data=False)
+
+        bool_param = mock_parameter("enabled", initial_value=True)
+        bool_param.vals = Bool()
+
+        sweep.follow_param(bool_param)
+
+        assert len(sweep._params) == 0
+
+    def test_follow_param_accepts_numeric_validator(self, mock_parameter):
+        """Test that follow_param accepts parameters with numeric validators."""
+        from qcodes.validators import Numbers
+
+        sweep = BaseSweep(save_data=False, plot_data=False)
+
+        numeric_param = mock_parameter("voltage", initial_value=0.0)
+        numeric_param.vals = Numbers(-10, 10)
+
+        sweep.follow_param(numeric_param)
+
+        assert len(sweep._params) == 1
+        assert numeric_param in sweep._params
+
+    def test_follow_param_mixed_numeric_and_non_numeric(self, mock_parameter):
+        """Test following a mix of numeric and non-numeric parameters."""
+        from qcodes.validators import Numbers, Enum
+
+        sweep = BaseSweep(save_data=False, plot_data=False)
+
+        numeric_param = mock_parameter("voltage", initial_value=0.0)
+        numeric_param.vals = Numbers(-10, 10)
+
+        enum_param = mock_parameter("unit", initial_value="V")
+        enum_param.vals = Enum("V", "A", "mV")
+
+        # Follow both
+        sweep.follow_param(numeric_param, enum_param)
+
+        # Only numeric param should be added
+        assert len(sweep._params) == 1
+        assert numeric_param in sweep._params
+        assert enum_param not in sweep._params
+
 
 class TestBaseSweepState:
     """Test sweep state management."""

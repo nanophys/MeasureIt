@@ -254,21 +254,40 @@ def init_database(db, exp, samp, sweep=None):
     Parameters
     ---------
     db:
-        The desired path of the new database.
+        The desired path of the new database. Can be:
+        - An absolute path (used as-is)
+        - A relative path or filename (resolved against the configured databases directory)
     exp:
         The experiment name.
     sample:
         The sample name.
     sweep=None:
-        Optional weep object for creating new runs for existing sweeps
+        Optional sweep object for creating new runs for existing sweeps
     """
     # Normalize db path
     db_path = Path(db)
     if db_path.suffix != ".db":
         db_path = db_path.with_suffix(".db")
     if not db_path.is_absolute():
-        db_path = get_path("databases") / db_path
-    initialise_or_create_database_at(str(db_path))
+        databases_dir = get_path("databases")
+        db_path = databases_dir / db_path
+        _log.debug(f"Resolved relative path '{db}' to '{db_path}'")
+
+    # Ensure parent directory exists
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        initialise_or_create_database_at(str(db_path))
+    except Exception as e:
+        databases_dir = get_path("databases")
+        raise RuntimeError(
+            f"Failed to initialize database at '{db_path}'. "
+            f"Original input: '{db}'. Error: {e}\n"
+            f"Suggestions:\n"
+            f"  - Use just the database name (e.g., 'my_experiment'), "
+            f"data will be saved to '{databases_dir}'\n"
+            f"  - Or use a full absolute path (e.g., '/path/to/my_experiment.db')"
+        ) from e
     qc.new_experiment(exp, samp)
 
     if sweep is not None:
@@ -349,6 +368,31 @@ def _name_parser(_name):
         return ""
 
     return name
+
+
+def is_numeric_parameter(param) -> bool:
+    """Check if a QCoDeS parameter returns numeric values.
+
+    This is used to validate parameters before following them in sweeps,
+    as non-numeric parameters (string enums, booleans, etc.) cause plotting errors.
+
+    Parameters
+    ----------
+    param:
+        A QCoDeS Parameter to check.
+
+    Returns
+    -------
+    bool
+        True if the parameter has a numeric validator or no validator,
+        False if it has a non-numeric validator (Strings, Enum with strings, Bool, etc.)
+    """
+    # Parameters without validators are assumed numeric (common case)
+    if not hasattr(param, "vals") or param.vals is None:
+        return True
+
+    # Use the is_numeric property provided by QCoDeS validators
+    return getattr(param.vals, "is_numeric", True)
 
 
 def _autorange_srs(srs, max_changes=1):

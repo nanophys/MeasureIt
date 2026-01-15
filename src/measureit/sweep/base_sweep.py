@@ -14,7 +14,7 @@ from qcodes.dataset.measurements import Measurement
 from .._internal.plotter_thread import Plotter
 from .._internal.runner_thread import RunnerThread
 from ..logging_utils import get_sweep_logger
-from ..tools.util import _autorange_srs, safe_get, safe_set
+from ..tools.util import _autorange_srs, is_numeric_parameter, safe_get, safe_set
 from .progress import ProgressState, SweepState
 
 
@@ -246,6 +246,8 @@ class BaseSweep(QObject):
         """Saves parameters to be tracked, for both saving and plotting data.
 
         The parameters must be followed before '_create_measurement()' is called.
+        Non-numeric parameters (string enums, booleans, etc.) are rejected to
+        prevent plotting errors.
 
         Parameters:
             *p:
@@ -256,14 +258,27 @@ class BaseSweep(QObject):
             self.print_main.emit(
                 "Cannot update the parameter list while the sweep is running."
             )
+            return
 
         for param in p:
             if isinstance(param, list):
                 for l in param:
                     if l not in self._params:
+                        if not is_numeric_parameter(l):
+                            self.print_main.emit(
+                                f"Cannot follow parameter '{l.name}': "
+                                "non-numeric parameters (string enums, etc.) are not supported for plotting."
+                            )
+                            continue
                         self._params.append(l)
             else:
                 if param not in self._params:
+                    if not is_numeric_parameter(param):
+                        self.print_main.emit(
+                            f"Cannot follow parameter '{param.name}': "
+                            "non-numeric parameters (string enums, etc.) are not supported for plotting."
+                        )
+                        continue
                     self._params.append(param)
 
     def remove_param(self, *p):

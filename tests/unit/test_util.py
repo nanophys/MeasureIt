@@ -11,6 +11,7 @@ from measureit.tools.util import (
     _value_parser,
     _name_parser,
     get_measureit_home,
+    is_numeric_parameter,
 )
 
 
@@ -300,3 +301,67 @@ class TestUtilIntegration:
         for name in valid_names:
             result = _name_parser(name)
             assert result == name
+
+
+class TestIsNumericParameter:
+    """Test is_numeric_parameter function."""
+
+    def test_numeric_parameter_with_numbers_validator(self, mock_parameter):
+        """Test that parameters with Numbers validator are identified as numeric."""
+        from qcodes.validators import Numbers
+
+        param = mock_parameter("voltage", initial_value=0.0)
+        param.vals = Numbers(0, 10)
+
+        assert is_numeric_parameter(param) is True
+
+    def test_numeric_parameter_with_ints_validator(self, mock_parameter):
+        """Test that parameters with Ints validator are identified as numeric."""
+        from qcodes.validators import Ints
+
+        param = mock_parameter("count", initial_value=0)
+        param.vals = Ints(0, 100)
+
+        assert is_numeric_parameter(param) is True
+
+    def test_non_numeric_parameter_with_strings_validator(self, mock_parameter):
+        """Test that parameters with Strings validator are identified as non-numeric."""
+        from qcodes.validators import Strings
+
+        param = mock_parameter("mode", initial_value="auto")
+        param.vals = Strings()
+
+        assert is_numeric_parameter(param) is False
+
+    def test_non_numeric_parameter_with_enum_validator(self, mock_parameter):
+        """Test that parameters with string Enum validator are identified as non-numeric."""
+        from qcodes.validators import Enum
+
+        param = mock_parameter("unit", initial_value="V")
+        param.vals = Enum("V", "A", "mV")
+
+        assert is_numeric_parameter(param) is False
+
+    def test_non_numeric_parameter_with_bool_validator(self, mock_parameter):
+        """Test that parameters with Bool validator are identified as non-numeric."""
+        from qcodes.validators import Bool
+
+        param = mock_parameter("enabled", initial_value=True)
+        param.vals = Bool()
+
+        assert is_numeric_parameter(param) is False
+
+    def test_parameter_without_validator(self, mock_parameter):
+        """Test that parameters without validators are assumed numeric."""
+        param = mock_parameter("value", initial_value=1.0)
+        param.vals = None
+
+        assert is_numeric_parameter(param) is True
+
+    def test_parameter_without_vals_attribute(self):
+        """Test that objects without vals attribute are assumed numeric."""
+        # Use a mock object that doesn't have vals attribute
+        param = Mock()
+        del param.vals  # Remove the auto-created vals attribute from Mock
+
+        assert is_numeric_parameter(param) is True
