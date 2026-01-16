@@ -181,8 +181,10 @@ class BaseSweep(QObject):
         self._params = []
         self._srs = []
         self.set_param = set_param
-        if inter_delay is None or inter_delay < 0:
-            inter_delay = 0
+        if inter_delay is None or inter_delay < 0.01:
+            raise ValueError(
+                f"inter_delay={inter_delay}s is too small; must be at least 0.01s to protect runner thread timing."
+            )
         self.inter_delay = inter_delay
         self.save_data = save_data
         self.plot_data = plot_data
