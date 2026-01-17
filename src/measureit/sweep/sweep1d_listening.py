@@ -180,6 +180,13 @@ class Sweep1D_listening(BaseSweep, QObject):
         self.plotter = plotter
         self.instrument = self.set_param.instrument
         self._completion_pending = False
+        self.emit_step_info(
+            self.set_param.label,
+            self.begin,
+            self.end,
+            self.step,
+            getattr(self.set_param, "unit", None),
+        )
         self.progressState.progress = 0.0
         self.update_progress()
 

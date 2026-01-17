@@ -175,6 +175,25 @@ class Sweep2D(BaseSweep, QObject):
         QObject.__init__(self)
         BaseSweep.__init__(self, set_param=self.set_param, *args, **kwargs)
 
+        # Validate sweep ranges against parameter validator bounds
+        # (inner parameter will be validated when Sweep1D is created)
+        self._validate_param_sweep_range(
+            self.set_param, self.out_start, self.out_stop,
+            param_label=f"outer {getattr(self.set_param, 'label', self.set_param.name)}"
+        )
+        self._validate_param_sweep_range(
+            self.in_param, self.in_start, self.in_stop,
+            param_label=f"inner {getattr(self.in_param, 'label', self.in_param.name)}"
+        )
+
+        self.emit_step_info(
+            f"outer {self.set_param.label}",
+            self.out_start,
+            self.out_stop,
+            self.out_step,
+            getattr(self.set_param, "unit", None),
+        )
+
         # Create the inner sweep object
         self.in_sweep = Sweep1D(
             self.in_param,
@@ -201,12 +220,10 @@ class Sweep2D(BaseSweep, QObject):
         # Our update_values() function iterates the outer sweep, so when the inner sweep
         # is done, call that function automatically
         self.in_sweep.set_complete_func(self.update_values)
-        if outer_delay < 0.1:
-            self.logger.warning(
-                f"outer_delay={outer_delay}s is too small; setting to 0.1s to protect runner thread timing."
+        if outer_delay is None or outer_delay < 0.1:
+            raise ValueError(
+                f"outer_delay={outer_delay} is too small; must be at least 0.1s to protect runner thread timing."
             )
-            outer_delay = 0.1
-        # Jan.10.2026: Ensure minimum outer_delay of 0.1s to protect runner thread and data saving.  
         self.outer_delay = outer_delay
         self.inner_time = self.in_sweep.estimate_time(verbose=False)
         self.progressState.progress = 0.0
@@ -236,8 +253,6 @@ class Sweep2D(BaseSweep, QObject):
         self.heatmap_plotter = None
         # The index for 2d heatmap to plot.
         self.heatmap_ind = 1
-
-        self.print_main.emit("Heatmap will follow a random parameter by default")
 
     def __str__(self):
         return (

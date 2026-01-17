@@ -140,6 +140,9 @@ class Sweep1D(BaseSweep, QObject):
             self, set_param=set_param, x_axis_time=x_axis_time, *args, **kwargs
         )
 
+        # Validate sweep range against parameter's validator bounds
+        self._validate_param_sweep_range(set_param, start, stop)
+
         self.begin = start
         self.end = stop
         self.step = step
@@ -162,6 +165,14 @@ class Sweep1D(BaseSweep, QObject):
         self.ramp_sweep = None
         self.instrument = self.set_param.instrument
         self.err = err
+
+        self.emit_step_info(
+            self.set_param.label,
+            self.begin,
+            self.end,
+            self.step,
+            getattr(self.set_param, "unit", None),
+        )
 
         self.magnet_initialized = False
         self._ami_completion_pending = False

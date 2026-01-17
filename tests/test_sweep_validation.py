@@ -1,0 +1,237 @@
+"""Tests for sweep parameter validation."""
+
+import warnings
+
+import numpy as np
+import pytest
+from qcodes.parameters import Parameter
+from qcodes.validators import Numbers
+
+from measureit.sweep.base_sweep import BaseSweep
+from measureit.sweep.sweep1d import Sweep1D
+from measureit.sweep.sweep2d import Sweep2D
+from measureit.sweep.simul_sweep import SimulSweep
+
+
+@pytest.fixture
+def param_with_bounds():
+    """Create a parameter with validation bounds [-10, 10]."""
+    return Parameter(
+        name="voltage",
+        label="Voltage",
+        unit="V",
+        vals=Numbers(-10, 10),
+        set_cmd=None,
+        get_cmd=lambda: 0,
+    )
+
+
+@pytest.fixture
+def param_no_bounds():
+    """Create a parameter without validation bounds."""
+    return Parameter(
+        name="current",
+        label="Current",
+        unit="A",
+        set_cmd=None,
+        get_cmd=lambda: 0,
+    )
+
+
+class TestGetValidatorBounds:
+    """Tests for _get_validator_bounds helper."""
+
+    def test_returns_bounds_for_numbers_validator(self, param_with_bounds):
+        min_val, max_val = BaseSweep._get_validator_bounds(param_with_bounds)
+        assert min_val == -10
+        assert max_val == 10
+
+    def test_returns_none_for_no_validator(self, param_no_bounds):
+        min_val, max_val = BaseSweep._get_validator_bounds(param_no_bounds)
+        assert min_val is None
+        assert max_val is None
+
+    def test_returns_none_for_infinite_bounds(self):
+        param = Parameter(
+            name="unbounded",
+            vals=Numbers(),  # -inf to +inf by default
+            set_cmd=None,
+            get_cmd=lambda: 0,
+        )
+        min_val, max_val = BaseSweep._get_validator_bounds(param)
+        assert min_val is None
+        assert max_val is None
+
+
+class TestValidateParamSweepRange:
+    """Tests for _validate_param_sweep_range helper."""
+
+    def test_valid_range_passes(self, param_with_bounds):
+        # Should not raise
+        BaseSweep._validate_param_sweep_range(param_with_bounds, -5, 5)
+
+    def test_start_exceeds_max_raises(self, param_with_bounds):
+        with pytest.raises(ValueError, match="start value.*exceeds.*maximum"):
+            BaseSweep._validate_param_sweep_range(param_with_bounds, 15, 20)
+
+    def test_stop_exceeds_max_raises(self, param_with_bounds):
+        with pytest.raises(ValueError, match="stop value.*exceeds.*maximum"):
+            BaseSweep._validate_param_sweep_range(param_with_bounds, 0, 15)
+
+    def test_start_below_min_raises(self, param_with_bounds):
+        with pytest.raises(ValueError, match="start value.*below.*minimum"):
+            BaseSweep._validate_param_sweep_range(param_with_bounds, -15, 0)
+
+    def test_stop_below_min_raises(self, param_with_bounds):
+        with pytest.raises(ValueError, match="stop value.*below.*minimum"):
+            BaseSweep._validate_param_sweep_range(param_with_bounds, 0, -15)
+
+    def test_no_bounds_passes_any_range(self, param_no_bounds):
+        # Should not raise for any values
+        BaseSweep._validate_param_sweep_range(param_no_bounds, -1000, 1000)
+
+    def test_boundary_value_warns(self, param_with_bounds):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            BaseSweep._validate_param_sweep_range(param_with_bounds, -10, 5)
+            assert len(w) == 1
+            assert "at the minimum validation limit" in str(w[0].message)
+
+    def test_both_boundaries_warn(self, param_with_bounds):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            BaseSweep._validate_param_sweep_range(param_with_bounds, -10, 10)
+            assert len(w) == 1
+            assert "minimum validation limit" in str(w[0].message)
+            assert "maximum validation limit" in str(w[0].message)
+
+    def test_infinite_stop_skips_validation(self, param_with_bounds):
+        # Should not raise for infinite stop (used by GateLeakage)
+        BaseSweep._validate_param_sweep_range(param_with_bounds, 0, np.inf)
+
+    def test_negative_infinite_start_skips_validation(self, param_with_bounds):
+        # Should not raise for negative infinite start
+        BaseSweep._validate_param_sweep_range(param_with_bounds, -np.inf, 0)
+
+
+class TestSweep1DValidation:
+    """Tests for Sweep1D initialization validation."""
+
+    def test_valid_sweep_creates_successfully(self, param_with_bounds):
+        s = Sweep1D(
+            param_with_bounds, -5, 5, 0.1,
+            inter_delay=0.1, plot_data=False, save_data=False
+        )
+        assert s.begin == -5
+        assert s.end == 5
+        s.kill()
+
+    def test_invalid_sweep_raises_valueerror(self, param_with_bounds):
+        with pytest.raises(ValueError, match="exceeds.*maximum"):
+            Sweep1D(
+                param_with_bounds, 0, 15, 0.1,
+                inter_delay=0.1, plot_data=False, save_data=False
+            )
+
+    def test_sweep_without_bounds_succeeds(self, param_no_bounds):
+        s = Sweep1D(
+            param_no_bounds, -100, 100, 1,
+            inter_delay=0.1, plot_data=False, save_data=False
+        )
+        s.kill()
+
+
+class TestSweep2DValidation:
+    """Tests for Sweep2D initialization validation."""
+
+    def test_valid_sweep_creates_successfully(self, param_with_bounds, param_no_bounds):
+        s = Sweep2D(
+            [param_no_bounds, -5, 5, 1],
+            [param_with_bounds, -5, 5, 1],
+            inter_delay=0.1, outer_delay=0.1,
+            plot_data=False, save_data=False
+        )
+        s.kill()
+
+    def test_invalid_outer_param_raises(self, param_with_bounds, param_no_bounds):
+        with pytest.raises(ValueError, match="outer.*exceeds.*maximum"):
+            Sweep2D(
+                [param_no_bounds, -5, 5, 1],
+                [param_with_bounds, -5, 15, 1],
+                inter_delay=0.1, outer_delay=0.1,
+                plot_data=False, save_data=False
+            )
+
+    def test_invalid_inner_param_raises(self, param_with_bounds, param_no_bounds):
+        with pytest.raises(ValueError, match="inner.*exceeds.*maximum"):
+            Sweep2D(
+                [param_with_bounds, -5, 15, 1],
+                [param_no_bounds, -5, 5, 1],
+                inter_delay=0.1, outer_delay=0.1,
+                plot_data=False, save_data=False
+            )
+
+    def test_outer_delay_too_small_raises(self, param_no_bounds):
+        with pytest.raises(ValueError, match="outer_delay.*too small"):
+            Sweep2D(
+                [param_no_bounds, -5, 5, 1],
+                [param_no_bounds, -5, 5, 1],
+                inter_delay=0.1, outer_delay=0.05,
+                plot_data=False, save_data=False
+            )
+
+    def test_outer_delay_none_raises(self, param_no_bounds):
+        with pytest.raises(ValueError, match="outer_delay.*too small"):
+            Sweep2D(
+                [param_no_bounds, -5, 5, 1],
+                [param_no_bounds, -5, 5, 1],
+                inter_delay=0.1, outer_delay=None,
+                plot_data=False, save_data=False
+            )
+
+
+class TestSimulSweepValidation:
+    """Tests for SimulSweep initialization validation."""
+
+    def test_valid_sweep_creates_successfully(self, param_with_bounds):
+        s = SimulSweep(
+            {param_with_bounds: {"start": -5, "stop": 5, "step": 1}},
+            inter_delay=0.1, plot_data=False, save_data=False
+        )
+        s.kill()
+
+    def test_invalid_param_raises(self, param_with_bounds):
+        with pytest.raises(ValueError, match="exceeds.*maximum"):
+            SimulSweep(
+                {param_with_bounds: {"start": -5, "stop": 15, "step": 1}},
+                inter_delay=0.1, plot_data=False, save_data=False
+            )
+
+    def test_multiple_params_all_validated(self, param_with_bounds, param_no_bounds):
+        # First param invalid
+        with pytest.raises(ValueError):
+            SimulSweep(
+                {
+                    param_with_bounds: {"start": -15, "stop": 5, "step": 1},
+                    param_no_bounds: {"start": -5, "stop": 5, "step": 1},
+                },
+                inter_delay=0.1, plot_data=False, save_data=False
+            )
+
+
+class TestInterDelayValidation:
+    """Tests for inter_delay validation (inherited from BaseSweep)."""
+
+    def test_inter_delay_too_small_raises(self, param_no_bounds):
+        with pytest.raises(ValueError, match="inter_delay.*too small"):
+            Sweep1D(
+                param_no_bounds, 0, 5, 0.1,
+                inter_delay=0.005, plot_data=False, save_data=False
+            )
+
+    def test_inter_delay_none_raises(self, param_no_bounds):
+        with pytest.raises(ValueError, match="inter_delay.*too small"):
+            Sweep1D(
+                param_no_bounds, 0, 5, 0.1,
+                inter_delay=None, plot_data=False, save_data=False
+            )

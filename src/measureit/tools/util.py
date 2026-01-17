@@ -248,7 +248,7 @@ def set_experiment_sample_names(sweep, exp, samp):
     sweep._create_measurement()
 
 
-def init_database(db, exp, samp, sweep=None):
+def init_database(db, exp, samp, sweep=None) -> Path:
     """Initializes a new database with exp and sample names and creates a new measurement if a sweep is set.
 
     Parameters
@@ -263,6 +263,11 @@ def init_database(db, exp, samp, sweep=None):
         The sample name.
     sweep=None:
         Optional sweep object for creating new runs for existing sweeps
+
+    Returns:
+    ---------
+    pathlib.Path
+        The resolved absolute database path.
     """
     # Normalize db path
     db_path = Path(db)
@@ -272,6 +277,8 @@ def init_database(db, exp, samp, sweep=None):
         databases_dir = get_path("databases")
         db_path = databases_dir / db_path
         _log.debug(f"Resolved relative path '{db}' to '{db_path}'")
+
+    _log.info(f"Resolved database path: {db_path}")
 
     # Ensure parent directory exists
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -292,6 +299,8 @@ def init_database(db, exp, samp, sweep=None):
 
     if sweep is not None:
         sweep._create_measurement()
+
+    return db_path
 
 
 def export_db_to_txt(db_fn, exp_name=None, sample_name=None):

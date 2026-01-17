@@ -1,5 +1,6 @@
 # sweep0d.py
 
+import math
 import time
 
 from PyQt5.QtCore import QObject
@@ -58,6 +59,15 @@ class Sweep0D(BaseSweep, QObject):
         self.max_time = max_time
         self.progressState.progress = 0.0
         self.update_progress()
+        if self.max_time is None:
+            self.emit_print_main(
+                f"time sweep: step size {self.inter_delay} s (continuous)."
+            )
+        else:
+            points = int(math.ceil(self.max_time / self.inter_delay))
+            self.emit_print_main(
+                f"time sweep: step size {self.inter_delay} s, points {points}."
+            )
 
     def __str__(self):
         if self.max_time is None:

@@ -101,6 +101,13 @@ class SimulSweep(BaseSweep, QObject):
         QObject.__init__(self)
         BaseSweep.__init__(self, set_param=sp, *args, **kwargs)
 
+        # Validate sweep ranges for all parameters against their validator bounds
+        for p, v in _p.items():
+            self._validate_param_sweep_range(
+                p, v["start"], v["stop"],
+                param_label=getattr(p, "label", p.name)
+            )
+
         self.bidirectional = bidirectional
         self.continuous = continual
 
@@ -135,6 +142,15 @@ class SimulSweep(BaseSweep, QObject):
 
             v["setpoint"] = safe_get(p) - v["step"]
             v["setpoint"] = self._snap_to_step(v["setpoint"], v["_snap_origin"], v["step"])
+
+        for p, v in self.set_params_dict.items():
+            self.emit_step_info(
+                p.label,
+                v["start"],
+                v["stop"],
+                v["step"],
+                getattr(p, "unit", None),
+            )
 
         self.follow_param([p for p in self.simul_params if p is not self.set_param])
         self.persist_data = []

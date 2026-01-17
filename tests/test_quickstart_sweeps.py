@@ -38,7 +38,7 @@ def test_sweep2d_runs_headless(qtbot, fast_sweep_kwargs):
     in_params = [inner.x, 0.0, 0.2, 0.1]  # 3 points
     out_params = [outer.x, 0.0, 0.2, 0.2]  # 2 rows
 
-    s = Sweep2D(in_params, out_params, outer_delay=0.0, **fast_sweep_kwargs)
+    s = Sweep2D(in_params, out_params, outer_delay=0.1, **fast_sweep_kwargs)
     s.follow_param(inner.parabola)
     # Speed: don't do bidirectional inner lines during tests
     s.in_sweep.bidirectional = False

@@ -1,11 +1,13 @@
 # base_sweep.py
 import importlib
 import json
+import math
 import time
 import threading
+import warnings
 from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from functools import partial
-from typing import Optional
+from typing import Optional, Tuple
 
 from PyQt5.QtCore import QMetaObject, QObject, Qt, pyqtSignal, pyqtSlot
 from qcodes import Station
@@ -545,6 +547,24 @@ class BaseSweep(QObject):
             hours += 1
         return hours, minutes, secs
 
+    @staticmethod
+    def _estimate_step_counts(start, stop, step) -> tuple[int, int]:
+        """Estimate step and point counts for a given start/stop/step."""
+        if step is None:
+            return 0, 0
+        step_mag = abs(step)
+        if step_mag == 0:
+            return 0, 0
+        span = abs(stop - start)
+        raw_steps = span / step_mag
+        nearest = round(raw_steps)
+        tol = 1e-9 * max(1.0, abs(raw_steps))
+        if abs(raw_steps - nearest) <= tol:
+            steps = int(nearest)
+        else:
+            steps = int(math.floor(raw_steps))
+        return steps, steps + 1
+
     def update_progress(self) -> None:
         """By default, updates progress using elapsed time and estimated time remaining. Can be overridden."""
         total_elapsed = self._accumulated_run_time
@@ -741,6 +761,174 @@ class BaseSweep(QObject):
 
         return float(snapped)
 
+    @staticmethod
+    def _get_validator_bounds(param) -> Tuple[Optional[float], Optional[float]]:
+        """Extract min/max bounds from a parameter's validator if available.
+
+        Parameters
+        ----------
+        param:
+            A QCoDeS Parameter that may have a validator with bounds.
+
+        Returns
+        -------
+        Tuple[Optional[float], Optional[float]]
+            (min_value, max_value) from the validator, or (None, None) if
+            no validator or no bounds are defined.
+        """
+        validator = getattr(param, "vals", None)
+        if validator is None:
+            return None, None
+
+        # Handle common QCoDeS validators (Numbers, Ints, Arrays)
+        min_val = getattr(validator, "_min_value", None)
+        max_val = getattr(validator, "_max_value", None)
+
+        # Convert infinite values to None for easier handling
+        if min_val is not None:
+            try:
+                if not math.isfinite(min_val):
+                    min_val = None
+            except (TypeError, ValueError):
+                pass
+
+        if max_val is not None:
+            try:
+                if not math.isfinite(max_val):
+                    max_val = None
+            except (TypeError, ValueError):
+                pass
+
+        return min_val, max_val
+
+    @staticmethod
+    def _validate_param_sweep_range(
+        param, start: float, stop: float, param_label: str = None
+    ) -> None:
+        """Validate that start and stop values are within the parameter's validator bounds.
+
+        Raises ValueError if start or stop exceeds the parameter's validation limits.
+        Emits a warning if start or stop is exactly at the boundary (potential float errors).
+
+        Parameters
+        ----------
+        param:
+            A QCoDeS Parameter with optional validator.
+        start:
+            The starting value of the sweep.
+        stop:
+            The stopping value of the sweep.
+        param_label:
+            Optional label for error messages. If not provided, uses param.label or param.name.
+
+        Raises
+        ------
+        ValueError
+            If start or stop exceeds the parameter's validation bounds.
+        """
+        min_val, max_val = BaseSweep._get_validator_bounds(param)
+
+        # If no bounds defined, nothing to validate
+        if min_val is None and max_val is None:
+            return
+
+        # Skip validation for infinite start/stop values (used by GateLeakage, etc.)
+        # These are placeholder values meaning "until some condition is met"
+        try:
+            start_is_finite = math.isfinite(start)
+            stop_is_finite = math.isfinite(stop)
+        except (TypeError, ValueError):
+            # If we can't check finiteness, skip validation for that value
+            start_is_finite = True
+            stop_is_finite = True
+
+        # Determine label for error messages
+        if param_label is None:
+            param_label = getattr(param, "label", None) or getattr(param, "name", "parameter")
+
+        # Small tolerance for boundary comparison (relative tolerance)
+        # Use a small epsilon for floating point comparison
+        rel_tol = 1e-9
+
+        def is_at_boundary(value, bound):
+            """Check if value is at or very close to the boundary."""
+            if bound is None:
+                return False
+            if bound == 0:
+                return abs(value) < rel_tol
+            return abs(value - bound) / abs(bound) < rel_tol
+
+        def exceeds_min(value):
+            """Check if value is below the minimum bound."""
+            if min_val is None:
+                return False
+            # Allow exactly at boundary
+            return value < min_val and not is_at_boundary(value, min_val)
+
+        def exceeds_max(value):
+            """Check if value is above the maximum bound."""
+            if max_val is None:
+                return False
+            # Allow exactly at boundary
+            return value > max_val and not is_at_boundary(value, max_val)
+
+        # Check start value (only if finite)
+        if start_is_finite:
+            if exceeds_min(start):
+                raise ValueError(
+                    f"Sweep start value {start} for '{param_label}' is below the parameter's "
+                    f"minimum validation limit ({min_val})."
+                )
+            if exceeds_max(start):
+                raise ValueError(
+                    f"Sweep start value {start} for '{param_label}' exceeds the parameter's "
+                    f"maximum validation limit ({max_val})."
+                )
+
+        # Check stop value (only if finite)
+        if stop_is_finite:
+            if exceeds_min(stop):
+                raise ValueError(
+                    f"Sweep stop value {stop} for '{param_label}' is below the parameter's "
+                    f"minimum validation limit ({min_val})."
+                )
+            if exceeds_max(stop):
+                raise ValueError(
+                    f"Sweep stop value {stop} for '{param_label}' exceeds the parameter's "
+                    f"maximum validation limit ({max_val})."
+                )
+
+        # Warn if start or stop is exactly at a boundary (potential float errors)
+        # Only check finite values
+        boundary_warnings = []
+        if start_is_finite:
+            if is_at_boundary(start, min_val):
+                boundary_warnings.append(
+                    f"start value {start} is at the minimum validation limit ({min_val})"
+                )
+            if is_at_boundary(start, max_val):
+                boundary_warnings.append(
+                    f"start value {start} is at the maximum validation limit ({max_val})"
+                )
+        if stop_is_finite:
+            if is_at_boundary(stop, min_val):
+                boundary_warnings.append(
+                    f"stop value {stop} is at the minimum validation limit ({min_val})"
+                )
+            if is_at_boundary(stop, max_val):
+                boundary_warnings.append(
+                    f"stop value {stop} is at the maximum validation limit ({max_val})"
+                )
+
+        if boundary_warnings:
+            warnings.warn(
+                f"Sweep of '{param_label}': {'; '.join(boundary_warnings)}. "
+                f"Due to floating point arithmetic, the sweep may slightly exceed "
+                f"the validation bounds. Consider adding a small margin.",
+                UserWarning,
+                stacklevel=3,
+            )
+
     @pyqtSlot(dict)
     def receive_dataset(self, ds_dict):
         """Connects the dataset of Runner Thread to the dataset object of the sweep.
@@ -884,6 +1072,36 @@ class BaseSweep(QObject):
 
         self.complete_func = partial(func, *args, **kwargs)
         self.completed.connect(self.complete_func)
+
+    def emit_print_main(self, msg: str) -> None:
+        """Emit a message to the main print signal."""
+        self.print_main.emit(msg)
+
+    def emit_step_info(self, label, start, stop, step, unit=None) -> None:
+        """Emit step size and count details for a sweep parameter."""
+        if step is None:
+            return
+        step_mag = abs(step)
+        unit_suffix = f" {unit}" if unit else ""
+        try:
+            if not (
+                math.isfinite(start)
+                and math.isfinite(stop)
+                and math.isfinite(step_mag)
+            ):
+                self.emit_print_main(
+                    f"{label} sweep: step size {step_mag}{unit_suffix}, steps unknown, points unknown."
+                )
+                return
+        except TypeError:
+            self.emit_print_main(
+                f"{label} sweep: step size {step_mag}{unit_suffix}, steps unknown, points unknown."
+            )
+            return
+        steps, points = self._estimate_step_counts(start, stop, step)
+        self.emit_print_main(
+            f"{label} sweep: step size {step_mag}{unit_suffix}, steps {steps}, points {points}."
+        )
 
     @pyqtSlot(str)
     def print_msg(self, msg):
