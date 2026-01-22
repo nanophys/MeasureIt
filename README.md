@@ -2,6 +2,9 @@
 
 Measurement software based on [QCoDeS](https://qcodes.github.io/), developed in University of Washington physics.
 
+## Start
+To start, check examples/content/quick start.ipynb. 
+
 ## High-Level Design
 
 MeasureIt is a measurement software package built on top of [QCoDeS](https://qcodes.github.io/) for physics experiments. The architecture follows these key patterns:
