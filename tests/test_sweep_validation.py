@@ -5,7 +5,7 @@ import warnings
 import numpy as np
 import pytest
 from qcodes.parameters import Parameter
-from qcodes.validators import Numbers
+from qcodes.validators import Enum, Numbers
 
 from measureit.sweep.base_sweep import BaseSweep
 from measureit.sweep.sweep1d import Sweep1D
@@ -35,6 +35,19 @@ def param_no_bounds():
         unit="A",
         set_cmd=None,
         get_cmd=lambda: 0,
+    )
+
+
+@pytest.fixture
+def param_with_enum():
+    """Create a parameter with Enum validator (discrete values only)."""
+    return Parameter(
+        name="temperature_K",
+        label="Temperature",
+        unit="K",
+        vals=Enum(0.02, 2.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0),
+        set_cmd=None,
+        get_cmd=lambda: 0.02,
     )
 
 
@@ -113,6 +126,16 @@ class TestValidateParamSweepRange:
         # Should not raise for negative infinite start
         BaseSweep._validate_param_sweep_range(param_with_bounds, -np.inf, 0)
 
+    def test_enum_validator_raises(self, param_with_enum):
+        """Enum validators should be rejected - discrete values cannot be swept linearly."""
+        with pytest.raises(ValueError, match="Enum validator.*discrete allowed values"):
+            BaseSweep._validate_param_sweep_range(param_with_enum, 0.02, 30)
+
+    def test_enum_validator_error_message_includes_values(self, param_with_enum):
+        """Error message should include the allowed discrete values."""
+        with pytest.raises(ValueError, match="0.02"):
+            BaseSweep._validate_param_sweep_range(param_with_enum, 0.02, 30)
+
 
 class TestSweep1DValidation:
     """Tests for Sweep1D initialization validation."""
@@ -139,6 +162,14 @@ class TestSweep1DValidation:
             inter_delay=0.1, plot_data=False, save_data=False
         )
         s.kill()
+
+    def test_enum_param_raises_valueerror(self, param_with_enum):
+        """Sweep1D should reject parameters with Enum validators at creation time."""
+        with pytest.raises(ValueError, match="Enum validator.*discrete allowed values"):
+            Sweep1D(
+                param_with_enum, 0.02, 30, 5,
+                inter_delay=0.1, plot_data=False, save_data=False
+            )
 
 
 class TestSweep2DValidation:

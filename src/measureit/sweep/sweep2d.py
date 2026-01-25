@@ -593,18 +593,23 @@ class Sweep2D(BaseSweep, QObject):
 
     def kill(self):
         """Ends all threads and closes any active plots."""
-        prev_state = self.progressState.state
-        # Set KILLED state FIRST so update_values() callbacks exit early
-        # ERROR state transitions to KILLED since user explicitly called kill()
-        if prev_state not in (SweepState.DONE, SweepState.KILLED):
-            self.progressState.state = SweepState.KILLED
-        if prev_state == SweepState.RUNNING:
-            self._add_runtime_since_last_resume()
+        # Use getattr for all attributes that may not exist if __init__ failed early
+        prev_state = getattr(self, "progressState", None)
+        if prev_state is not None:
+            prev_state = prev_state.state
+            # Set KILLED state FIRST so update_values() callbacks exit early
+            # ERROR state transitions to KILLED since user explicitly called kill()
+            if prev_state not in (SweepState.DONE, SweepState.KILLED):
+                self.progressState.state = SweepState.KILLED
+            if prev_state == SweepState.RUNNING:
+                self._add_runtime_since_last_resume()
 
-        self.in_sweep.kill()
+        in_sweep = getattr(self, "in_sweep", None)
+        if in_sweep is not None:
+            in_sweep.kill()
 
         # Gently shut down the heatmap
-        if self.heatmap_plotter is not None:
+        if getattr(self, "heatmap_plotter", None) is not None:
             self.heatmap_plotter.clear()
             self.heatmap_plotter = None
             # Backward-compat: if a thread was created in older runs, shut it down

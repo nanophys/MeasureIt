@@ -12,6 +12,7 @@ from typing import Optional, Tuple
 from PyQt5.QtCore import QMetaObject, QObject, Qt, pyqtSignal, pyqtSlot
 from qcodes import Station
 from qcodes.dataset.measurements import Measurement
+from qcodes.validators import Enum
 
 from .._internal.plotter_thread import Plotter
 from .._internal.runner_thread import RunnerThread
@@ -397,31 +398,39 @@ class BaseSweep(QObject):
 
     def kill(self):
         """Ends the threads spawned by the sweep and closes any active plots."""
+        # Use getattr for all attributes that may not exist if __init__ failed early
+        # (e.g., if inter_delay validation failed before progressState was set)
+        progress_state = getattr(self, "progressState", None)
+
         # Stop any data-taking
-        if self.progressState.state == SweepState.RUNNING:
+        if progress_state is not None and progress_state.state == SweepState.RUNNING:
             self._add_runtime_since_last_resume()
         # Set KILLED if not already DONE or KILLED
         # ERROR state transitions to KILLED since user explicitly called kill()
-        if self.progressState.state not in (SweepState.DONE, SweepState.KILLED):
+        if progress_state is not None and progress_state.state not in (SweepState.DONE, SweepState.KILLED):
             self.progressState.state = SweepState.KILLED
-        self._error_completion_pending = False  # Clear to prevent stale flag
+        if hasattr(self, "_error_completion_pending"):
+            self._error_completion_pending = False  # Clear to prevent stale flag
 
         # Gently shut down the runner
-        if self.runner is not None:
+        runner = getattr(self, "runner", None)
+        if runner is not None:
             # self.runner.quit()
-            if not self.runner.wait(1000):
-                self.runner.terminate()
+            if not runner.wait(1000):
+                runner.terminate()
                 self.print_main.emit("forced runner to terminate")
             self.runner = None
             self.send_updates()
         # Gently shut down the plotter
-        if self.plotter is not None:
+        plotter = getattr(self, "plotter", None)
+        if plotter is not None:
             # Backward-compatibility: if a plotter_thread exists from older runs, terminate it
             try:
-                if self.plotter_thread is not None:
-                    self.plotter_thread.quit()
-                    if not self.plotter_thread.wait(1000):
-                        self.plotter_thread.terminate()
+                plotter_thread = getattr(self, "plotter_thread", None)
+                if plotter_thread is not None:
+                    plotter_thread.quit()
+                    if not plotter_thread.wait(1000):
+                        plotter_thread.terminate()
                         self.print_main.emit("forced plotter to terminate")
             except Exception:
                 pass
@@ -430,8 +439,14 @@ class BaseSweep(QObject):
             self.plotter = None
 
         # Reset measurement object to ensure fresh measurement for next run
-        self.meas = None
-        self.send_updates()
+        if hasattr(self, "meas"):
+            self.meas = None
+        # Try to send final updates, but guard against incomplete initialization
+        # (e.g., send_updates may access self.setpoint which may not exist)
+        try:
+            self.send_updates()
+        except AttributeError:
+            pass
 
     def check_running(self):
         """Returns the status of the sweep."""
@@ -824,8 +839,21 @@ class BaseSweep(QObject):
         Raises
         ------
         ValueError
-            If start or stop exceeds the parameter's validation bounds.
+            If start or stop exceeds the parameter's validation bounds, or if the
+            parameter uses an Enum validator (discrete values cannot be swept linearly).
         """
+        validator = getattr(param, "vals", None)
+
+        # Check for Enum validator - sweeping discrete values is not supported
+        if validator is not None and isinstance(validator, Enum):
+            if param_label is None:
+                param_label = getattr(param, "label", None) or getattr(param, "name", "parameter")
+            raise ValueError(
+                f"Cannot create a linear sweep for '{param_label}' because it uses an Enum "
+                f"validator with discrete allowed values: {validator._valid_values}. "
+                f"Use a manual loop to iterate over the allowed values instead."
+            )
+
         min_val, max_val = BaseSweep._get_validator_bounds(param)
 
         # If no bounds defined, nothing to validate

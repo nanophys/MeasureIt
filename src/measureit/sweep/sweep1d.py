@@ -270,7 +270,8 @@ class Sweep1D(BaseSweep, QObject):
         """Ends the threads spawned by the sweep and closes any active plots."""
         # Always tear down active ramp sweep, regardless of state
         # (error may have occurred during ramping, leaving ramp_sweep active)
-        if self.ramp_sweep is not None:
+        # Use getattr to handle case where __init__ failed before ramp_sweep was set
+        if getattr(self, "ramp_sweep", None) is not None:
             try:
                 self.ramp_sweep.pause()
             except Exception:

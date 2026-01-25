@@ -241,9 +241,18 @@ class Sweep1D_listening(BaseSweep, QObject):
 
     def kill(self):
         """Ends the threads spawned by the sweep and closes any active plots."""
-        if self.progressState.state == SweepState.RAMPING and self.ramp_sweep is not None:
-            self.ramp_sweep.pause()
-            self.ramp_sweep.kill()
+        # Use getattr to handle case where __init__ failed before attributes were set
+        progress_state = getattr(self, "progressState", None)
+        ramp_sweep = getattr(self, "ramp_sweep", None)
+        if progress_state is not None and progress_state.state == SweepState.RAMPING and ramp_sweep is not None:
+            try:
+                ramp_sweep.pause()
+            except Exception:
+                pass
+            try:
+                ramp_sweep.kill()
+            except Exception:
+                pass
         BaseSweep.kill(self)
 
     def step_param(self):
