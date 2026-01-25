@@ -506,7 +506,7 @@ class Heatmap(QObject):
                 self.param_surfaces[param_index]["min"] = y_val
 
         # Update the data array row
-        row_idx = self.res_out - out_index - 1  # Flip for proper orientation
+        row_idx = out_index
         for i, in_key in enumerate(self.in_keys):
             if i < self.res_in:
                 self.param_surfaces[param_index]["data"][row_idx][i] = (
