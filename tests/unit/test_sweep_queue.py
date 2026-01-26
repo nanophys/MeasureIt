@@ -17,6 +17,7 @@ import pytest
 os.environ.setdefault("MEASUREIT_FAKE_QT", "1")
 
 from measureit.tools import sweep_queue as sq
+from measureit.sweep.progress import SweepState
 
 
 class DummySignal:
@@ -54,7 +55,7 @@ class DummySweep:
         self.killed: int = 0
         self.resumed: int = 0
         self.metadata_provider = None
-        self.progressState = type("State", (), {"state": "READY"})()
+        self.progressState = type("State", (), {"state": SweepState.READY})()
         self.completed = DummySignal()
         self._complete_func: Optional[Callable[[], None]] = None
         self.begin = start_value
@@ -81,15 +82,15 @@ class DummySweep:
 
     def start(self, persist_data: Any = None, ramp_to_start: bool = False) -> None:
         self.started = True
-        self.progressState.state = "RUNNING"
+        self.progressState.state = SweepState.RUNNING
 
     def kill(self) -> None:
         self.killed += 1
-        self.progressState.state = "KILLED"
+        self.progressState.state = SweepState.KILLED
 
     def resume(self) -> None:
         self.resumed += 1
-        self.progressState.state = "RUNNING"
+        self.progressState.state = SweepState.RUNNING
 
     def export_json(self, fn: Optional[str] = None) -> dict[str, Any]:
         return dict(self.export_payload)
@@ -98,7 +99,7 @@ class DummySweep:
 
     def trigger_complete(self) -> None:
         """Simulate the sweep finishing and emitting its completed signal."""
-        self.progressState.state = "DONE"
+        self.progressState.state = SweepState.DONE
         self.completed.emit()
 
     def __repr__(self) -> str:  # pragma: no cover - debugging helper
@@ -235,3 +236,31 @@ def test_export_json_includes_queue_configuration(queue: sq.SweepQueue) -> None:
     assert data["inter_delay"] == queue.inter_delay
     assert isinstance(data["queue"], list)
     assert data["queue"][0]["attributes"]["name"] == "json-test"
+
+
+def test_status_reports_killed_after_kill(queue: sq.SweepQueue) -> None:
+    first = DummySweep1D("first")
+    second = DummySweep("second")
+
+    queue.append(first, second)
+    queue.start()
+
+    queue.kill()
+
+    status = queue.status()
+    assert status["effective_state"] == "killed"
+    assert status["queue_length"] == 1
+
+
+def test_start_clears_killed_state(queue: sq.SweepQueue) -> None:
+    first = DummySweep1D("first")
+    second = DummySweep("second")
+
+    queue.append(first, second)
+    queue.start()
+    queue.kill()
+
+    queue.start()
+
+    status = queue.status()
+    assert status["effective_state"] == "running"

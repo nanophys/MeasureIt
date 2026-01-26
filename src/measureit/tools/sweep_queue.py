@@ -199,6 +199,8 @@ class SweepQueue(QObject):
         self.previous_action = None
         # Queue-level error state (persists after sweep cleanup)
         self._last_error: Optional[QueueError] = None
+        # Queue-level killed flag (persists after sweep cleanup)
+        self._last_killed = False
 
     def _exec_in_kernel(self, fn):
         """Execute a callable synchronously.
@@ -511,6 +513,8 @@ class SweepQueue(QObject):
 
         self.log.info("Starting sweeps")
         self.current_action = self.queue.popleft()
+        # Clear kill flag once new work begins
+        self._last_killed = False
         if isinstance(self.current_action, BaseSweep):
             self.current_sweep = self.current_action
             # Ensure metadata shows this sweep was launched by SweepQueue
@@ -592,6 +596,7 @@ class SweepQueue(QObject):
     def kill(self):
         """Kills the current sweep. Use kill_all() to also clear the queue."""
         if self.current_sweep is not None:
+            self._last_killed = True
             # Clear current_sweep AND current_action before kill() to prevent
             # begin_next() from processing if kill() emits completion synchronously
             sweep_to_kill = self.current_sweep
@@ -609,6 +614,11 @@ class SweepQueue(QObject):
         Note: If a DatabaseEntry or callable is currently executing, it cannot be
         interrupted, but the queue will not continue after it completes.
         """
+        had_work = (
+            self.current_sweep is not None
+            or self.current_action is not None
+            or len(self.queue) > 0
+        )
         # Save reference to sweep before clearing state
         sweep_to_kill = self.current_sweep
 
@@ -625,6 +635,8 @@ class SweepQueue(QObject):
 
         # Clear error state for full reset
         self._last_error = None
+        # Mark queue as killed if there was work to stop
+        self._last_killed = had_work
 
         # Now safe to kill - even if completion fires, queue is empty
         if sweep_to_kill is not None:
@@ -650,7 +662,7 @@ class SweepQueue(QObject):
 
         Returns a dictionary with:
         - effective_state: Overall queue state accounting for pending items
-          ("idle", "pending", "running", "paused", "error", "stopped")
+          ("idle", "pending", "running", "paused", "killed", "error", "stopped")
         - current_sweep_state: State name of the currently executing sweep (or None)
         - queue_length: Number of items waiting in the queue
         - current_sweep_type: Class name of current sweep (or None)
@@ -667,6 +679,7 @@ class SweepQueue(QObject):
         - "running": Current sweep is actively running/ramping, or a DatabaseEntry/callable
           is executing
         - "paused": Current sweep is paused
+        - "killed": Queue stopped due to a kill() or kill_all() call. Call start() to resume.
         - "error": Current sweep is in error state (actively erroring)
         - "stopped": Queue stopped due to a previous error (check last_error for details).
                      Call clear_error() and start() to resume.
@@ -704,12 +717,16 @@ class SweepQueue(QObject):
                 effective_state = "running"
             elif self._last_error is not None:
                 effective_state = "stopped"
+            elif self._last_killed:
+                effective_state = "killed"
             elif queue_length > 0:
                 effective_state = "pending"
             else:
                 effective_state = "idle"
         elif current_sweep_state == SweepState.ERROR:
             effective_state = "error"
+        elif current_sweep_state == SweepState.KILLED:
+            effective_state = "killed"
         elif current_sweep_state == SweepState.PAUSED:
             effective_state = "paused"
         elif current_sweep_state in (SweepState.RUNNING, SweepState.RAMPING):
@@ -724,7 +741,7 @@ class SweepQueue(QObject):
             else:
                 effective_state = "idle"
         else:
-            # KILLED or unexpected states with a current_sweep still set
+            # Unexpected states with a current_sweep still set
             if queue_length > 0:
                 effective_state = "pending"
             else:
@@ -799,11 +816,12 @@ class SweepQueue(QObject):
         self._processing = True
         self._pending_begin_next = False
 
-        # Guard: if queue is in error state, don't process further
-        # This prevents re-entrancy from draining the queue after an error
-        if self._last_error is not None:
+        # Guard: if queue is in error or killed state, don't process further
+        # This prevents re-entrancy from draining the queue after a stop
+        if self._last_error is not None or self._last_killed:
             if self.debug:
-                self.log.debug("Queue in error state, not processing further")
+                state = "error" if self._last_error is not None else "killed"
+                self.log.debug("Queue in %s state, not processing further", state)
             self._processing = False
             return
 

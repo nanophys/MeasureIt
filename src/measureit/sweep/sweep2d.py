@@ -216,6 +216,7 @@ class Sweep2D(BaseSweep, QObject):
         )
         # Set parent reference so UI actions (e.g., ESC) can stop both inner and outer sweeps
         self.in_sweep.parent = self
+        self.in_sweep._internal_sweep = True
         # Ensure the inner sweep writes metadata for the composite (outer) sweep
         self.in_sweep.metadata_provider = self
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
@@ -674,6 +675,7 @@ class Sweep2D(BaseSweep, QObject):
             plot_data=True,
         )
         self.ramp_sweep.parent = self
+        self.ramp_sweep._internal_sweep = True
         for p in self._params:
             if p is not self.set_param:
                 self.ramp_sweep.follow_param(p)
@@ -707,6 +709,7 @@ class Sweep2D(BaseSweep, QObject):
             complete_func=self.done_ramping,
         )
         self.ramp_sweep.parent = self
+        self.ramp_sweep._internal_sweep = True
         self.ramp_sweep.follow_param(self._params)
         self.progressState.state = SweepState.RAMPING
         self.outer_ramp = True

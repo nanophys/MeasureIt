@@ -402,6 +402,7 @@ class Sweep1D_listening(BaseSweep, QObject):
             plot_data=self.plot_data,
         )
         self.ramp_sweep.parent = self
+        self.ramp_sweep._internal_sweep = True
 
         self.progressState.state = SweepState.RAMPING
         self.ramp_sweep.start(ramp_to_start=False)

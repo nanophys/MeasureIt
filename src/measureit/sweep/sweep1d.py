@@ -507,6 +507,7 @@ class Sweep1D(BaseSweep, QObject):
             plot_data=self.plot_data,
         )
         self.ramp_sweep.parent = self
+        self.ramp_sweep._internal_sweep = True
         self.ramp_sweep.follow_param(self._params)
 
         self.progressState.state = SweepState.RAMPING

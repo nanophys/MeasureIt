@@ -566,7 +566,11 @@ class BaseSweep(QObject):
             Optional argument which gradually ramps each parameter to the starting
             point of its sweep. Default is true for Sweep1D and Sweep2D.
         """
-        if not self.progressState.is_queued and _has_other_active_sweep(self):
+        if (
+            not self.progressState.is_queued
+            and not getattr(self, "_internal_sweep", False)
+            and _has_other_active_sweep(self)
+        ):
             raise RuntimeError(
                 "Another sweep is already running. Stop or kill it before starting a new sweep, use start_force() to kill others, or use SweepQueue to stack sweeps."
             )
@@ -645,7 +649,11 @@ class BaseSweep(QObject):
     def resume(self):
         """Restarts the sweep after it has been paused."""
         if self.progressState.state == SweepState.PAUSED:
-            if not self.progressState.is_queued and _has_other_active_sweep(self):
+            if (
+                not self.progressState.is_queued
+                and not getattr(self, "_internal_sweep", False)
+                and _has_other_active_sweep(self)
+            ):
                 raise RuntimeError(
                     "Another sweep is already running. Stop or kill it before resuming this sweep, use start_force() to kill others, or use SweepQueue to stack sweeps."
                 )

@@ -406,6 +406,7 @@ class SimulSweep(BaseSweep, QObject):
             suppress_output=self.suppress_output,
         )
         self.ramp_sweep.parent = self
+        self.ramp_sweep._internal_sweep = True
         # Only follow parameters that are not being ramped to avoid circular dependencies
         follow_params = [p for p in self._params if p not in ramp_params_dict.keys()]
         if follow_params:
