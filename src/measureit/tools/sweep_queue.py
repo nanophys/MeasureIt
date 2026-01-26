@@ -544,8 +544,11 @@ class SweepQueue(QObject):
             # Continue with the next item in the queue
             self.begin_next()
         elif callable(self.current_action):
-            # Schedule onto the Jupyter kernel thread if available
+            # Execute callable synchronously, then continue to next item
             self._exec_in_kernel(self.current_action)
+            # Continue with the next item in the queue (unless error occurred)
+            if self._last_error is None:
+                self.begin_next()
         else:
             self.log.error(
                 "Invalid action found in the queue! %s. Stopping execution.",
