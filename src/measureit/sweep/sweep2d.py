@@ -6,7 +6,7 @@ from functools import partial
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from ..visualization.heatmap_thread import Heatmap
-from .base_sweep import BaseSweep
+from .base_sweep import BaseSweep, _has_other_active_sweep
 from .progress import SweepState
 from .sweep1d import Sweep1D
 
@@ -334,6 +334,14 @@ class Sweep2D(BaseSweep, QObject):
         persist_data:
             Sets the outer parameter for Sweep2D.
         """
+        if (
+            not self.progressState.is_queued
+            and not getattr(self, "_internal_sweep", False)
+            and _has_other_active_sweep(self)
+        ):
+            raise RuntimeError(
+                "Another sweep is already running. Stop or kill it before starting a new sweep, use start_force() to kill others, or use SweepQueue to stack sweeps."
+            )
         if self.progressState.state == SweepState.RUNNING:
             self.print_main.emit("Can't start the sweep, we're already running!")
             return
