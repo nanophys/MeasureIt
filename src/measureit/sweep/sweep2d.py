@@ -25,9 +25,11 @@ class Sweep2D(BaseSweep, QObject):
     out_params:
         List defining the outer sweep [parameter, start, stop, step].
     inter_delay:
-        Time (in seconds) to wait between data points on inner sweep.
+        Time (in seconds) to wait between data points on inner sweep. Must be >= 0.01s.
+        Default: 0.1s
     outer_delay:
-        Time (in seconds) to wait between data points on outer sweep.
+        Time (in seconds) to wait between data points on outer sweep. Must be >= 0.1s.
+        Default: 1.0s
     save_data:
         Flag used to determine if the data should be saved or not.
     plot_data:
@@ -116,9 +118,11 @@ class Sweep2D(BaseSweep, QObject):
         out_params:
             A list conforming to above standard for the outer sweep.
         inter_delay:
-            Time (in seconds) to wait between data points on inner sweep.
+            Time (in seconds) to wait between data points on inner sweep. Must be >= 0.01s.
+            Default: 0.1s
         outer_delay:
-            Time (in seconds) to wait between data points on outer sweep.
+            Time (in seconds) to wait between data points on outer sweep. Must be >= 0.1s.
+            Default: 1.0s
         save_data:
             Flag used to determine if the data should be saved or not.
         plot_data:

@@ -164,6 +164,35 @@ sweep.start()
   the notebook cell output, so database switches and sweep transitions are
   visible while the queue runs.
 
+## Sweep Timing Constraints
+
+MeasureIt enforces minimum delay values to ensure thread-safe operation and reliable measurement timing:
+
+| Parameter | Minimum Value | Applies To | Description |
+|-----------|--------------|------------|-------------|
+| `inter_delay` | **0.01s** (10ms) | All sweeps (Sweep1D, Sweep2D inner) | Time between measurement points |
+| `outer_delay` | **0.1s** (100ms) | Sweep2D outer sweep | Time between outer sweep lines |
+
+**Why These Minimums?**
+- These minimums ensure reliable data collection and prevent measurement timing issues
+- They protect the runner thread timing and ensure stable communication between measurement threads
+- Values below these minimums will raise a `ValueError` with a descriptive error message
+- The defaults (`inter_delay=0.1s`, `outer_delay=1.0s`) are safe for most use cases
+
+**Example:**
+```python
+# Valid sweep with minimum delays
+sweep2d = measureit.Sweep2D(
+    in_params=[inner_param, 0, 1, 0.01],
+    out_params=[outer_param, 0, 10, 0.1],
+    inter_delay=0.01,  # Minimum allowed
+    outer_delay=0.1     # Minimum allowed
+)
+
+# This would raise ValueError: inter_delay too small
+# sweep2d = measureit.Sweep2D(..., inter_delay=0.005)  # < 0.01s ❌
+```
+
 ## Documentation
 
 ### Building Documentation
