@@ -16,9 +16,8 @@ class TestSweepRegistry:
 
     def test_sweep_registered_on_creation(self, mock_parameters):
         """Test that sweeps are registered when created."""
-        # Clear registry before test
-        BaseSweep._registry.clear()
-        BaseSweep._error_hold.clear()
+        # Clear registry before test using helper method
+        BaseSweep._clear_registry_for_testing()
         
         sweep1 = Sweep0D(
             save_data=False,
@@ -48,15 +47,15 @@ class TestSweepRegistry:
             plot_data=False,
         )
         
+        # Testing internal implementation: _sweep_id should be unique
         assert hasattr(sweep1, "_sweep_id")
         assert hasattr(sweep2, "_sweep_id")
         assert sweep1._sweep_id != sweep2._sweep_id
 
     def test_get_all_sweeps(self, mock_parameters):
         """Test get_all_sweeps returns all registered sweeps."""
-        # Clear registry
-        BaseSweep._registry.clear()
-        BaseSweep._error_hold.clear()
+        # Clear registry using helper method
+        BaseSweep._clear_registry_for_testing()
         
         sweeps = []
         for i in range(3):
@@ -78,15 +77,14 @@ class TestSweepRegistry:
         references alive. This test verifies the core behavior - that sweeps
         are stored with weak references in the registry.
         """
-        # Clear registry
-        BaseSweep._registry.clear()
-        BaseSweep._error_hold.clear()
+        # Clear registry using helper method
+        BaseSweep._clear_registry_for_testing()
         
         sweep = Sweep0D(
             save_data=False,
             plot_data=False,
         )
-        sweep_id = sweep._sweep_id
+        sweep_id = sweep._sweep_id  # Internal testing only
         
         # Verify sweep is registered
         assert len(BaseSweep.get_all_sweeps()) == 1
@@ -112,9 +110,8 @@ class TestErrorSweepHold:
 
     def test_get_error_sweeps_empty(self, mock_parameters):
         """Test get_error_sweeps returns empty list when no errors."""
-        # Clear registry
-        BaseSweep._registry.clear()
-        BaseSweep._error_hold.clear()
+        # Clear registry using helper method
+        BaseSweep._clear_registry_for_testing()
         
         sweep = Sweep0D(
             save_data=False,
@@ -126,9 +123,8 @@ class TestErrorSweepHold:
 
     def test_error_sweep_added_to_hold(self, mock_parameters):
         """Test that ERROR sweeps are added to error_hold."""
-        # Clear registry
-        BaseSweep._registry.clear()
-        BaseSweep._error_hold.clear()
+        # Clear registry using helper method
+        BaseSweep._clear_registry_for_testing()
         
         sweep = Sweep0D(
             save_data=False,
@@ -151,15 +147,14 @@ class TestErrorSweepHold:
 
     def test_error_sweep_not_garbage_collected(self, mock_parameters):
         """Test that ERROR sweeps are not garbage collected."""
-        # Clear registry
-        BaseSweep._registry.clear()
-        BaseSweep._error_hold.clear()
+        # Clear registry using helper method
+        BaseSweep._clear_registry_for_testing()
         
         sweep = Sweep0D(
             save_data=False,
             plot_data=False,
         )
-        sweep_id = sweep._sweep_id
+        sweep_id = sweep._sweep_id  # Internal testing only
         
         # Mark as error
         sweep.mark_error("Test error", _from_runner=True)
@@ -181,9 +176,8 @@ class TestErrorSweepHold:
 
     def test_kill_removes_from_error_hold(self, mock_parameters):
         """Test that kill() removes sweep from error_hold."""
-        # Clear registry
-        BaseSweep._registry.clear()
-        BaseSweep._error_hold.clear()
+        # Clear registry using helper method
+        BaseSweep._clear_registry_for_testing()
         
         sweep = Sweep0D(
             save_data=False,
@@ -205,9 +199,8 @@ class TestErrorSweepHold:
 
     def test_clear_error_removes_from_error_hold(self, mock_parameters):
         """Test that clear_error() removes sweep from error_hold."""
-        # Clear registry
-        BaseSweep._registry.clear()
-        BaseSweep._error_hold.clear()
+        # Clear registry using helper method
+        BaseSweep._clear_registry_for_testing()
         
         sweep = Sweep0D(
             save_data=False,
@@ -234,9 +227,8 @@ class TestErrorSweepHold:
         The key behavior is that kill() removes the sweep from error_hold,
         allowing it to be GC'd when all other references are gone.
         """
-        # Clear registry
-        BaseSweep._registry.clear()
-        BaseSweep._error_hold.clear()
+        # Clear registry using helper method
+        BaseSweep._clear_registry_for_testing()
         
         sweep = Sweep0D(
             save_data=False,
@@ -257,9 +249,8 @@ class TestErrorSweepHold:
 
     def test_multiple_error_sweeps(self, mock_parameters):
         """Test that multiple ERROR sweeps are tracked correctly."""
-        # Clear registry
-        BaseSweep._registry.clear()
-        BaseSweep._error_hold.clear()
+        # Clear registry using helper method
+        BaseSweep._clear_registry_for_testing()
         
         # Create three sweeps, mark two as errors
         sweep1 = Sweep0D(
@@ -306,9 +297,8 @@ class TestTopLevelExports:
 
     def test_top_level_functions_work(self, mock_parameters):
         """Test that top-level functions work correctly."""
-        # Clear registry
-        BaseSweep._registry.clear()
-        BaseSweep._error_hold.clear()
+        # Clear registry using helper method
+        BaseSweep._clear_registry_for_testing()
         
         sweep = Sweep0D(
             save_data=False,

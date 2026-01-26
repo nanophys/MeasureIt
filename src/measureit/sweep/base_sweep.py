@@ -281,10 +281,26 @@ class BaseSweep(QObject):
         list
             List of sweep instances in ERROR state. These sweeps are held in memory
             until explicitly killed or cleared to allow inspection.
+        
+        Notes
+        -----
+        This method returns sweeps from the error_hold set directly, which is more
+        efficient than filtering the full registry by state.
         """
         with cls._registry_lock:
-            return [s for s in cls._registry.values()
-                    if s.progressState.state == SweepState.ERROR]
+            # Return directly from error_hold - these are all ERROR sweeps by definition
+            return list(cls._error_hold)
+
+    @classmethod
+    def _clear_registry_for_testing(cls):
+        """Clear the sweep registry and error hold.
+        
+        This method is intended for use in tests only to ensure a clean state
+        between test cases. It should not be used in production code.
+        """
+        with cls._registry_lock:
+            cls._registry.clear()
+            cls._error_hold.clear()
 
     def follow_param(self, *p):
         """Saves parameters to be tracked, for both saving and plotting data.
