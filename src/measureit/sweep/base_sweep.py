@@ -604,6 +604,7 @@ class BaseSweep(QObject):
             progress=progress_value,
             error_message=self.progressState.error_message,
             error_count=self.progressState.error_count,
+            is_queued=self.progressState.is_queued,
         )
 
     def mark_done(self) -> None:

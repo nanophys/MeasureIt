@@ -1,4 +1,6 @@
 # sweep_queue.py
+from __future__ import annotations
+
 import importlib
 import json
 import logging
@@ -7,8 +9,11 @@ import time
 import types
 from collections import deque
 from collections.abc import Iterable
+from dataclasses import dataclass
 from functools import partial
+from numbers import Integral
 from pathlib import Path
+from typing import Optional
 
 import qcodes as qc
 from qcodes import Station, initialise_or_create_database_at
@@ -79,6 +84,33 @@ from ..sweep.progress import SweepState
 from ..sweep.simul_sweep import SimulSweep
 from ..sweep.sweep0d import Sweep0D
 from ..sweep.sweep1d import Sweep1D
+
+
+@dataclass
+class QueueError:
+    """Structured error information for queue-level errors.
+
+    Attributes
+    ----------
+    message : str
+        The error message describing what went wrong.
+    sweep_type : str
+        The class name of the sweep that caused the error (e.g., "Sweep1D").
+    exception_type : str, optional
+        The type name of the exception that was raised, if available.
+    """
+
+    message: str
+    sweep_type: str
+    exception_type: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "message": self.message,
+            "sweep_type": self.sweep_type,
+            "exception_type": self.exception_type,
+        }
 
 
 class SweepQueue(QObject):
@@ -165,37 +197,32 @@ class SweepQueue(QObject):
         self._retry_scheduled = False
         # Track previous action to detect DatabaseEntry->Sweep transitions
         self.previous_action = None
+        # Queue-level error state (persists after sweep cleanup)
+        self._last_error: Optional[QueueError] = None
 
     def _exec_in_kernel(self, fn):
-        """Schedule a callable to run on the Jupyter kernel thread (asyncio loop) if present.
+        """Execute a callable synchronously.
 
-        - In a notebook/JupyterLab, ipykernel runs an asyncio loop; we schedule via
-          loop.call_soon_threadsafe so that print() and logging appear in the notebook output.
-        - If no running loop is detected (e.g., plain Python), execute inline.
-        - If the callable raises in the scheduled path, we print the traceback and DO NOT
-          advance the queue; in the inline path, the exception propagates naturally.
+        - Executes the callable
+        - If the callable raises, prints the traceback and sets error state
+
+        Note: The caller (begin_next while loop) will continue processing
+        after this returns. We don't need to call begin_next() ourselves.
         """
+        import traceback
+
         try:
-            import asyncio
-            import traceback
-
-            # Prefer running loop (kernel thread); this raises in non-kernel threads
-            loop = asyncio.get_running_loop()
-
-            def _runner():
-                try:
-                    fn()
-                except Exception:
-                    traceback.print_exc()
-                    return
-                self.begin_next()
-
-            # Schedule onto the kernel loop from any thread
-            loop.call_soon_threadsafe(_runner)
-        except Exception:
-            # Fallback: no running loop in this thread/environment; execute inline
             fn()
-            self.begin_next()
+        except Exception as e:
+            traceback.print_exc()
+            # Set error state so queue stops
+            self._last_error = QueueError(
+                message=f"Callable raised: {e}",
+                sweep_type="callable",
+                exception_type=type(e).__name__,
+            )
+        # Clear current_action so status() reports correctly
+        self.current_action = None
 
     def _attach_queue_metadata_provider(self, sweep: BaseSweep):
         """Attach a metadata provider wrapper so datasets record they were launched by SweepQueue.
@@ -316,10 +343,14 @@ class SweepQueue(QObject):
                 for l in sweep:
                     # Set the finished signal to call the begin_next() function here
                     l.set_complete_func(self.begin_next)
+                    # Mark as queued
+                    l.progressState.is_queued = True
                     # Add it to the queue
                     self.queue.append(l)
             elif isinstance(sweep, BaseSweep):
                 sweep.set_complete_func(self.begin_next)
+                # Mark as queued
+                sweep.progressState.is_queued = True
                 self.queue.append(sweep)
             elif isinstance(sweep, DatabaseEntry):
                 # DatabaseEntry doesn't need a complete_func since it executes synchronously
@@ -377,12 +408,23 @@ class SweepQueue(QObject):
 
         Parameters
         ---------
-        item: object to be removed from the queue
+        item: object to be removed from the queue (BaseSweep, DatabaseEntry, or int index)
         """
-        if isinstance(item, BaseSweep) or isinstance(item, DatabaseEntry):
+        if isinstance(item, BaseSweep):
             self.queue.remove(item)
-        else:
+            # Clear is_queued only after successful removal
+            item.progressState.is_queued = False
+        elif isinstance(item, DatabaseEntry):
+            self.queue.remove(item)
+        elif isinstance(item, Integral):
+            # Deleting by index - check if it's a sweep to clear is_queued
+            removed = self.queue[item]
             del self.queue[item]
+            # Clear is_queued only after successful removal
+            if isinstance(removed, BaseSweep):
+                removed.progressState.is_queued = False
+        else:
+            raise TypeError(f"delete() expects BaseSweep, DatabaseEntry, or integer index, got {type(item).__name__}")
 
     def replace(self, index, item):
         """Replaces sweep at the given index with a new sweep.
@@ -394,6 +436,9 @@ class SweepQueue(QObject):
         item:
             Sweep to be added to the queue at the indexed position.
         """
+        # Get the old item before replacing
+        old_item = self.queue[index]
+
         temp = deque([])
 
         for i in range(len(self.queue)):
@@ -404,6 +449,15 @@ class SweepQueue(QObject):
 
         del self.queue[index]
         self.queue = temp
+
+        # Clear is_queued on the removed item
+        if isinstance(old_item, BaseSweep):
+            old_item.progressState.is_queued = False
+
+        # Set is_queued on the new item and register completion callback
+        if isinstance(item, BaseSweep):
+            item.set_complete_func(self.begin_next)
+            item.progressState.is_queued = True
 
     def move(self, item, distance):
         """Moves a sweep to a new position in the queue.
@@ -468,7 +522,22 @@ class SweepQueue(QObject):
                     "Starting 0D Sweep for %s seconds.", self.current_sweep.max_time
                 )
             self.newSweepSignal.emit(self.current_sweep)
-            self.current_sweep.start(ramp_to_start=rts)
+            try:
+                self.current_sweep.start(ramp_to_start=rts)
+                # Clear previous error only after sweep actually starts
+                # (preserves error info until new sweep is running)
+                self._last_error = None
+            except Exception as e:
+                # If start() raises, record the error and clean up
+                self.log.error("Failed to start sweep: %s", e)
+                self._last_error = QueueError(
+                    message=str(e),
+                    sweep_type=self.current_sweep.__class__.__name__,
+                    exception_type=type(e).__name__,
+                )
+                self.current_sweep.progressState.is_queued = False
+                self.current_sweep = None
+                self.current_action = None
         elif isinstance(self.current_action, DatabaseEntry):
             # DatabaseEntry changes the database and continues to next item
             self.current_action.start()
@@ -506,18 +575,176 @@ class SweepQueue(QObject):
             self.log.info("No current sweep, nothing to resume!")
 
     def kill(self):
-        """Kills any running sweeps."""
+        """Kills the current sweep. Use kill_all() to also clear the queue."""
         if self.current_sweep is not None:
-            self.current_sweep.kill()
+            # Clear current_sweep AND current_action before kill() to prevent
+            # begin_next() from processing if kill() emits completion synchronously
+            sweep_to_kill = self.current_sweep
+            self.current_sweep = None
+            self.current_action = None  # Prevent begin_next() from processing
+            sweep_to_kill.progressState.is_queued = False
+            sweep_to_kill.kill()
         else:
             self.log.info("No current sweep, nothing to kill!")
 
+    def kill_all(self):
+        """Kills the current sweep and clears all remaining sweeps from the queue.
+
+        Also clears any error state, fully resetting the queue.
+        Note: If a DatabaseEntry or callable is currently executing, it cannot be
+        interrupted, but the queue will not continue after it completes.
+        """
+        # Save reference to sweep before clearing state
+        sweep_to_kill = self.current_sweep
+
+        # Clear all state BEFORE calling kill() to prevent race condition
+        # if kill() emits completion synchronously
+        self.current_sweep = None
+        self.current_action = None
+
+        # Clear is_queued for all remaining sweeps in the queue
+        for item in self.queue:
+            if isinstance(item, BaseSweep):
+                item.progressState.is_queued = False
+        self.queue.clear()
+
+        # Clear error state for full reset
+        self._last_error = None
+
+        # Now safe to kill - even if completion fires, queue is empty
+        if sweep_to_kill is not None:
+            sweep_to_kill.progressState.is_queued = False
+            sweep_to_kill.kill()
+
     def state(self):
-        """Get the state of the currently running sweep."""
+        """Get the state of the currently running sweep.
+
+        Returns
+        -------
+        SweepState or None
+            The state of the current sweep, or None if no sweep is running.
+            For a more comprehensive status that accounts for pending queue
+            items, use the status() method instead.
+        """
         if self.current_sweep is not None:
             return self.current_sweep.progressState.state
+        return None
+
+    def status(self):
+        """Get comprehensive status of the sweep queue.
+
+        Returns a dictionary with:
+        - effective_state: Overall queue state accounting for pending items
+          ("idle", "pending", "running", "paused", "error", "stopped")
+        - current_sweep_state: State name of the currently executing sweep (or None)
+        - queue_length: Number of items waiting in the queue
+        - current_sweep_type: Class name of current sweep (or None)
+        - current_action_type: Type of current non-sweep action (or None).
+          Returns class name for DatabaseEntry, or "callable" for function/lambda.
+          This tracks DatabaseEntry or callable execution.
+        - last_error: Structured error info if queue stopped due to error (or None).
+          Contains: message, sweep_type, exception_type (if available).
+
+        The effective_state handles race conditions between sweep completion
+        and the next sweep starting:
+        - "idle": No current action, queue is empty, no error
+        - "pending": Queue has items waiting, or an action is assigned but not running
+        - "running": Current sweep is actively running/ramping, or a DatabaseEntry/callable
+          is executing
+        - "paused": Current sweep is paused
+        - "error": Current sweep is in error state (actively erroring)
+        - "stopped": Queue stopped due to a previous error (check last_error for details).
+                     Call clear_error() and start() to resume.
+
+        Returns
+        -------
+        dict
+            Status dictionary with effective_state, current_sweep_state,
+            queue_length, current_sweep_type, current_action_type, and last_error.
+            All values are JSON-serializable (enums converted to strings, QueueError to dict).
+        """
+        queue_length = len(self.queue)
+        current_sweep_state = None
+        current_sweep_type = None
+        current_action_type = None
+
+        # Track current action type for non-sweep actions (DatabaseEntry, callable)
+        if self.current_action is not None and not isinstance(self.current_action, BaseSweep):
+            if callable(self.current_action):
+                current_action_type = "callable"
+            else:
+                current_action_type = self.current_action.__class__.__name__
+
+        # Only BaseSweep has progressState; current_sweep should always be BaseSweep
+        # but we guard defensively in case of future changes
+        if self.current_sweep is not None and isinstance(self.current_sweep, BaseSweep):
+            current_sweep_state = self.current_sweep.progressState.state
+            current_sweep_type = self.current_sweep.__class__.__name__
+
+        # Determine effective state
+        if current_sweep_state is None:
+            # No current sweep - check for non-sweep action or persisted error
+            if current_action_type is not None:
+                # DatabaseEntry or callable is executing
+                effective_state = "running"
+            elif self._last_error is not None:
+                effective_state = "stopped"
+            elif queue_length > 0:
+                effective_state = "pending"
+            else:
+                effective_state = "idle"
+        elif current_sweep_state == SweepState.ERROR:
+            effective_state = "error"
+        elif current_sweep_state == SweepState.PAUSED:
+            effective_state = "paused"
+        elif current_sweep_state in (SweepState.RUNNING, SweepState.RAMPING):
+            effective_state = "running"
+        elif current_sweep_state == SweepState.READY:
+            # Sweep assigned but not yet started
+            effective_state = "pending"
+        elif current_sweep_state == SweepState.DONE:
+            # Sweep just finished (transient state before cleanup)
+            if queue_length > 0:
+                effective_state = "pending"
+            else:
+                effective_state = "idle"
         else:
-            self.log.info("Sweep queue is not currently running")
+            # KILLED or unexpected states with a current_sweep still set
+            if queue_length > 0:
+                effective_state = "pending"
+            else:
+                effective_state = "idle"
+
+        return {
+            "effective_state": effective_state,
+            # Return state name as string for JSON serialization
+            "current_sweep_state": current_sweep_state.name if current_sweep_state else None,
+            "queue_length": queue_length,
+            "current_sweep_type": current_sweep_type,
+            "current_action_type": current_action_type,
+            # Convert QueueError to dict for JSON serialization
+            "last_error": self._last_error.to_dict() if self._last_error else None,
+        }
+
+    def clear_error(self):
+        """Clear the queue's error state and any current sweep error.
+
+        After a sweep error stops the queue, call this method to clear the error
+        before calling start() to resume processing remaining items in the queue.
+
+        This clears both:
+        - The queue-level error flag (_last_error)
+        - The current sweep's error state (if still set), resetting it to READY
+
+        After calling this method, status() will report "idle" or "pending"
+        (depending on queue contents) instead of "error" or "stopped".
+        """
+        self._last_error = None
+        # Also clear current sweep's error state if it's still in ERROR
+        if (self.current_sweep is not None and
+                isinstance(self.current_sweep, BaseSweep) and
+                self.current_sweep.progressState.state == SweepState.ERROR):
+            self.current_sweep.clear_error()
 
     @pyqtSlot()
     def begin_next(self):
@@ -544,6 +771,14 @@ class SweepQueue(QObject):
         self._processing = True
         self._pending_begin_next = False
 
+        # Guard: if queue is in error state, don't process further
+        # This prevents re-entrancy from draining the queue after an error
+        if self._last_error is not None:
+            if self.debug:
+                self.log.debug("Queue in error state, not processing further")
+            self._processing = False
+            return
+
         if self.debug:
             self.log.debug("begin_next() called, queue length: %s", len(self.queue))
             self.log.debug(
@@ -552,53 +787,87 @@ class SweepQueue(QObject):
             )
 
         try:
+            # Guard: if current_action was cleared (e.g., by kill()), skip processing
+            # This can happen if kill() triggers a completion signal synchronously
+            if self.current_action is None:
+                if self.debug:
+                    self.log.debug("current_action is None, skipping to queue processing")
+                # Fall through to process queue items below
+                pass
             # Handle completion messages for the previous action if it was a sweep
-            if isinstance(self.current_action, BaseSweep):
+            elif isinstance(self.current_action, BaseSweep):
                 # Check if sweep ended with an error
                 sweep_state = getattr(
                     self.current_action.progressState, "state", None
                 )
                 if sweep_state == SweepState.ERROR:
+                    # Use fallback if error_message is None or missing
                     error_msg = getattr(
-                        self.current_action.progressState, "error_message", "Unknown error"
-                    )
+                        self.current_action.progressState, "error_message", None
+                    ) or "Unknown error"
+                    sweep_type = self.current_action.__class__.__name__
                     self.log.error(
                         "Sweep %s ended with error: %s",
-                        self.current_action.__class__.__name__,
+                        sweep_type,
                         error_msg,
+                    )
+                    # Persist structured error at queue level (survives sweep cleanup)
+                    # Note: exception_type is only available when we catch the actual
+                    # exception (e.g., in start()). Here we only have the error message.
+                    self._last_error = QueueError(
+                        message=error_msg,
+                        sweep_type=sweep_type,
+                        exception_type=None,
                     )
                     # Clean up and stop the queue on error
                     # Guard against None in case of double completion signal
                     if self.current_sweep is not None:
+                        self.current_sweep.progressState.is_queued = False
                         self.current_sweep.kill()
                         self.current_sweep = None
+                    # Clear current_action to prevent re-processing on retry
+                    self.current_action = None
                     self.log.error("Stopping queue due to sweep error.")
                     return  # Stop processing the queue
 
-                if isinstance(self.current_action, SimulSweep):
-                    self.log.info("Finished %s", str(self.current_action))
-                elif isinstance(self.current_action, Sweep1D):
+                # Log completion messages using current_action (which is the sweep)
+                # Note: current_sweep may be None if kill() was called, so use current_action
+                sweep = self.current_action
+                if isinstance(sweep, SimulSweep):
+                    self.log.info("Finished %s", str(sweep))
+                elif isinstance(sweep, Sweep1D):
                     self.log.info(
                         "Finished sweep of %s from %s (%s) to %s (%s)",
-                        self.current_sweep.set_param.label,
-                        self.current_sweep.begin,
-                        self.current_sweep.set_param.unit,
-                        self.current_sweep.end,
-                        self.current_sweep.set_param.unit,
+                        sweep.set_param.label,
+                        sweep.begin,
+                        sweep.set_param.unit,
+                        sweep.end,
+                        sweep.set_param.unit,
                     )
-                elif isinstance(self.current_action, Sweep0D):
+                elif isinstance(sweep, Sweep0D):
                     self.log.info(
                         "Finished 0D Sweep of %s seconds.",
-                        self.current_sweep.max_time,
+                        sweep.max_time,
                     )
                 else:
-                    self.log.info(
-                        "Finished %s", self.current_action.__class__.__name__
-                    )
+                    self.log.info("Finished %s", sweep.__class__.__name__)
 
                 # Clean up the sweep
-                self.current_sweep.kill()
+                sweep.progressState.is_queued = False
+                sweep.kill()
                 self.current_sweep = None
+                self.current_action = None
+
+            else:
+                # Handle completion of callable or DatabaseEntry
+                # Just clear current_action so status() reports correctly
+                if self.debug:
+                    self.log.debug(
+                        "Finished callable/DatabaseEntry: %s",
+                        type(self.current_action).__name__
+                        if self.current_action else "None",
+                    )
+                self.current_action = None
 
             # Process queue items in a loop (no recursion)
             while self.queue:
@@ -650,7 +919,22 @@ class SweepQueue(QObject):
 
                     time.sleep(self.inter_delay)
                     self.newSweepSignal.emit(self.current_sweep)
-                    self.current_sweep.start()
+                    try:
+                        self.current_sweep.start()
+                        # Clear previous error on successful start
+                        self._last_error = None
+                    except Exception as e:
+                        # If start() raises, record the error and clean up
+                        self.log.error("Failed to start sweep: %s", e)
+                        self._last_error = QueueError(
+                            message=str(e),
+                            sweep_type=self.current_sweep.__class__.__name__,
+                            exception_type=type(e).__name__,
+                        )
+                        self.current_sweep.progressState.is_queued = False
+                        self.current_sweep = None
+                        self.current_action = None
+                        break  # Exit loop - queue is stopped due to error
                     break  # Exit loop - sweep will call begin_next when done
 
                 elif isinstance(self.current_action, DatabaseEntry):
@@ -661,9 +945,12 @@ class SweepQueue(QObject):
                     # Continue loop to process next item immediately
 
                 elif callable(self.current_action):
-                    # Execute callable
+                    # Execute callable synchronously
                     self._exec_in_kernel(self.current_action)
-                    break  # Exit loop - callable will call begin_next when done
+                    # Check if callable raised an error
+                    if self._last_error is not None:
+                        break  # Exit loop - queue stopped due to error
+                    # Continue loop to process next item immediately
 
                 else:
                     self.log.error(
