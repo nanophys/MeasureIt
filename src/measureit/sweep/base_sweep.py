@@ -42,7 +42,8 @@ class BaseSweep(QObject):
     set_param:
         QCoDeS Parameter to be swept, defaults to None for 0D sweep.
     inter_delay:
-        Time (in seconds) to wait between data points.
+        Time (in seconds) to wait between data points. Must be >= 0.01s.
+        Default: 0.1s
     save_data:
         Flag used to determine if the data should be saved or not.
     plot_data:
@@ -149,7 +150,8 @@ class BaseSweep(QObject):
         set_param:
             QCoDeS Parameter to be swept, defaults to None for 0D sweep.
         inter_delay:
-            Time (in seconds) to wait between data points.
+            Time (in seconds) to wait between data points. Must be >= 0.01s.
+            Default: 0.1s
         save_data:
             Flag used to determine if the data should be saved or not.
         plot_data:
