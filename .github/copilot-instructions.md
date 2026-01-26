@@ -5,7 +5,7 @@
 MeasureIt (installed as `qmeasure`, imported as `measureit`) is a measurement software package built on top of QCoDeS for condensed matter physics experiments at the University of Washington. It provides sweep-based measurement capabilities with real-time Qt-based plotting and threading.
 
 ### Key Technologies
-- **Language**: Python 3.8+ (primary support for 3.11-3.13)
+- **Language**: Python 3.8+ (officially tested on 3.8-3.11)
 - **Core Framework**: QCoDeS for instrument control and data management
 - **GUI**: PyQt5 with pyqtgraph for real-time plotting
 - **Threading**: Qt-based threading (RunnerThread, PlotterThread)
@@ -40,13 +40,13 @@ MeasureIt (installed as `qmeasure`, imported as `measureit`) is a measurement so
 ### Package Structure
 ```
 src/measureit/
-    sweep/             # Measurement implementations
-    base_sweep.py      # Core sweep functionality  
-    sweep_queue.py     # Batch execution
+    sweep/             # Measurement implementations (sweep0d, sweep1d, sweep2d, base_sweep)
+    tools/             # Utilities (sweep_queue, util, safe_ramp, tracking)
     Drivers/           # Instrument drivers
-    GUI/               # PyQt5 interface components
-    tools/             # Data utilities and helpers
-    util.py            # Utility functions
+    visualization/     # Plotting components (heatmap_thread, helper)
+    legacy/            # Legacy matplotlib-based plotters
+    config.py          # Configuration management
+    logging_utils.py   # Logging utilities
 ```
 
 ## Development Environment
