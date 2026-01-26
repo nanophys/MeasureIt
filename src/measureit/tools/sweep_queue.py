@@ -209,12 +209,10 @@ class SweepQueue(QObject):
         Note: The caller (begin_next while loop) will continue processing
         after this returns. We don't need to call begin_next() ourselves.
         """
-        import traceback
-
         try:
             fn()
         except Exception as e:
-            traceback.print_exc()
+            self.log.error("Callable raised: %s", e, exc_info=True)
             # Set error state so queue stops
             self._last_error = QueueError(
                 message=f"Callable raised: {e}",
@@ -223,6 +221,15 @@ class SweepQueue(QObject):
             )
         # Clear current_action so status() reports correctly
         self.current_action = None
+
+    def _record_action_error(self, action_type: str, exc: Exception) -> None:
+        """Record a queue-level error and log it."""
+        self.log.error("%s error: %s", action_type, exc, exc_info=True)
+        self._last_error = QueueError(
+            message=f"{action_type} error: {exc}",
+            sweep_type=action_type,
+            exception_type=type(exc).__name__,
+        )
 
     def _attach_queue_metadata_provider(self, sweep: BaseSweep):
         """Attach a metadata provider wrapper so datasets record they were launched by SweepQueue.
@@ -540,7 +547,12 @@ class SweepQueue(QObject):
                 self.current_action = None
         elif isinstance(self.current_action, DatabaseEntry):
             # DatabaseEntry changes the database and continues to next item
-            self.current_action.start()
+            try:
+                self.current_action.start()
+            except Exception as e:
+                self._record_action_error("DatabaseEntry", e)
+                self.current_action = None
+                return
             # Continue with the next item in the queue
             self.begin_next()
         elif callable(self.current_action):
@@ -718,6 +730,19 @@ class SweepQueue(QObject):
             else:
                 effective_state = "idle"
 
+        # Provide error details even while a sweep is actively in ERROR
+        if self._last_error is not None:
+            last_error_payload = self._last_error.to_dict()
+        elif current_sweep_state == SweepState.ERROR and self.current_sweep is not None:
+            error_msg = getattr(self.current_sweep.progressState, "error_message", None)
+            last_error_payload = QueueError(
+                message=error_msg or "Unknown error",
+                sweep_type=self.current_sweep.__class__.__name__,
+                exception_type=None,
+            ).to_dict()
+        else:
+            last_error_payload = None
+
         return {
             "effective_state": effective_state,
             # Return state name as string for JSON serialization
@@ -726,7 +751,7 @@ class SweepQueue(QObject):
             "current_sweep_type": current_sweep_type,
             "current_action_type": current_action_type,
             # Convert QueueError to dict for JSON serialization
-            "last_error": self._last_error.to_dict() if self._last_error else None,
+            "last_error": last_error_payload,
         }
 
     def clear_error(self):
@@ -944,7 +969,12 @@ class SweepQueue(QObject):
                     # Process DatabaseEntry synchronously
                     self.log.info(str(self.current_action))
                     time.sleep(0.5)  # Small delay before database operation
-                    self.current_action.start()
+                    try:
+                        self.current_action.start()
+                    except Exception as e:
+                        self._record_action_error("DatabaseEntry", e)
+                        self.current_action = None
+                        break  # Exit loop - queue stopped due to error
                     # Continue loop to process next item immediately
 
                 elif callable(self.current_action):
