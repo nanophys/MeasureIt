@@ -359,7 +359,8 @@ class Heatmap(QObject):
             self._ensure_surface(self.sweep.heatmap_ind)
             self.heatmap_data = self.param_surfaces[self.sweep.heatmap_ind]["data"]
             # Set up the initial image with proper scaling
-            self.image_item.setImage(self.heatmap_data)
+            # Transpose: our data is [outer, inner] but PyQtGraph uses [x, y] order
+            self.image_item.setImage(self.heatmap_data.T)
 
             # Set the coordinate transformation for proper axis scaling
             # Use setRect as the primary method (more reliable than transform)
@@ -546,7 +547,8 @@ class Heatmap(QObject):
             current_idx = getattr(self.sweep, "heatmap_ind", 0)
             self._ensure_surface(current_idx)
             self.heatmap_data = self.param_surfaces[current_idx]["data"]
-            self.image_item.setImage(self.heatmap_data)
+            # Transpose: our data is [outer, inner] but PyQtGraph uses [x, y] order
+            self.image_item.setImage(self.heatmap_data.T)
 
             # Set color levels: auto or leave to user via histogram LUT
             if self._auto_levels_enabled:
@@ -667,7 +669,8 @@ class Heatmap(QObject):
             # Refresh the image to show the newly selected surface
             view_box = self.plot_item.getViewBox()
             view_range = view_box.viewRange()
-            self.image_item.setImage(self.heatmap_data)
+            # Transpose: our data is [outer, inner] but PyQtGraph uses [x, y] order
+            self.image_item.setImage(self.heatmap_data.T)
 
             # Re-apply coordinate transformation after setImage (critical for correct axis scaling)
             try:
