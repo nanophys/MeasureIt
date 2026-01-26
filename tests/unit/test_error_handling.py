@@ -707,6 +707,7 @@ class TestM4GErrorHandling:
         mock_m4g_param.label = "field"
         mock_m4g_param.unit = "T"
         mock_m4g_param.full_name = "m4g_field"
+        mock_m4g_param.vals = None  # Skip validation
 
         # Create an M4G mock instrument
         from measureit.Drivers.M4G import M4G
@@ -754,6 +755,7 @@ class TestM4GErrorHandling:
         mock_m4g_param.label = "field"
         mock_m4g_param.unit = "T"
         mock_m4g_param.full_name = "m4g_field"
+        mock_m4g_param.vals = None  # Skip validation
 
         # Create an M4G mock instrument
         from measureit.Drivers.M4G import M4G

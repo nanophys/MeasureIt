@@ -9,6 +9,8 @@ from PyQt5.QtCore import QObject, pyqtSlot
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
 
+from ..logging_utils import get_sweep_logger
+
 # Configure PyQtGraph for better performance
 pg.setConfigOptions(
     antialias=False,  # Disable antialiasing for better performance
@@ -82,6 +84,7 @@ class Plotter(QObject):  # moved to _internal
         self.last_pass = False
         self.figs_set = False
         self.kill_flag = False
+        self.logger = getattr(sweep, "logger", None) or get_sweep_logger("plotter")
 
         # PyQtGraph-specific attributes
         self.widget = None
@@ -284,7 +287,11 @@ class Plotter(QObject):  # moved to _internal
         self.widget.closeEvent = self.handle_close
 
         # Show the widget
-        self.widget.show()
+        try:
+            self.widget.show()
+        except Exception as e:
+            self._disable_plotting(f"Plotter widget failed to show: {e}")
+            return
 
     @pyqtSlot(object, int)
     def add_data(self, data, direction):
@@ -297,11 +304,16 @@ class Plotter(QObject):  # moved to _internal
         direction:
             The direction of the sweep (0 or 1).
         """
-        self.data_queue.append((data, direction))
+        if self.kill_flag:
+            return
+        try:
+            self.data_queue.append((data, direction))
 
-        # Only update plots when we have enough data points or it's been a while
-        # This prevents excessive update calls that slow down the plotting
-        self.update_plots(force=data is None)
+            # Only update plots when we have enough data points or it's been a while
+            # This prevents excessive update calls that slow down the plotting
+            self.update_plots(force=data is None)
+        except Exception as e:
+            self._disable_plotting(f"Plotter add_data failed: {e}")
 
     @pyqtSlot(bool)
     def update_plots(self, force=False):
@@ -313,79 +325,83 @@ class Plotter(QObject):  # moved to _internal
         force:
             If True, process all queued data immediately.
         """
-        if not self.figs_set:
+        if not self.figs_set or self.kill_flag:
             return
+        try:
+            # Check if we should update - either we have enough data or force is True
+            if len(self.data_queue) < self.plot_bin and not force:
+                return
 
-        # Check if we should update - either we have enough data or force is True
-        if len(self.data_queue) < self.plot_bin and not force:
-            return
+            # Process all queued data at once for better performance
+            while len(self.data_queue) > 0:
+                temp = self.data_queue.popleft()
+                if temp[0] is None:
+                    break
+                data = deque(temp[0])
+                direction = temp[1]
 
-        # Process all queued data at once for better performance
-        while len(self.data_queue) > 0:
-            temp = self.data_queue.popleft()
-            if temp[0] is None:
-                break
-            data = deque(temp[0])
-            direction = temp[1]
+                # Get time data
+                time_data = data.popleft()
 
-            # Get time data
-            time_data = data.popleft()
+                # Handle set parameter plot
+                set_param_data = None
+                if self.sweep.set_param is not None:
+                    set_param_data = data.popleft()
 
-            # Handle set parameter plot
-            set_param_data = None
-            if self.sweep.set_param is not None:
-                set_param_data = data.popleft()
+                    # Add to set parameter data arrays
+                    # Ensure scalars by flattening any arrays
+                    time_val = time_data[1]
+                    if hasattr(time_val, "flatten"):
+                        time_val = float(np.array(time_val).flatten()[0])
 
-                # Add to set parameter data arrays
-                # Ensure scalars by flattening any arrays
-                time_val = time_data[1]
-                if hasattr(time_val, "flatten"):
-                    time_val = float(np.array(time_val).flatten()[0])
+                    set_val = set_param_data[1]
+                    if hasattr(set_val, "flatten"):
+                        set_val = float(np.array(set_val).flatten()[0])
 
-                set_val = set_param_data[1]
-                if hasattr(set_val, "flatten"):
-                    set_val = float(np.array(set_val).flatten()[0])
+                    self.set_data_arrays["x"].append(time_val)
+                    self.set_data_arrays["y"].append(set_val)
 
-                self.set_data_arrays["x"].append(time_val)
-                self.set_data_arrays["y"].append(set_val)
-
-            # Determine x-axis data for followed parameters
-            x_data_value = (
-                time_data[1]
-                if self.sweep.x_axis == 1
-                else (
-                    set_param_data[1]
-                    if self.sweep.set_param is not None
-                    else time_data[1]
+                # Determine x-axis data for followed parameters
+                x_data_value = (
+                    time_data[1]
+                    if self.sweep.x_axis == 1
+                    else (
+                        set_param_data[1]
+                        if self.sweep.set_param is not None
+                        else time_data[1]
+                    )
                 )
-            )
-            # Ensure x_data_value is scalar
-            if hasattr(x_data_value, "flatten"):
-                x_data_value = float(np.array(x_data_value).flatten()[0])
+                # Ensure x_data_value is scalar
+                if hasattr(x_data_value, "flatten"):
+                    x_data_value = float(np.array(x_data_value).flatten()[0])
 
-            # Add data to arrays for followed parameters
-            for i, data_pair in enumerate(data):
-                param = self.sweep._params[i]
+                # Add data to arrays for followed parameters
+                for i, data_pair in enumerate(data):
+                    param = self.sweep._params[i]
 
-                if param in self.data_arrays:
-                    direction_key = "forward" if direction == 0 else "backward"
+                    if param in self.data_arrays:
+                        direction_key = "forward" if direction == 0 else "backward"
 
-                    # Ensure y_data is scalar
-                    y_value = data_pair[1]
-                    if hasattr(y_value, "flatten"):
-                        y_value = float(np.array(y_value).flatten()[0])
+                        # Ensure y_data is scalar
+                        y_value = data_pair[1]
+                        if hasattr(y_value, "flatten"):
+                            y_value = float(np.array(y_value).flatten()[0])
 
-                    self.data_arrays[param][direction_key]["x"].append(x_data_value)
-                    self.data_arrays[param][direction_key]["y"].append(y_value)
+                        self.data_arrays[param][direction_key]["x"].append(x_data_value)
+                        self.data_arrays[param][direction_key]["y"].append(y_value)
 
-        # Now update all plots at once (much more efficient)
-        self._update_plot_displays()
-        self.update_progress_widgets()
+            # Now update all plots at once (much more efficient)
+            self._update_plot_displays()
+            self.update_progress_widgets()
+        except Exception as e:
+            self._disable_plotting(f"Plotter update_plots failed: {e}")
 
     def _update_plot_displays(self):
         """Efficiently updates all plot displays using stored data arrays.
         Optimized for large datasets - converts to numpy arrays efficiently.
         """
+        if self.kill_flag:
+            return
         # Update set parameter plot
         if self.sweep.set_param is not None and self.set_plot_item is not None:
             if self.set_data_arrays["x"] and self.set_data_arrays["y"]:
@@ -496,6 +512,23 @@ class Plotter(QObject):  # moved to _internal
                     "backward": (backward_x, backward_y),
                 }
         return None
+
+    def _disable_plotting(self, reason: str):
+        """Disable plotting after an exception and log the error."""
+        try:
+            self.logger.error(reason, exc_info=True)
+        except Exception:
+            pass
+        self.kill_flag = True
+        try:
+            self.sweep.plot_data = False
+        except Exception:
+            pass
+        try:
+            if self.figs_set:
+                self.clear()
+        except Exception:
+            pass
 
     @pyqtSlot()
     def run(self):

@@ -18,6 +18,8 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from ..logging_utils import get_sweep_logger
+
 # Configure PyQtGraph for better performance
 pg.setConfigOptions(
     antialias=False,  # Disable antialiasing for better performance
@@ -125,6 +127,8 @@ class Heatmap(QObject):
         self._auto_levels_enabled = True
         self.param_box = None
         self._param_indices = []  # Map combobox rows to in_sweep._params indices
+        self.logger = getattr(sweep, "logger", None) or get_sweep_logger("heatmap")
+        self._disabled = False
 
     def handle_close(self, event):
         """Handle widget close event."""
@@ -412,10 +416,7 @@ class Heatmap(QObject):
             self._update_progress_widgets()
 
         except Exception as e:
-            print(f"Error creating heatmap figures: {e}")
-            import traceback
-
-            traceback.print_exc()
+            self._disable_plotting(f"Error creating heatmap figures: {e}")
             self.figs_set = False
 
     @pyqtSlot(object)
@@ -429,6 +430,8 @@ class Heatmap(QObject):
             from the plotter thread.
         """
         try:
+            if self._disabled:
+                return
             if data_dict is None:
                 self.data_to_add.append(None)
             else:
@@ -440,10 +443,7 @@ class Heatmap(QObject):
                     data_dict["out_value"] = getattr(self.sweep, "out_setpoint", None)
                 self.data_to_add.append(data_dict)
         except Exception as e:
-            print(f"Error in heatmap add_data: {e}")
-            import traceback
-
-            traceback.print_exc()
+            self._disable_plotting(f"Error in heatmap add_data: {e}")
 
     def add_to_heatmap(self, data_dict):
         """Processes data dictionary for one complete inner sweep and updates heatmap data.
@@ -522,70 +522,73 @@ class Heatmap(QObject):
 
     def update_heatmap(self):
         """Updates the heatmap with new data from the queue using batch processing."""
-        if not self.figs_set:
+        if not self.figs_set or self._disabled:
             return
 
-        # Process limited batch of data to prevent UI blocking
-        items_processed = 0
-        while len(self.data_to_add) > 0 and items_processed < self.max_items_per_update:
-            data_dict = self.data_to_add.popleft()
-            if data_dict is None:
-                break
-            self.add_to_heatmap(data_dict)
-            items_processed += 1
-            self.needs_refresh = True
+        try:
+            # Process limited batch of data to prevent UI blocking
+            items_processed = 0
+            while len(self.data_to_add) > 0 and items_processed < self.max_items_per_update:
+                data_dict = self.data_to_add.popleft()
+                if data_dict is None:
+                    break
+                self.add_to_heatmap(data_dict)
+                items_processed += 1
+                self.needs_refresh = True
 
-        self._update_progress_widgets()
-        # Update display with proper scaling while preserving view
-        if self.image_item is not None and (self.needs_refresh or items_processed > 0):
-            # Remember current view state
-            view_box = self.plot_item.getViewBox()
-            view_range = view_box.viewRange()
+            self._update_progress_widgets()
+            # Update display with proper scaling while preserving view
+            if self.image_item is not None and (self.needs_refresh or items_processed > 0):
+                # Remember current view state
+                view_box = self.plot_item.getViewBox()
+                view_range = view_box.viewRange()
 
-            # Update the image data
-            # Ensure our current display surface points to the selected param
-            current_idx = getattr(self.sweep, "heatmap_ind", 0)
-            self._ensure_surface(current_idx)
-            self.heatmap_data = self.param_surfaces[current_idx]["data"]
-            # Transpose: our data is [outer, inner] but PyQtGraph uses [x, y] order
-            self.image_item.setImage(self.heatmap_data.T)
+                # Update the image data
+                # Ensure our current display surface points to the selected param
+                current_idx = getattr(self.sweep, "heatmap_ind", 0)
+                self._ensure_surface(current_idx)
+                self.heatmap_data = self.param_surfaces[current_idx]["data"]
+                # Transpose: our data is [outer, inner] but PyQtGraph uses [x, y] order
+                self.image_item.setImage(self.heatmap_data.T)
 
-            # Set color levels: auto or leave to user via histogram LUT
-            if self._auto_levels_enabled:
-                try:
-                    # Robust percentiles if data available; fallback to min/max trackers
-                    finite = self.heatmap_data[np.isfinite(self.heatmap_data)]
-                    if finite.size > 0:
-                        lo, hi = np.nanpercentile(finite, [1, 99])
-                        if hi > lo:
-                            if self.hist_item is not None:
-                                self.hist_item.setLevels(lo, hi)
+                # Set color levels: auto or leave to user via histogram LUT
+                if self._auto_levels_enabled:
+                    try:
+                        # Robust percentiles if data available; fallback to min/max trackers
+                        finite = self.heatmap_data[np.isfinite(self.heatmap_data)]
+                        if finite.size > 0:
+                            lo, hi = np.nanpercentile(finite, [1, 99])
+                            if hi > lo:
+                                if self.hist_item is not None:
+                                    self.hist_item.setLevels(lo, hi)
+                                else:
+                                    self.image_item.setLevels([lo, hi])
                             else:
-                                self.image_item.setLevels([lo, hi])
+                                stats = self.param_surfaces[current_idx]
+                                if self.hist_item is not None:
+                                    self.hist_item.setLevels(stats["min"], stats["max"])
+                                else:
+                                    self.image_item.setLevels([stats["min"], stats["max"]])
                         else:
                             stats = self.param_surfaces[current_idx]
                             if self.hist_item is not None:
                                 self.hist_item.setLevels(stats["min"], stats["max"])
                             else:
                                 self.image_item.setLevels([stats["min"], stats["max"]])
-                    else:
+                    except Exception:
+                        # Last resort: use tracked min/max
                         stats = self.param_surfaces[current_idx]
                         if self.hist_item is not None:
                             self.hist_item.setLevels(stats["min"], stats["max"])
                         else:
                             self.image_item.setLevels([stats["min"], stats["max"]])
-                except Exception:
-                    # Last resort: use tracked min/max
-                    stats = self.param_surfaces[current_idx]
-                    if self.hist_item is not None:
-                        self.hist_item.setLevels(stats["min"], stats["max"])
-                    else:
-                        self.image_item.setLevels([stats["min"], stats["max"]])
 
-            # Restore view range to preserve user zoom/pan
-            view_box.setRange(xRange=view_range[0], yRange=view_range[1], padding=0)
+                # Restore view range to preserve user zoom/pan
+                view_box.setRange(xRange=view_range[0], yRange=view_range[1], padding=0)
 
-            self.needs_refresh = False
+                self.needs_refresh = False
+        except Exception as e:
+            self._disable_plotting(f"Error updating heatmap: {e}")
 
     def _rebuild_param_box(self):
         """Populate the parameter selector with followed measurement parameters."""
@@ -829,6 +832,22 @@ class Heatmap(QObject):
         try:
             if self.plot_item is not None:
                 self.plot_item.enableAutoRange(x=True, y=True)
+        except Exception:
+            pass
+
+    def _disable_plotting(self, reason: str):
+        """Disable heatmap plotting after an exception and log the error."""
+        try:
+            self.logger.error(reason, exc_info=True)
+        except Exception:
+            pass
+        self._disabled = True
+        try:
+            self.sweep.plot_data = False
+        except Exception:
+            pass
+        try:
+            self.clear()
         except Exception:
             pass
 

@@ -120,6 +120,32 @@ class RunnerThread(QThread):
         self.plotter = plotter
         self.send_data.connect(self.plotter.add_data)
 
+    def _run_step(self) -> bool:
+        """Run a single sweep step; return False when the loop should exit."""
+        t = time.monotonic()
+        state = getattr(self.sweep.progressState, "state", None)
+
+        if state == SweepState.RUNNING:
+            data = self.sweep.update_values()
+            self.sweep.update_progress()
+
+            if self.plotter is not None and self.sweep.plot_data is True:
+                self.send_data.emit(data, self.sweep.direction)
+
+        # Smart sleep: compensate for time spent executing update
+        sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
+        if sleep_time > 0:
+            time.sleep(sleep_time)
+
+        # Refresh state after possible updates
+        state = getattr(self.sweep.progressState, "state", None)
+        if state in (SweepState.DONE, SweepState.KILLED, SweepState.ERROR):
+            if self.sweep.save_data is True and self.datasaver is not None:
+                self.datasaver.flush_data_to_database()
+            return False
+
+        return True
+
     def _set_parent(self, sweep):
         """Sets a parent sweep if the Runner Thread is created independently.
 
@@ -197,14 +223,10 @@ class RunnerThread(QThread):
                 return  # Exit run() early - no point entering the main loop
 
         # print(f"called runner from thread: {QThread.currentThreadId()}")
-        while True:
-            t = time.monotonic()
-            state = getattr(self.sweep.progressState, "state", None)
-
-            data = None
-            if state == SweepState.RUNNING:
+        try:
+            while True:
                 try:
-                    data = self.sweep.update_values()
+                    should_continue = self._run_step()
                 except ParameterException as e:
                     # safe_set already retried once and gave up - immediately transition to ERROR
                     # This prevents the sweep from continuing to the next setpoint with bad data
@@ -212,34 +234,31 @@ class RunnerThread(QThread):
                     # to avoid blocking the main event loop
                     self.sweep.mark_error(
                         f"Parameter operation failed: {e}",
-                        _from_runner=True
+                        _from_runner=True,
                     )
                     break  # Exit loop immediately to avoid race conditions
-                self.sweep.update_progress()
-
-                if (
-                    self.plotter is not None
-                    and self.sweep.plot_data is True
-                ):
-                    self.send_data.emit(data, self.sweep.direction)
-
-            # Smart sleep: compensate for time spent executing update
-            sleep_time = self.sweep.inter_delay - (time.monotonic() - t)
-
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-
-            # Refresh state after possible updates
-            state = getattr(self.sweep.progressState, "state", None)
-            if state in (SweepState.DONE, SweepState.KILLED, SweepState.ERROR):
-                if self.sweep.save_data is True and self.datasaver is not None:
-                    self.datasaver.flush_data_to_database()
-                if state in (SweepState.KILLED, SweepState.ERROR):
+                except (KeyboardInterrupt, SystemExit):
+                    raise
+                except Exception as e:
+                    # Catch-all: ensure unexpected exceptions mark the sweep as ERROR
+                    logger.error(
+                        "Unhandled exception in runner thread: %s\n%s",
+                        e,
+                        traceback.format_exc(),
+                    )
+                    try:
+                        self.sweep.mark_error(
+                            f"Unhandled runner error: {e}",
+                            _from_runner=True,
+                        )
+                    except Exception:
+                        pass
                     break
-                # Allow DONE sweeps to exit after flushing
-                break
 
-        self.exit_datasaver()
+                if not should_continue:
+                    break
+        finally:
+            self.exit_datasaver()
 
         # Emit completed signal for ERROR state after loop exits
         # This is deferred to avoid blocking the main event loop during exception handling
@@ -249,8 +268,14 @@ class RunnerThread(QThread):
 
     def exit_datasaver(self):
         if self.datasaver is not None:
-            if self.sweep.save_data is True:
-                self.datasaver.flush_data_to_database()
-
-            self.runner.__exit__(None, None, None)
+            try:
+                if self.sweep.save_data is True:
+                    self.datasaver.flush_data_to_database()
+            except Exception:
+                logger.error("Failed to flush datasaver:\n%s", traceback.format_exc())
+            try:
+                if self.runner is not None:
+                    self.runner.__exit__(None, None, None)
+            except Exception:
+                logger.error("Failed to close datasaver:\n%s", traceback.format_exc())
             self.datasaver = None
