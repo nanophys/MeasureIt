@@ -68,6 +68,22 @@ Sweep Logging
   The helper marshals log messages from background Qt threads back onto the
   IPython event loop so they show up alongside your notebook output.
 
+Sweep Concurrency
+-----------------
+
+- Only one non-queued sweep may run at a time. Calling ``start()`` on a new
+  sweep while another is running raises ``RuntimeError``.
+- Resuming a paused sweep while another is running also raises ``RuntimeError``.
+- Sweeps launched by :class:`~measureit.tools.sweep_queue.SweepQueue` bypass
+  this guard (``is_queued=True``).
+- Internal sweeps (inner sweeps and ramp sweeps) are allowed via the parent
+  relationship between sweeps.
+- To force-start a sweep (killing unrelated active sweeps first), use
+  ``start_force()``.
+- For debugging or recovery (e.g., you lost a Python reference), use
+  ``BaseSweep.list_active_sweeps()`` to inspect running/paused sweeps and
+  regain access to them.
+
 Example notebooks
 -----------------
 

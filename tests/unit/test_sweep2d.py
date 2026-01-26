@@ -262,7 +262,7 @@ class TestSweep2DIntegration:
         sweep = Sweep2D(
             in_params,
             out_params,
-            outer_delay=0.01,
+            outer_delay=0.1,  # Minimum required outer_delay
             **fast_sweep_kwargs,
         )
         sweep.follow_param(mock_parameters["current"])

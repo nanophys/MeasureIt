@@ -123,7 +123,7 @@ def test_sweep2d_outer_set_error_during_update(qapp, dummy_instrument, failing_o
         in_params=[inner_param, 0, 1, 0.5],
         out_params=[outer_param, 0, 2, 1],
         inter_delay=0.01,
-        outer_delay=0.01,
+        outer_delay=0.1,
         save_data=False,
         plot_data=False,
     )
@@ -218,7 +218,7 @@ def test_sweep2d_outer_set_error_at_start(qapp, dummy_instrument):
         in_params=[inner_param, 0, 1, 0.5],
         out_params=[failing_param, 0, 2, 1],
         inter_delay=0.01,
-        outer_delay=0.01,
+        outer_delay=0.1,
         save_data=False,
         plot_data=False,
     )
@@ -295,7 +295,7 @@ def test_sweep2d_outer_set_error_in_ramp_to_shortcut(qapp, dummy_instrument):
         in_params=[inner_param, 0, 1, 0.5],
         out_params=[failing_param, 0, 2, 1],  # out_step=1
         inter_delay=0.01,
-        outer_delay=0.01,
+        outer_delay=0.1,
         err=[0.1, 0.01],  # Large err to trigger shortcut path
         save_data=False,
         plot_data=False,
@@ -351,7 +351,7 @@ if __name__ == "__main__":
         in_params=[instr.voltage, 0, 1, 0.5],
         out_params=[failing_param, 0, 2, 1],
         inter_delay=0.01,
-        outer_delay=0.01,
+        outer_delay=0.1,
         save_data=False,
         plot_data=False,
     )
@@ -389,7 +389,7 @@ if __name__ == "__main__":
         in_params=[instr.voltage, 0, 0.1, 0.1],  # Very short inner sweep
         out_params=[failing_param2, 0, 2, 1],
         inter_delay=0.01,
-        outer_delay=0.01,
+        outer_delay=0.1,
         save_data=False,
         plot_data=False,
     )
@@ -438,7 +438,7 @@ if __name__ == "__main__":
         in_params=[instr.voltage, 0, 0.1, 0.1],
         out_params=[failing_param3, 0, 2, 1],
         inter_delay=0.01,
-        outer_delay=0.01,
+        outer_delay=0.1,
         err=[0.1, 0.01],  # Large err to trigger shortcut
         save_data=False,
         plot_data=False,

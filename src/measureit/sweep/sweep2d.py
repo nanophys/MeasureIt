@@ -673,6 +673,7 @@ class Sweep2D(BaseSweep, QObject):
             save_data=False,
             plot_data=True,
         )
+        self.ramp_sweep.parent = self
         for p in self._params:
             if p is not self.set_param:
                 self.ramp_sweep.follow_param(p)
@@ -705,6 +706,7 @@ class Sweep2D(BaseSweep, QObject):
             inter_delay=self.inter_delay,
             complete_func=self.done_ramping,
         )
+        self.ramp_sweep.parent = self
         self.ramp_sweep.follow_param(self._params)
         self.progressState.state = SweepState.RAMPING
         self.outer_ramp = True

@@ -5,6 +5,7 @@ import math
 import time
 import threading
 import warnings
+import weakref
 from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from functools import partial
 from typing import Optional, Tuple
@@ -19,6 +20,72 @@ from .._internal.runner_thread import RunnerThread
 from ..logging_utils import get_sweep_logger
 from ..tools.util import _autorange_srs, is_numeric_parameter, safe_get, safe_set
 from .progress import ProgressState, SweepState
+
+_ACTIVE_SWEEPS = weakref.WeakSet()
+_ACTIVE_SWEEPS_LOCK = threading.Lock()
+
+
+def _register_active_sweep(sweep: "BaseSweep") -> None:
+    with _ACTIVE_SWEEPS_LOCK:
+        _ACTIVE_SWEEPS.add(sweep)
+
+
+def _deregister_active_sweep(sweep: "BaseSweep") -> None:
+    with _ACTIVE_SWEEPS_LOCK:
+        _ACTIVE_SWEEPS.discard(sweep)
+
+
+def _iter_parent_chain(sweep: "BaseSweep"):
+    seen = set()
+    current = getattr(sweep, "parent", None)
+    while current is not None and current not in seen:
+        yield current
+        seen.add(current)
+        current = getattr(current, "parent", None)
+
+
+def _is_related_sweep(a: "BaseSweep", b: "BaseSweep") -> bool:
+    if a is b:
+        return True
+    for parent in _iter_parent_chain(a):
+        if parent is b:
+            return True
+    for parent in _iter_parent_chain(b):
+        if parent is a:
+            return True
+    return False
+
+
+def _has_other_active_sweep(sweep: "BaseSweep") -> bool:
+    with _ACTIVE_SWEEPS_LOCK:
+        active = list(_ACTIVE_SWEEPS)
+    for other in active:
+        if other is sweep:
+            continue
+        state = getattr(getattr(other, "progressState", None), "state", None)
+        if state in (SweepState.RUNNING, SweepState.RAMPING):
+            if _is_related_sweep(sweep, other):
+                continue
+            return True
+    return False
+
+
+def _kill_other_active_sweeps(sweep: "BaseSweep") -> int:
+    """Kill all unrelated active sweeps and return how many were killed."""
+    with _ACTIVE_SWEEPS_LOCK:
+        active = list(_ACTIVE_SWEEPS)
+    killed = 0
+    for other in active:
+        if other is sweep:
+            continue
+        if _is_related_sweep(sweep, other):
+            continue
+        try:
+            other.kill()
+            killed += 1
+        except Exception:
+            pass
+    return killed
 
 
 class BaseSweep(QObject):
@@ -376,6 +443,7 @@ class BaseSweep(QObject):
         self._mark_done_deferred = False
         self._run_started_at = now
         self.progressState.state = SweepState.RUNNING
+        _register_active_sweep(self)
         return now
 
     def pause(self):
@@ -388,6 +456,15 @@ class BaseSweep(QObject):
             self._add_runtime_since_last_resume()
         self.progressState.state = SweepState.PAUSED
         self.send_updates()
+        # If this is an inner/child sweep, pause the parent as well to keep states consistent
+        parent = getattr(self, "parent", None)
+        if parent is not None and parent is not self:
+            try:
+                parent_state = getattr(getattr(parent, "progressState", None), "state", None)
+                if parent_state in (SweepState.RUNNING, SweepState.RAMPING):
+                    parent.pause()
+            except Exception:
+                pass
 
     def stop(self):
         """Stop/pause the sweep. Alias for pause() for backward compatibility.
@@ -411,6 +488,7 @@ class BaseSweep(QObject):
         # ERROR state transitions to KILLED since user explicitly called kill()
         if progress_state is not None and progress_state.state not in (SweepState.DONE, SweepState.KILLED):
             self.progressState.state = SweepState.KILLED
+        _deregister_active_sweep(self)
         if hasattr(self, "_error_completion_pending"):
             self._error_completion_pending = False  # Clear to prevent stale flag
 
@@ -454,6 +532,29 @@ class BaseSweep(QObject):
         """Returns the status of the sweep."""
         return self.progressState.state in (SweepState.RUNNING, SweepState.RAMPING)
 
+    def start_force(self, *args, **kwargs):
+        """Kill other unrelated active sweeps, then start this sweep."""
+        if not self.progressState.is_queued:
+            _kill_other_active_sweeps(self)
+        return self.start(*args, **kwargs)
+
+    @staticmethod
+    def list_active_sweeps():
+        """Return a snapshot of active sweeps for debugging."""
+        with _ACTIVE_SWEEPS_LOCK:
+            active = list(_ACTIVE_SWEEPS)
+        info = []
+        for sweep in active:
+            state = getattr(getattr(sweep, "progressState", None), "state", None)
+            info.append(
+                {
+                    "type": sweep.__class__.__name__,
+                    "state": state.name if state is not None else None,
+                    "sweep": sweep,
+                }
+            )
+        return info
+
     def start(self, persist_data=None, ramp_to_start=False):
         """Starts the sweep by creating and running the worker threads.
 
@@ -465,6 +566,10 @@ class BaseSweep(QObject):
             Optional argument which gradually ramps each parameter to the starting
             point of its sweep. Default is true for Sweep1D and Sweep2D.
         """
+        if not self.progressState.is_queued and _has_other_active_sweep(self):
+            raise RuntimeError(
+                "Another sweep is already running. Stop or kill it before starting a new sweep, use start_force() to kill others, or use SweepQueue to stack sweeps."
+            )
         if self.progressState.state in (SweepState.RUNNING, SweepState.RAMPING):
             self.print_main.emit("We are already running, can't start while running.")
             return
@@ -540,6 +645,10 @@ class BaseSweep(QObject):
     def resume(self):
         """Restarts the sweep after it has been paused."""
         if self.progressState.state == SweepState.PAUSED:
+            if not self.progressState.is_queued and _has_other_active_sweep(self):
+                raise RuntimeError(
+                    "Another sweep is already running. Stop or kill it before resuming this sweep, use start_force() to kill others, or use SweepQueue to stack sweeps."
+                )
             self._enter_running_state(reset_elapsed=False)
             self.send_updates(no_sp=True)
         else:
@@ -614,6 +723,7 @@ class BaseSweep(QObject):
         if self.progressState.state == SweepState.RUNNING:
             self._add_runtime_since_last_resume()
         self.progressState.state = SweepState.DONE
+        _deregister_active_sweep(self)
         self.send_updates()
         self.completed.emit()
 
@@ -639,6 +749,7 @@ class BaseSweep(QObject):
             self._add_runtime_since_last_resume()
         self.progressState.state = SweepState.ERROR
         self.progressState.error_message = error_message
+        _deregister_active_sweep(self)
 
         # Propagate error to parent sweep (e.g., Sweep2D when inner Sweep1D fails)
         parent = getattr(self, "parent", None)

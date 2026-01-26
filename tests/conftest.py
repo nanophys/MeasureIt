@@ -135,6 +135,28 @@ def close_qcodes_instruments_between_tests():
 
 
 @pytest.fixture(autouse=True, scope="function")
+def clear_active_sweeps():
+    """Clear the active sweeps registry before and after each test.
+
+    This prevents the concurrency guard from blocking tests that create
+    multiple sweeps across different test functions.
+    """
+    try:
+        from measureit.sweep.base_sweep import _ACTIVE_SWEEPS, _ACTIVE_SWEEPS_LOCK
+        with _ACTIVE_SWEEPS_LOCK:
+            _ACTIVE_SWEEPS.clear()
+    except ImportError:
+        pass
+    yield
+    try:
+        from measureit.sweep.base_sweep import _ACTIVE_SWEEPS, _ACTIVE_SWEEPS_LOCK
+        with _ACTIVE_SWEEPS_LOCK:
+            _ACTIVE_SWEEPS.clear()
+    except ImportError:
+        pass
+
+
+@pytest.fixture(autouse=True, scope="function")
 def cleanup_qt_threads():
     """Clean up any lingering QThreads after each test to prevent segfaults.
 

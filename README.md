@@ -22,6 +22,7 @@ See related projects:
 
 ### Key Components
 - **Base Classes**: `BaseSweep` provides the foundation with parameter following, measurement creation, and thread management
+- **Sweep Concurrency Guard**: Only one non-queued sweep can run at a time; `SweepQueue` bypasses this guard, and internal ramp/inner sweeps are allowed via parent relationships. Use `start_force()` to kill unrelated active sweeps before starting.
 - **Measurement Types**: 
   - 0D (time-based measurements)
   - 1D (single parameter sweep) 
