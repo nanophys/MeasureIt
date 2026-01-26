@@ -164,17 +164,18 @@ sweep.start()
   the notebook cell output, so database switches and sweep transitions are
   visible while the queue runs.
 
-### Sweep Timing Constraints
+## Sweep Timing Constraints
 
 MeasureIt enforces minimum delay values to ensure thread-safe operation and reliable measurement timing:
 
-| Parameter | Minimum Value | Applies To | Enforcement Location |
-|-----------|--------------|------------|---------------------|
-| `inter_delay` | **0.01s** (10ms) | All sweeps (Sweep1D, Sweep2D inner) | `base_sweep.py` |
-| `outer_delay` | **0.1s** (100ms) | Sweep2D outer sweep | `sweep2d.py` |
+| Parameter | Minimum Value | Applies To | Description |
+|-----------|--------------|------------|-------------|
+| `inter_delay` | **0.01s** (10ms) | All sweeps (Sweep1D, Sweep2D inner) | Time between measurement points |
+| `outer_delay` | **0.1s** (100ms) | Sweep2D outer sweep | Time between outer sweep lines |
 
 **Why These Minimums?**
-- These values protect the runner thread timing and ensure stable communication between measurement threads
+- These minimums ensure reliable data collection and prevent measurement timing issues
+- They protect the runner thread timing and ensure stable communication between measurement threads
 - Values below these minimums will raise a `ValueError` with a descriptive error message
 - The defaults (`inter_delay=0.1s`, `outer_delay=1.0s`) are safe for most use cases
 
