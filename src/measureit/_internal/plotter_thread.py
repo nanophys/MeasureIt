@@ -104,6 +104,14 @@ class Plotter(QObject):  # moved to _internal
         self.clear()
         event.accept()
 
+    def clear_sweep_ref(self):
+        """Break circular reference to sweep to allow garbage collection.
+        
+        Called by sweep.kill() before setting plotter to None.
+        This helps break the reference cycle: Sweep ↔ Plotter.
+        """
+        self.sweep = None
+
     def key_pressed(self, event):
         """Handle keyboard shortcuts for sweep control.
         Legacy method name for compatibility.

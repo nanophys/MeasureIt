@@ -11,6 +11,7 @@ from .logging_utils import (  # noqa: F401
     ensure_sweep_logging,
     get_sweep_logger,
 )
+from .sweep.base_sweep import BaseSweep  # noqa: F401
 from .sweep.gate_leakage import GateLeakage  # noqa: F401
 from .sweep.simul_sweep import SimulSweep  # noqa: F401
 from .sweep.sweep0d import Sweep0D  # noqa: F401
@@ -42,7 +43,33 @@ __all__ = [
     "ensure_sweep_logging",
     "get_sweep_logger",
     "attach_notebook_logging",
+    "get_all_sweeps",
+    "get_error_sweeps",
 ]
+
+
+# Convenience functions for sweep registry
+def get_all_sweeps():
+    """Get all registered sweep instances.
+
+    Returns
+    -------
+    list
+        List of all sweep instances currently registered (not yet garbage collected).
+    """
+    return BaseSweep.get_all_sweeps()
+
+
+def get_error_sweeps():
+    """Get all sweeps currently in ERROR state.
+
+    Returns
+    -------
+    list
+        List of sweep instances in ERROR state. These sweeps are held in memory
+        until explicitly killed or cleared to allow inspection.
+    """
+    return BaseSweep.get_error_sweeps()
 
 
 try:

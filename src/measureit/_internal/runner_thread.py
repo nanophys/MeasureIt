@@ -120,6 +120,14 @@ class RunnerThread(QThread):
         self.plotter = plotter
         self.send_data.connect(self.plotter.add_data)
 
+    def clear_sweep_ref(self):
+        """Break circular reference to sweep to allow garbage collection.
+        
+        Called by sweep.kill() before setting runner to None.
+        This helps break the reference cycle: Sweep ↔ Runner.
+        """
+        self.sweep = None
+
     def _set_parent(self, sweep):
         """Sets a parent sweep if the Runner Thread is created independently.
 

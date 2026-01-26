@@ -5,6 +5,7 @@ import math
 import time
 import threading
 import warnings
+import weakref
 from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from functools import partial
 from typing import Optional, Tuple
@@ -114,6 +115,12 @@ class BaseSweep(QObject):
     import_json(json_dict, station=Station())
         Loads previously saved experimental setup.
     """
+
+    # Class-level sweep registry
+    _registry = weakref.WeakValueDictionary()  # All sweeps (weak refs, allow GC)
+    _error_hold = set()  # Strong refs for ERROR sweeps (prevents GC)
+    _next_id = 0  # Counter for unique sweep IDs
+    _registry_lock = threading.Lock()  # Thread-safe registry access
 
     update_signal = pyqtSignal(dict)
     dataset_signal = pyqtSignal(dict)
@@ -240,12 +247,44 @@ class BaseSweep(QObject):
         if suppress_output:
             self.logger.debug("Sweep created with suppress_output=True")
 
+        # Register this sweep in the global registry
+        with BaseSweep._registry_lock:
+            self._sweep_id = BaseSweep._next_id
+            BaseSweep._next_id += 1
+            BaseSweep._registry[self._sweep_id] = self
+
     @classmethod
     def init_from_json(cls, fn, station):
         """Initializes QCoDeS station from previously saved setup."""
         with open(fn) as json_file:
             data = json.load(json_file)
             return BaseSweep.import_json(data, station)
+
+    @classmethod
+    def get_all_sweeps(cls):
+        """Get all registered sweep instances.
+
+        Returns
+        -------
+        list
+            List of all sweep instances currently registered (not yet garbage collected).
+        """
+        with cls._registry_lock:
+            return list(cls._registry.values())
+
+    @classmethod
+    def get_error_sweeps(cls):
+        """Get all sweeps currently in ERROR state.
+
+        Returns
+        -------
+        list
+            List of sweep instances in ERROR state. These sweeps are held in memory
+            until explicitly killed or cleared to allow inspection.
+        """
+        with cls._registry_lock:
+            return [s for s in cls._registry.values()
+                    if s.progressState.state == SweepState.ERROR]
 
     def follow_param(self, *p):
         """Saves parameters to be tracked, for both saving and plotting data.
@@ -412,9 +451,16 @@ class BaseSweep(QObject):
         if hasattr(self, "_error_completion_pending"):
             self._error_completion_pending = False  # Clear to prevent stale flag
 
+        # Release ERROR hold to allow garbage collection
+        with BaseSweep._registry_lock:
+            BaseSweep._error_hold.discard(self)
+
         # Gently shut down the runner
         runner = getattr(self, "runner", None)
         if runner is not None:
+            # Break reference cycle before shutdown
+            if hasattr(runner, "clear_sweep_ref"):
+                runner.clear_sweep_ref()
             # self.runner.quit()
             if not runner.wait(1000):
                 runner.terminate()
@@ -424,6 +470,9 @@ class BaseSweep(QObject):
         # Gently shut down the plotter
         plotter = getattr(self, "plotter", None)
         if plotter is not None:
+            # Break reference cycle before shutdown
+            if hasattr(plotter, "clear_sweep_ref"):
+                plotter.clear_sweep_ref()
             # Backward-compatibility: if a plotter_thread exists from older runs, terminate it
             try:
                 plotter_thread = getattr(self, "plotter_thread", None)
@@ -637,6 +686,10 @@ class BaseSweep(QObject):
         self.progressState.state = SweepState.ERROR
         self.progressState.error_message = error_message
 
+        # Hold ERROR sweeps in memory to prevent garbage collection
+        with BaseSweep._registry_lock:
+            BaseSweep._error_hold.add(self)
+
         # Propagate error to parent sweep (e.g., Sweep2D when inner Sweep1D fails)
         parent = getattr(self, "parent", None)
         if parent is not None and hasattr(parent, "mark_error"):
@@ -697,6 +750,9 @@ class BaseSweep(QObject):
         self._error_completion_pending = False  # Clear to prevent stale flag across runs
         if self.progressState.state == SweepState.ERROR:
             self.progressState.state = SweepState.READY
+            # Release ERROR hold to allow garbage collection
+            with BaseSweep._registry_lock:
+                BaseSweep._error_hold.discard(self)
 
     def try_set(self, param, value) -> bool:
         """Set a parameter safely, transitioning to ERROR state on failure.
