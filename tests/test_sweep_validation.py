@@ -383,6 +383,9 @@ class TestFollowParamSetpointValidation:
         ):
             sweep.follow_param([param_with_bounds, param_no_bounds])
 
+        # The error should occur before param_no_bounds is processed
+        assert param_no_bounds not in sweep._params
+
         sweep.kill()
 
     def test_sweep2d_follow_inner_setpoint_raises(
@@ -480,5 +483,40 @@ class TestFollowParamSetpointValidation:
         # Following outer setpoint in a list should raise
         with pytest.raises(ValueError, match=r"Cannot follow outer setpoint parameter"):
             sweep.follow_param([outer_param])
+
+        sweep.kill()
+
+    def test_sweep2d_follow_param_rejects_non_numeric(
+        self, param_with_bounds, param_no_bounds
+    ):
+        """Test that Sweep2D.follow_param rejects non-numeric parameters (via delegation)."""
+        from qcodes.validators import Enum
+
+        inner_param = param_with_bounds
+        outer_param = param_no_bounds
+
+        sweep = Sweep2D(
+            [inner_param, -5, 5, 1],
+            [outer_param, -5, 5, 1],
+            inter_delay=0.1,
+            outer_delay=0.1,
+            plot_data=False,
+            save_data=False,
+        )
+
+        # Create a parameter with string enum validator
+        enum_param = Parameter(
+            name="unit",
+            label="Unit",
+            vals=Enum("V", "A", "mV"),
+            set_cmd=None,
+            get_cmd=lambda: "V",
+        )
+
+        # Following the enum param should be rejected (delegated to inner sweep's validation)
+        sweep.follow_param(enum_param)
+
+        # Parameter should NOT be added
+        assert enum_param not in sweep._params
 
         sweep.kill()

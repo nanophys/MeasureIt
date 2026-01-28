@@ -290,6 +290,7 @@ class Sweep2D(BaseSweep, QObject):
             Variable number of arguments, each of which must be a QCoDeS Parameter,
             or a list of QCoDeS Parameters, for the sweep to follow.
         """
+        # Validate that none of the parameters are setpoints
         for param in p:
             if isinstance(param, list):
                 for l in param:
@@ -306,7 +307,6 @@ class Sweep2D(BaseSweep, QObject):
                             f"The outer setpoint parameter is automatically recorded as the independent variable. "
                             f"Only follow measured parameters (e.g., Lockin signals, voltmeters)."
                         )
-                    self.in_sweep._params.append(l)
             else:
                 # Check for dependency cycle: can't follow either setpoint parameter
                 if param is self.in_param:
@@ -321,7 +321,10 @@ class Sweep2D(BaseSweep, QObject):
                         f"The outer setpoint parameter is automatically recorded as the independent variable. "
                         f"Only follow measured parameters (e.g., Lockin signals, voltmeters)."
                     )
-                self.in_sweep._params.append(param)
+
+        # Delegate to inner sweep's follow_param to handle numeric validation and appending
+        # Use _internal=True to bypass its setpoint validation (since we validated against our setpoints above)
+        self.in_sweep.follow_param(*p, _internal=True)
         self._params = self.in_sweep._params
 
     def follow_srs(self, l, name, gain=1.0):
