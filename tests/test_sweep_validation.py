@@ -8,9 +8,9 @@ from qcodes.parameters import Parameter
 from qcodes.validators import Enum, Numbers
 
 from measureit.sweep.base_sweep import BaseSweep
+from measureit.sweep.simul_sweep import SimulSweep
 from measureit.sweep.sweep1d import Sweep1D
 from measureit.sweep.sweep2d import Sweep2D
-from measureit.sweep.simul_sweep import SimulSweep
 
 
 @pytest.fixture
@@ -142,8 +142,13 @@ class TestSweep1DValidation:
 
     def test_valid_sweep_creates_successfully(self, param_with_bounds):
         s = Sweep1D(
-            param_with_bounds, -5, 5, 0.1,
-            inter_delay=0.1, plot_data=False, save_data=False
+            param_with_bounds,
+            -5,
+            5,
+            0.1,
+            inter_delay=0.1,
+            plot_data=False,
+            save_data=False,
         )
         assert s.begin == -5
         assert s.end == 5
@@ -152,14 +157,24 @@ class TestSweep1DValidation:
     def test_invalid_sweep_raises_valueerror(self, param_with_bounds):
         with pytest.raises(ValueError, match="exceeds.*maximum"):
             Sweep1D(
-                param_with_bounds, 0, 15, 0.1,
-                inter_delay=0.1, plot_data=False, save_data=False
+                param_with_bounds,
+                0,
+                15,
+                0.1,
+                inter_delay=0.1,
+                plot_data=False,
+                save_data=False,
             )
 
     def test_sweep_without_bounds_succeeds(self, param_no_bounds):
         s = Sweep1D(
-            param_no_bounds, -100, 100, 1,
-            inter_delay=0.1, plot_data=False, save_data=False
+            param_no_bounds,
+            -100,
+            100,
+            1,
+            inter_delay=0.1,
+            plot_data=False,
+            save_data=False,
         )
         s.kill()
 
@@ -167,8 +182,13 @@ class TestSweep1DValidation:
         """Sweep1D should reject parameters with Enum validators at creation time."""
         with pytest.raises(ValueError, match="Enum validator.*discrete allowed values"):
             Sweep1D(
-                param_with_enum, 0.02, 30, 5,
-                inter_delay=0.1, plot_data=False, save_data=False
+                param_with_enum,
+                0.02,
+                30,
+                5,
+                inter_delay=0.1,
+                plot_data=False,
+                save_data=False,
             )
 
 
@@ -179,8 +199,10 @@ class TestSweep2DValidation:
         s = Sweep2D(
             [param_no_bounds, -5, 5, 1],
             [param_with_bounds, -5, 5, 1],
-            inter_delay=0.1, outer_delay=0.1,
-            plot_data=False, save_data=False
+            inter_delay=0.1,
+            outer_delay=0.1,
+            plot_data=False,
+            save_data=False,
         )
         s.kill()
 
@@ -189,8 +211,10 @@ class TestSweep2DValidation:
             Sweep2D(
                 [param_no_bounds, -5, 5, 1],
                 [param_with_bounds, -5, 15, 1],
-                inter_delay=0.1, outer_delay=0.1,
-                plot_data=False, save_data=False
+                inter_delay=0.1,
+                outer_delay=0.1,
+                plot_data=False,
+                save_data=False,
             )
 
     def test_invalid_inner_param_raises(self, param_with_bounds, param_no_bounds):
@@ -198,8 +222,10 @@ class TestSweep2DValidation:
             Sweep2D(
                 [param_with_bounds, -5, 15, 1],
                 [param_no_bounds, -5, 5, 1],
-                inter_delay=0.1, outer_delay=0.1,
-                plot_data=False, save_data=False
+                inter_delay=0.1,
+                outer_delay=0.1,
+                plot_data=False,
+                save_data=False,
             )
 
     def test_outer_delay_too_small_raises(self, param_no_bounds):
@@ -207,8 +233,10 @@ class TestSweep2DValidation:
             Sweep2D(
                 [param_no_bounds, -5, 5, 1],
                 [param_no_bounds, -5, 5, 1],
-                inter_delay=0.1, outer_delay=0.05,
-                plot_data=False, save_data=False
+                inter_delay=0.1,
+                outer_delay=0.05,
+                plot_data=False,
+                save_data=False,
             )
 
     def test_outer_delay_none_raises(self, param_no_bounds):
@@ -216,8 +244,10 @@ class TestSweep2DValidation:
             Sweep2D(
                 [param_no_bounds, -5, 5, 1],
                 [param_no_bounds, -5, 5, 1],
-                inter_delay=0.1, outer_delay=None,
-                plot_data=False, save_data=False
+                inter_delay=0.1,
+                outer_delay=None,
+                plot_data=False,
+                save_data=False,
             )
 
 
@@ -227,7 +257,9 @@ class TestSimulSweepValidation:
     def test_valid_sweep_creates_successfully(self, param_with_bounds):
         s = SimulSweep(
             {param_with_bounds: {"start": -5, "stop": 5, "step": 1}},
-            inter_delay=0.1, plot_data=False, save_data=False
+            inter_delay=0.1,
+            plot_data=False,
+            save_data=False,
         )
         s.kill()
 
@@ -235,7 +267,9 @@ class TestSimulSweepValidation:
         with pytest.raises(ValueError, match="exceeds.*maximum"):
             SimulSweep(
                 {param_with_bounds: {"start": -5, "stop": 15, "step": 1}},
-                inter_delay=0.1, plot_data=False, save_data=False
+                inter_delay=0.1,
+                plot_data=False,
+                save_data=False,
             )
 
     def test_multiple_params_all_validated(self, param_with_bounds, param_no_bounds):
@@ -246,7 +280,9 @@ class TestSimulSweepValidation:
                     param_with_bounds: {"start": -15, "stop": 5, "step": 1},
                     param_no_bounds: {"start": -5, "stop": 5, "step": 1},
                 },
-                inter_delay=0.1, plot_data=False, save_data=False
+                inter_delay=0.1,
+                plot_data=False,
+                save_data=False,
             )
 
 
@@ -256,13 +292,193 @@ class TestInterDelayValidation:
     def test_inter_delay_too_small_raises(self, param_no_bounds):
         with pytest.raises(ValueError, match="inter_delay.*too small"):
             Sweep1D(
-                param_no_bounds, 0, 5, 0.1,
-                inter_delay=0.005, plot_data=False, save_data=False
+                param_no_bounds,
+                0,
+                5,
+                0.1,
+                inter_delay=0.005,
+                plot_data=False,
+                save_data=False,
             )
 
     def test_inter_delay_none_raises(self, param_no_bounds):
         with pytest.raises(ValueError, match="inter_delay.*too small"):
             Sweep1D(
-                param_no_bounds, 0, 5, 0.1,
-                inter_delay=None, plot_data=False, save_data=False
+                param_no_bounds,
+                0,
+                5,
+                0.1,
+                inter_delay=None,
+                plot_data=False,
+                save_data=False,
             )
+
+
+class TestFollowParamSetpointValidation:
+    """Tests for setpoint parameter validation in follow_param."""
+
+    def test_basesweep_follow_setpoint_raises(self, param_no_bounds):
+        """Test that following the setpoint parameter in BaseSweep raises clear error."""
+        sweep = BaseSweep(
+            set_param=param_no_bounds,
+            save_data=False,
+            plot_data=False,
+        )
+
+        # Attempting to follow the setpoint should raise ValueError
+        with pytest.raises(
+            ValueError,
+            match=r"Cannot follow setpoint parameter.*automatically recorded as the independent variable",
+        ):
+            sweep.follow_param(param_no_bounds)
+
+        # The parameter should not be added to the list
+        assert param_no_bounds not in sweep._params
+        sweep.kill()
+
+    def test_sweep1d_follow_setpoint_raises(self, param_with_bounds, param_no_bounds):
+        """Test that following the setpoint parameter in Sweep1D raises clear error."""
+        sweep = Sweep1D(
+            param_with_bounds,
+            -5,
+            5,
+            0.1,
+            inter_delay=0.1,
+            plot_data=False,
+            save_data=False,
+        )
+
+        # Following other parameters should work
+        sweep.follow_param(param_no_bounds)
+        assert param_no_bounds in sweep._params
+
+        # But following the setpoint should raise
+        with pytest.raises(
+            ValueError,
+            match=r"Cannot follow setpoint parameter.*automatically recorded as the independent variable",
+        ):
+            sweep.follow_param(param_with_bounds)
+
+        assert param_with_bounds not in sweep._params
+        sweep.kill()
+
+    def test_sweep1d_follow_setpoint_in_list_raises(
+        self, param_with_bounds, param_no_bounds
+    ):
+        """Test that following setpoint parameter in a list raises clear error."""
+        sweep = Sweep1D(
+            param_with_bounds,
+            -5,
+            5,
+            0.1,
+            inter_delay=0.1,
+            plot_data=False,
+            save_data=False,
+        )
+
+        # Following the setpoint in a list should also raise
+        with pytest.raises(
+            ValueError,
+            match=r"Cannot follow setpoint parameter.*automatically recorded as the independent variable",
+        ):
+            sweep.follow_param([param_with_bounds, param_no_bounds])
+
+        sweep.kill()
+
+    def test_sweep2d_follow_inner_setpoint_raises(
+        self, param_with_bounds, param_no_bounds
+    ):
+        """Test that following the inner setpoint parameter in Sweep2D raises clear error."""
+        inner_param = param_with_bounds
+        outer_param = param_no_bounds
+        measure_param = Parameter(
+            name="current",
+            label="Current",
+            unit="A",
+            set_cmd=None,
+            get_cmd=lambda: 0,
+        )
+
+        sweep = Sweep2D(
+            [inner_param, -5, 5, 1],
+            [outer_param, -5, 5, 1],
+            inter_delay=0.1,
+            outer_delay=0.1,
+            plot_data=False,
+            save_data=False,
+        )
+
+        # Following measured parameter should work
+        sweep.follow_param(measure_param)
+        assert measure_param in sweep._params
+
+        # But following inner setpoint should raise
+        with pytest.raises(
+            ValueError,
+            match=r"Cannot follow inner setpoint parameter.*automatically recorded as the independent variable",
+        ):
+            sweep.follow_param(inner_param)
+
+        sweep.kill()
+
+    def test_sweep2d_follow_outer_setpoint_raises(
+        self, param_with_bounds, param_no_bounds
+    ):
+        """Test that following the outer setpoint parameter in Sweep2D raises clear error."""
+        inner_param = param_with_bounds
+        outer_param = param_no_bounds
+        measure_param = Parameter(
+            name="current",
+            label="Current",
+            unit="A",
+            set_cmd=None,
+            get_cmd=lambda: 0,
+        )
+
+        sweep = Sweep2D(
+            [inner_param, -5, 5, 1],
+            [outer_param, -5, 5, 1],
+            inter_delay=0.1,
+            outer_delay=0.1,
+            plot_data=False,
+            save_data=False,
+        )
+
+        # Following measured parameter should work
+        sweep.follow_param(measure_param)
+        assert measure_param in sweep._params
+
+        # But following outer setpoint should raise
+        with pytest.raises(
+            ValueError,
+            match=r"Cannot follow outer setpoint parameter.*automatically recorded as the independent variable",
+        ):
+            sweep.follow_param(outer_param)
+
+        sweep.kill()
+
+    def test_sweep2d_follow_both_setpoints_in_list_raises(
+        self, param_with_bounds, param_no_bounds
+    ):
+        """Test that following setpoint parameters in a list raises clear error."""
+        inner_param = param_with_bounds
+        outer_param = param_no_bounds
+
+        sweep = Sweep2D(
+            [inner_param, -5, 5, 1],
+            [outer_param, -5, 5, 1],
+            inter_delay=0.1,
+            outer_delay=0.1,
+            plot_data=False,
+            save_data=False,
+        )
+
+        # Following inner setpoint in a list should raise
+        with pytest.raises(ValueError, match=r"Cannot follow inner setpoint parameter"):
+            sweep.follow_param([inner_param])
+
+        # Following outer setpoint in a list should raise
+        with pytest.raises(ValueError, match=r"Cannot follow outer setpoint parameter"):
+            sweep.follow_param([outer_param])
+
+        sweep.kill()

@@ -182,12 +182,16 @@ class Sweep2D(BaseSweep, QObject):
         # Validate sweep ranges against parameter validator bounds
         # (inner parameter will be validated when Sweep1D is created)
         self._validate_param_sweep_range(
-            self.set_param, self.out_start, self.out_stop,
-            param_label=f"outer {getattr(self.set_param, 'label', self.set_param.name)}"
+            self.set_param,
+            self.out_start,
+            self.out_stop,
+            param_label=f"outer {getattr(self.set_param, 'label', self.set_param.name)}",
         )
         self._validate_param_sweep_range(
-            self.in_param, self.in_start, self.in_stop,
-            param_label=f"inner {getattr(self.in_param, 'label', self.in_param.name)}"
+            self.in_param,
+            self.in_start,
+            self.in_stop,
+            param_label=f"inner {getattr(self.in_param, 'label', self.in_param.name)}",
         )
 
         self.emit_step_info(
@@ -221,7 +225,7 @@ class Sweep2D(BaseSweep, QObject):
         self.in_sweep.metadata_provider = self
         # We set our outer sweep parameter as a follow param for the inner sweep, so that
         # it is always read and saved with the rest of our data
-        self.in_sweep.follow_param(self.set_param)
+        self.in_sweep.follow_param(self.set_param, _internal=True)
         # Our update_values() function iterates the outer sweep, so when the inner sweep
         # is done, call that function automatically
         self.in_sweep.set_complete_func(self.update_values)
@@ -289,8 +293,34 @@ class Sweep2D(BaseSweep, QObject):
         for param in p:
             if isinstance(param, list):
                 for l in param:
+                    # Check for dependency cycle: can't follow either setpoint parameter
+                    if l is self.in_param:
+                        raise ValueError(
+                            f"Cannot follow inner setpoint parameter '{l.name}'. "
+                            f"The inner setpoint parameter is automatically recorded as the independent variable. "
+                            f"Only follow measured parameters (e.g., Lockin signals, voltmeters)."
+                        )
+                    if l is self.set_param:
+                        raise ValueError(
+                            f"Cannot follow outer setpoint parameter '{l.name}'. "
+                            f"The outer setpoint parameter is automatically recorded as the independent variable. "
+                            f"Only follow measured parameters (e.g., Lockin signals, voltmeters)."
+                        )
                     self.in_sweep._params.append(l)
             else:
+                # Check for dependency cycle: can't follow either setpoint parameter
+                if param is self.in_param:
+                    raise ValueError(
+                        f"Cannot follow inner setpoint parameter '{param.name}'. "
+                        f"The inner setpoint parameter is automatically recorded as the independent variable. "
+                        f"Only follow measured parameters (e.g., Lockin signals, voltmeters)."
+                    )
+                if param is self.set_param:
+                    raise ValueError(
+                        f"Cannot follow outer setpoint parameter '{param.name}'. "
+                        f"The outer setpoint parameter is automatically recorded as the independent variable. "
+                        f"Only follow measured parameters (e.g., Lockin signals, voltmeters)."
+                    )
                 self.in_sweep._params.append(param)
         self._params = self.in_sweep._params
 
@@ -517,7 +547,7 @@ class Sweep2D(BaseSweep, QObject):
                 if self.progressState.state != SweepState.KILLED:
                     self.progressState.state = SweepState.READY
                 if hasattr(self, "inner_sweep"):
-                    inner = getattr(self, "inner_sweep")
+                    inner = self.inner_sweep
                     if hasattr(inner, "progressState"):
                         inner.progressState.state = SweepState.READY
                 self.in_sweep.progressState.state = SweepState.READY
@@ -554,7 +584,9 @@ class Sweep2D(BaseSweep, QObject):
         ):
             # Calculate the next setpoint with snap to avoid float precision issues
             next_setpoint = self.out_setpoint + self.out_step
-            next_setpoint = self._snap_to_step(next_setpoint, self.out_start, self.out_step)
+            next_setpoint = self._snap_to_step(
+                next_setpoint, self.out_start, self.out_step
+            )
 
             self.print_main.emit(
                 f"Setting {self.set_param.label} to {next_setpoint} ({self.set_param.unit}) with {self.out_ministeps} steps"
@@ -732,8 +764,13 @@ class Sweep2D(BaseSweep, QObject):
             Sweep will be called to start immediately after ramping when set to True.
         """
         # Check if the ramp sweep itself failed with an error
-        if self.ramp_sweep is not None and self.ramp_sweep.progressState.state == SweepState.ERROR:
-            error_msg = self.ramp_sweep.progressState.error_message or "Ramp sweep failed"
+        if (
+            self.ramp_sweep is not None
+            and self.ramp_sweep.progressState.state == SweepState.ERROR
+        ):
+            error_msg = (
+                self.ramp_sweep.progressState.error_message or "Ramp sweep failed"
+            )
             self.print_main.emit(f"Outer ramp sweep failed: {error_msg}")
             self.ramp_sweep.kill()
             self.ramp_sweep = None
@@ -753,7 +790,9 @@ class Sweep2D(BaseSweep, QObject):
 
         # Check if inner sweep ended with an error during ramping
         if self.in_sweep.progressState.state == SweepState.ERROR:
-            error_msg = self.in_sweep.progressState.error_message or "Inner ramp sweep failed"
+            error_msg = (
+                self.in_sweep.progressState.error_message or "Inner ramp sweep failed"
+            )
             self.print_main.emit(f"Inner ramp sweep failed: {error_msg}")
             self.mark_error(f"Inner ramp to start failed: {error_msg}")
             return

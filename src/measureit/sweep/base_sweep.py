@@ -2,8 +2,8 @@
 import importlib
 import json
 import math
-import time
 import threading
+import time
 import warnings
 import weakref
 from decimal import ROUND_HALF_EVEN, Decimal, localcontext
@@ -316,7 +316,7 @@ class BaseSweep(QObject):
             data = json.load(json_file)
             return BaseSweep.import_json(data, station)
 
-    def follow_param(self, *p):
+    def follow_param(self, *p, _internal=False):
         """Saves parameters to be tracked, for both saving and plotting data.
 
         The parameters must be followed before '_create_measurement()' is called.
@@ -327,6 +327,8 @@ class BaseSweep(QObject):
             *p:
                 Variable number of arguments, each of which must be a QCoDeS Parameter
                 that is desired to be followed.
+            _internal:
+                Internal flag to bypass validation (used by Sweep2D to follow outer parameter).
         """
         if self.progressState.state in (SweepState.RUNNING, SweepState.RAMPING):
             self.print_main.emit(
@@ -338,6 +340,18 @@ class BaseSweep(QObject):
             if isinstance(param, list):
                 for l in param:
                     if l not in self._params:
+                        # Check for dependency cycle: can't follow the setpoint parameter
+                        # (unless this is an internal call, e.g., Sweep2D following outer param)
+                        if (
+                            not _internal
+                            and self.set_param is not None
+                            and l is self.set_param
+                        ):
+                            raise ValueError(
+                                f"Cannot follow setpoint parameter '{l.name}'. "
+                                f"The setpoint parameter is automatically recorded as the independent variable. "
+                                f"Only follow measured parameters (e.g., Lockin signals, voltmeters)."
+                            )
                         if not is_numeric_parameter(l):
                             self.print_main.emit(
                                 f"Cannot follow parameter '{l.name}': "
@@ -347,6 +361,18 @@ class BaseSweep(QObject):
                         self._params.append(l)
             else:
                 if param not in self._params:
+                    # Check for dependency cycle: can't follow the setpoint parameter
+                    # (unless this is an internal call, e.g., Sweep2D following outer param)
+                    if (
+                        not _internal
+                        and self.set_param is not None
+                        and param is self.set_param
+                    ):
+                        raise ValueError(
+                            f"Cannot follow setpoint parameter '{param.name}'. "
+                            f"The setpoint parameter is automatically recorded as the independent variable. "
+                            f"Only follow measured parameters (e.g., Lockin signals, voltmeters)."
+                        )
                     if not is_numeric_parameter(param):
                         self.print_main.emit(
                             f"Cannot follow parameter '{param.name}': "
@@ -460,7 +486,9 @@ class BaseSweep(QObject):
         parent = getattr(self, "parent", None)
         if parent is not None and parent is not self:
             try:
-                parent_state = getattr(getattr(parent, "progressState", None), "state", None)
+                parent_state = getattr(
+                    getattr(parent, "progressState", None), "state", None
+                )
                 if parent_state in (SweepState.RUNNING, SweepState.RAMPING):
                     parent.pause()
             except Exception:
@@ -486,7 +514,10 @@ class BaseSweep(QObject):
             self._add_runtime_since_last_resume()
         # Set KILLED if not already DONE or KILLED
         # ERROR state transitions to KILLED since user explicitly called kill()
-        if progress_state is not None and progress_state.state not in (SweepState.DONE, SweepState.KILLED):
+        if progress_state is not None and progress_state.state not in (
+            SweepState.DONE,
+            SweepState.KILLED,
+        ):
             self.progressState.state = SweepState.KILLED
         _deregister_active_sweep(self)
         if hasattr(self, "_error_completion_pending"):
@@ -726,7 +757,11 @@ class BaseSweep(QObject):
 
     def mark_done(self) -> None:
         """Transition the sweep to DONE and emit completion callbacks."""
-        if self.progressState.state in (SweepState.KILLED, SweepState.DONE, SweepState.ERROR):
+        if self.progressState.state in (
+            SweepState.KILLED,
+            SweepState.DONE,
+            SweepState.ERROR,
+        ):
             return
         if self.progressState.state == SweepState.RUNNING:
             self._add_runtime_since_last_resume()
@@ -747,7 +782,11 @@ class BaseSweep(QObject):
             emissions to avoid blocking the main event loop. Signals are emitted
             later via emit_error_completed().
         """
-        if self.progressState.state in (SweepState.KILLED, SweepState.DONE, SweepState.ERROR):
+        if self.progressState.state in (
+            SweepState.KILLED,
+            SweepState.DONE,
+            SweepState.ERROR,
+        ):
             return
 
         # Log the error at ERROR level
@@ -762,7 +801,9 @@ class BaseSweep(QObject):
         # Propagate error to parent sweep (e.g., Sweep2D when inner Sweep1D fails)
         parent = getattr(self, "parent", None)
         if parent is not None and hasattr(parent, "mark_error"):
-            parent.mark_error(f"Inner sweep error: {error_message}", _from_runner=_from_runner)
+            parent.mark_error(
+                f"Inner sweep error: {error_message}", _from_runner=_from_runner
+            )
 
         # Only emit signals if NOT called from runner thread
         if not _from_runner:
@@ -816,7 +857,9 @@ class BaseSweep(QObject):
         """Clear error state and reset error tracking. Call before resuming after an error."""
         self.progressState.error_count = 0
         self.progressState.error_message = None
-        self._error_completion_pending = False  # Clear to prevent stale flag across runs
+        self._error_completion_pending = (
+            False  # Clear to prevent stale flag across runs
+        )
         if self.progressState.state == SweepState.ERROR:
             self.progressState.state = SweepState.READY
 
@@ -833,7 +876,7 @@ class BaseSweep(QObject):
         value:
             The value to set the parameter to.
 
-        Returns
+        Returns:
         -------
         bool
             True if the set succeeded, False if it failed (sweep is now in ERROR state).
@@ -865,7 +908,7 @@ class BaseSweep(QObject):
         step:
             The step size defining the grid spacing.
 
-        Returns
+        Returns:
         -------
         float
             The value snapped to the nearest grid point.
@@ -890,7 +933,9 @@ class BaseSweep(QObject):
             # Quantize to the finest precision needed (min of step and origin exponents)
             # to preserve precision when origin has more decimal places than step.
             step_exponent = d_step.normalize().as_tuple().exponent
-            origin_exponent = d_origin.normalize().as_tuple().exponent if d_origin != 0 else 0
+            origin_exponent = (
+                d_origin.normalize().as_tuple().exponent if d_origin != 0 else 0
+            )
             min_exponent = min(step_exponent, origin_exponent)
             if min_exponent < 0:
                 quantizer = Decimal(1).scaleb(min_exponent)
@@ -907,7 +952,7 @@ class BaseSweep(QObject):
         param:
             A QCoDeS Parameter that may have a validator with bounds.
 
-        Returns
+        Returns:
         -------
         Tuple[Optional[float], Optional[float]]
             (min_value, max_value) from the validator, or (None, None) if
@@ -958,7 +1003,7 @@ class BaseSweep(QObject):
         param_label:
             Optional label for error messages. If not provided, uses param.label or param.name.
 
-        Raises
+        Raises:
         ------
         ValueError
             If start or stop exceeds the parameter's validation bounds, or if the
@@ -969,7 +1014,9 @@ class BaseSweep(QObject):
         # Check for Enum validator - sweeping discrete values is not supported
         if validator is not None and isinstance(validator, Enum):
             if param_label is None:
-                param_label = getattr(param, "label", None) or getattr(param, "name", "parameter")
+                param_label = getattr(param, "label", None) or getattr(
+                    param, "name", "parameter"
+                )
             raise ValueError(
                 f"Cannot create a linear sweep for '{param_label}' because it uses an Enum "
                 f"validator with discrete allowed values: {validator._valid_values}. "
@@ -994,7 +1041,9 @@ class BaseSweep(QObject):
 
         # Determine label for error messages
         if param_label is None:
-            param_label = getattr(param, "label", None) or getattr(param, "name", "parameter")
+            param_label = getattr(param, "label", None) or getattr(
+                param, "name", "parameter"
+            )
 
         # Small tolerance for boundary comparison (relative tolerance)
         # Use a small epsilon for floating point comparison
@@ -1213,7 +1262,7 @@ class BaseSweep(QObject):
             Arbitrary keyword arguments to be passed to the callback function
         """
         # Disconnect any existing complete_func to prevent duplicate connections
-        if hasattr(self, 'complete_func') and self.complete_func is not None:
+        if hasattr(self, "complete_func") and self.complete_func is not None:
             try:
                 self.completed.disconnect(self.complete_func)
             except (TypeError, RuntimeError):
@@ -1235,9 +1284,7 @@ class BaseSweep(QObject):
         unit_suffix = f" {unit}" if unit else ""
         try:
             if not (
-                math.isfinite(start)
-                and math.isfinite(stop)
-                and math.isfinite(step_mag)
+                math.isfinite(start) and math.isfinite(stop) and math.isfinite(step_mag)
             ):
                 self.emit_print_main(
                     f"{label} sweep: step size {step_mag}{unit_suffix}, steps unknown, points unknown."
