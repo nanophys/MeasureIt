@@ -379,11 +379,35 @@ def _name_parser(_name):
     return name
 
 
+def is_array_parameter(param) -> bool:
+    """Check if a QCoDeS parameter returns array-valued data.
+
+    Detects ``ParameterWithSetpoints`` and ``ArrayParameter`` types used by
+    instruments like spectrometers and VNAs that return an array per ``get()``.
+
+    Parameters
+    ----------
+    param:
+        A QCoDeS Parameter to check.
+
+    Returns
+    -------
+    bool
+        True if *param* is a ``ParameterWithSetpoints`` or ``ArrayParameter``.
+    """
+    from qcodes.parameters import ArrayParameter, ParameterWithSetpoints
+
+    return isinstance(param, (ParameterWithSetpoints, ArrayParameter))
+
+
 def is_numeric_parameter(param) -> bool:
     """Check if a QCoDeS parameter returns numeric values.
 
     This is used to validate parameters before following them in sweeps,
     as non-numeric parameters (string enums, booleans, etc.) cause plotting errors.
+    Array-valued parameters (``ParameterWithSetpoints``, ``ArrayParameter``) are
+    treated as numeric even when their ``Arrays`` validator reports
+    ``is_numeric = False`` in some QCoDeS versions.
 
     Parameters
     ----------
@@ -396,6 +420,10 @@ def is_numeric_parameter(param) -> bool:
         True if the parameter has a numeric validator or no validator,
         False if it has a non-numeric validator (Strings, Enum with strings, Bool, etc.)
     """
+    # Array-valued parameters are always numeric (Arrays validator may lie)
+    if is_array_parameter(param):
+        return True
+
     # Parameters without validators are assumed numeric (common case)
     if not hasattr(param, "vals") or param.vals is None:
         return True

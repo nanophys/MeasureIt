@@ -294,6 +294,10 @@ class Sweep2D(BaseSweep, QObject):
                 self.in_sweep._params.append(param)
         self._params = self.in_sweep._params
 
+    def follow_array_param(self, param):
+        """Delegate array plot selection to the inner Sweep1D."""
+        self.in_sweep.follow_array_param(param)
+
     def follow_srs(self, l, name, gain=1.0):
         """Adds an SRS lock-in to Sweep1D to ensure that the range is kept correctly.
 
@@ -574,6 +578,9 @@ class Sweep2D(BaseSweep, QObject):
 
             # Reset our plots
             self.in_sweep.reset_plots()
+            # Reset array plotter between outer steps
+            if getattr(self.in_sweep, "array_plotter", None) is not None:
+                self.in_sweep.array_plotter.reset()
             self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
         # If neither of the above are triggered, it means we are at the end of the sweep
         else:

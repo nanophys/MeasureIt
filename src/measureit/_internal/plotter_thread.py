@@ -10,6 +10,7 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
 
 from ..logging_utils import get_sweep_logger
+from ..tools.util import is_array_parameter
 
 # Configure PyQtGraph for better performance
 pg.setConfigOptions(
@@ -248,14 +249,17 @@ class Plotter(QObject):  # moved to _internal
 
         # Create plots for followed parameters
         for i, param in enumerate(self.sweep._params):
+            y_label = param.label
+            if is_array_parameter(param):
+                y_label = f"{param.label} (sum)"
             plot = self.layout_widget.addPlot(
                 row=current_row,
                 col=current_col,
-                title=f"{param.label} vs {self.sweep.set_param.label if not self.sweep.x_axis else 'Time'}",
+                title=f"{y_label} vs {self.sweep.set_param.label if not self.sweep.x_axis else 'Time'}",
             )
 
             # Set axis labels
-            plot.setLabel("left", f"{param.label}", units=param.unit)
+            plot.setLabel("left", f"{y_label}", units=param.unit)
             if self.sweep.x_axis:
                 plot.setLabel("bottom", "Time", units="s")
             else:
@@ -382,9 +386,11 @@ class Plotter(QObject):  # moved to _internal
                     if param in self.data_arrays:
                         direction_key = "forward" if direction == 0 else "backward"
 
-                        # Ensure y_data is scalar
+                        # Reduce array-valued params to scalar for plotting
                         y_value = data_pair[1]
-                        if hasattr(y_value, "flatten"):
+                        if is_array_parameter(param) and hasattr(y_value, "__len__"):
+                            y_value = float(np.sum(y_value))
+                        elif hasattr(y_value, "flatten"):
                             y_value = float(np.array(y_value).flatten()[0])
 
                         self.data_arrays[param][direction_key]["x"].append(x_data_value)

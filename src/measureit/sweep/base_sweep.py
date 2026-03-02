@@ -17,8 +17,15 @@ from qcodes.validators import Enum
 
 from .._internal.plotter_thread import Plotter
 from .._internal.runner_thread import RunnerThread
+from ..visualization.array_plot_thread import ArrayPlotThread
 from ..logging_utils import get_sweep_logger
-from ..tools.util import _autorange_srs, is_numeric_parameter, safe_get, safe_set
+from ..tools.util import (
+    _autorange_srs,
+    is_array_parameter,
+    is_numeric_parameter,
+    safe_get,
+    safe_set,
+)
 from .progress import ProgressState, SweepState
 
 _ACTIVE_SWEEPS = weakref.WeakSet()
@@ -291,6 +298,9 @@ class BaseSweep(QObject):
 
         self.plotter = None
         self.plotter_thread = None
+        self.array_plot = False
+        self.array_plot_param = None
+        self.array_plotter = None
         self.runner = None
         self.progressState = ProgressState()
         # Parent sweep reference (set by outer sweeps like Sweep2D for their inner sweep)
@@ -354,6 +364,25 @@ class BaseSweep(QObject):
                         )
                         continue
                     self._params.append(param)
+
+    def follow_array_param(self, param):
+        """Select which array parameter to visualize in the ArrayPlotThread.
+
+        Parameters
+        ----------
+        param:
+            A ParameterWithSetpoints that is already followed via follow_param().
+        """
+        if not is_array_parameter(param):
+            self.print_main.emit(f"Parameter '{param.name}' is not an array parameter.")
+            return
+        if param not in self._params:
+            self.print_main.emit(
+                f"Parameter '{param.name}' is not followed. Call follow_param() first."
+            )
+            return
+        self.array_plot_param = param
+        self.array_plot = True
 
     def remove_param(self, *p):
         """Removes parameters that were previously followed.
@@ -518,6 +547,11 @@ class BaseSweep(QObject):
             self.close_plots()
             self.plotter = None
 
+        # Shut down array plotter
+        if getattr(self, "array_plotter", None) is not None:
+            self.array_plotter.clear()
+            self.array_plotter = None
+
         # Reset measurement object to ensure fresh measurement for next run
         if hasattr(self, "meas"):
             self.meas = None
@@ -609,6 +643,11 @@ class BaseSweep(QObject):
                 self.add_break.connect(self.plotter.add_break)
                 self.reset_plot.connect(self.plotter.reset)
 
+        # Create ArrayPlotThread if array_plot is enabled
+        if self.array_plotter is None and self.array_plot and self.array_plot_param is not None:
+            self.array_plotter = ArrayPlotThread(self, self.array_plot_param)
+            self.array_plotter.create_figs()
+
         # If we don't have a runner, create it and tell it of the plotter,
         # which is where it will send data to be plotted
         if self.runner is None:
@@ -617,6 +656,9 @@ class BaseSweep(QObject):
 
             if self.plotter is not None:
                 self.runner.add_plotter(self.plotter)
+
+            if self.array_plotter is not None:
+                self.runner.send_data.connect(self.array_plotter.add_data)
 
         # Flag that we are now running.
         run_start = self._enter_running_state(reset_elapsed=True)
@@ -1174,6 +1216,8 @@ class BaseSweep(QObject):
         """Clears the currently displayed plots."""
         if self.plotter is not None:
             self.reset_plot.emit()
+        if getattr(self, "array_plotter", None) is not None:
+            self.array_plotter.reset()
 
     def get_metadata_provider(self):
         """Return the sweep to use when exporting metadata for the current run."""
@@ -1183,6 +1227,8 @@ class BaseSweep(QObject):
         """Resets the plotter and closes all displayed plots."""
         if self.plotter is not None:
             self.plotter.clear()
+        if getattr(self, "array_plotter", None) is not None:
+            self.array_plotter.clear()
 
     def set_plot_bin(self, pb):
         """Sets value for the Plotter Thread plot bin.
@@ -1289,16 +1335,17 @@ class BaseSweep(QObject):
         """
         p_list = []
         meas_list = []
-        # self.print_main.emit("our params list")
         for p in self._params:
-            # self.print_main.emit(str(p))
             p_list.append(str(p))
+            # ParameterWithSetpoints auto-registers its internal setpoints;
+            # include them so the comparison with meas.parameters matches.
+            if is_array_parameter(p) and hasattr(p, "setpoints"):
+                for sp in p.setpoints:
+                    p_list.append(str(sp))
         p_list.append("time")
         if self.set_param is not None:
             p_list.append(str(self.set_param))
-        # self.print_main.emit("measurement param list")
         for key, val in self.meas.parameters.items():
-            # self.print_main.emit(str(key))
             meas_list.append(key)
 
         return set(p_list) == set(meas_list)

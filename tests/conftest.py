@@ -317,6 +317,46 @@ def temp_logs(temp_measureit_home):
 
 
 @pytest.fixture
+def mock_spectrometer():
+    """Factory fixture to create MockSpectrometer instances."""
+    from tests.fixtures.mock_instruments import MockSpectrometer
+
+    _created = []
+
+    def _factory(name="spectrometer", **kwargs):
+        inst = MockSpectrometer(name, **kwargs)
+        _created.append(inst)
+        return inst
+
+    yield _factory
+    for inst in _created:
+        try:
+            inst.close()
+        except Exception:
+            pass
+
+
+@pytest.fixture
+def mock_vna():
+    """Factory fixture to create MockVNA instances."""
+    from tests.fixtures.mock_instruments import MockVNA
+
+    _created = []
+
+    def _factory(name="vna", **kwargs):
+        inst = MockVNA(name, **kwargs)
+        _created.append(inst)
+        return inst
+
+    yield _factory
+    for inst in _created:
+        try:
+            inst.close()
+        except Exception:
+            pass
+
+
+@pytest.fixture
 def qt_wait_time():
     """Default wait time for Qt signals in milliseconds."""
     return 5000

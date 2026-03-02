@@ -121,17 +121,13 @@ if os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"}:
         def __init__(self, *args, **kwargs):
             self._callback = None
             self._interval = None
+            self.timeout = _FakeSignal()
 
-        def start(self, interval):
+        def start(self, interval=None):
             self._interval = interval
-            if self._callback:
-                self._callback()
 
         def stop(self):
             pass
-
-        def timeout(self, cb):
-            self._callback = cb
 
         @staticmethod
         def singleShot(delay, callback):
@@ -229,6 +225,8 @@ if os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"}:
         def __init__(self, *args, **kwargs):
             self._checked = False
             self._cb = None
+            self.toggled = _FakeSignal()
+            self.stateChanged = _FakeSignal()
 
         def setChecked(self, val):
             self._checked = bool(val)
@@ -236,38 +234,46 @@ if os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"}:
         def isChecked(self):
             return self._checked
 
-        def stateChanged(self, cb):
-            self._cb = cb
-
     class QComboBox:
         def __init__(self, *args, **kwargs):
             self._items = []
             self._index = 0
             self._cb = None
+            self.currentTextChanged = _FakeSignal()
+            self.currentIndexChanged = _FakeSignal()
+
+        def addItem(self, item):
+            self._items.append(item)
 
         def addItems(self, items):
             self._items.extend(items)
 
-        def currentIndexChanged(self, cb):
-            self._cb = cb
+        def setCurrentText(self, text):
+            if text in self._items:
+                self._index = self._items.index(text)
+
+        def currentText(self):
+            if 0 <= self._index < len(self._items):
+                return self._items[self._index]
+            return ""
 
         def setCurrentIndex(self, idx):
             self._index = idx
-            if self._cb:
-                try:
-                    self._cb(idx)
-                except Exception:
-                    pass
+
+        def blockSignals(self, block):
+            pass
+
+        def clear(self):
+            self._items.clear()
+            self._index = 0
 
     class QPushButton:
         def __init__(self, *args, **kwargs):
             self._cb = None
+            self.clicked = _FakeSignal()
 
         def setEnabled(self, val):
             pass
-
-        def clicked(self, cb):
-            self._cb = cb
 
     qtcore.QObject = QObject
     qtcore.pyqtSignal = pyqtSignal
@@ -348,6 +354,13 @@ if os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"}:
             self.xData = x
             self.yData = y
 
+    class _FakeViewBox:
+        def viewRange(self):
+            return [[0, 1], [0, 1]]
+
+        def setRange(self, *args, **kwargs):
+            pass
+
     class Plot:
         def setLabel(self, *args, **kwargs):
             return None
@@ -358,15 +371,79 @@ if os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"}:
         def plot(self, *args, **kwargs):
             return PlotDataItem()
 
+        def addItem(self, item):
+            pass
+
+        def getViewBox(self):
+            return _FakeViewBox()
+
+        def enableAutoRange(self, **kwargs):
+            pass
+
     class GraphicsLayoutWidget:
         def addPlot(self, *args, **kwargs):
             return Plot()
 
+        def addItem(self, item, **kwargs):
+            pass
+
+    class ImageItem:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def setImage(self, data, *args, **kwargs):
+            pass
+
+        def setRect(self, *args, **kwargs):
+            pass
+
+        def setLevels(self, levels):
+            pass
+
+        def setLookupTable(self, lut):
+            pass
+
+        def clear(self):
+            pass
+
+    class HistogramLUTItem:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def setImageItem(self, item):
+            pass
+
+        def setLevels(self, lo, hi):
+            pass
+
+        def setColorMap(self, cmap):
+            pass
+
+    def mkQApp(*args, **kwargs):
+        return None
+
+    class _FakeColormap:
+        @staticmethod
+        def listMaps():
+            return ["viridis", "plasma", "inferno", "magma"]
+
+        @staticmethod
+        def get(name):
+            class _Cmap:
+                def getLookupTable(self, alpha=False):
+                    import numpy as _np
+                    return _np.stack([_np.linspace(0, 255, 256)] * 3, axis=1)
+            return _Cmap()
+
     pg_module.setConfigOptions = setConfigOptions
     pg_module.setConfigOption = setConfigOption
     pg_module.mkPen = mkPen
+    pg_module.mkQApp = mkQApp
     pg_module.GraphicsLayoutWidget = GraphicsLayoutWidget
     pg_module.PlotDataItem = PlotDataItem
+    pg_module.ImageItem = ImageItem
+    pg_module.HistogramLUTItem = HistogramLUTItem
+    pg_module.colormap = _FakeColormap()
     # Provide minimal Qt namespace compatible with measureit plotter
     pg_module.QtCore = types.SimpleNamespace(Qt=Qt)
     pg_module.Qt = types.SimpleNamespace(QtCore=pg_module.QtCore, QtGui=qtgui, QtWidgets=qtwidgets)
