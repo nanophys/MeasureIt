@@ -1,3 +1,5 @@
+import importlib
+
 import pytest
 
 
@@ -27,7 +29,10 @@ def test_import_qcodes_drivers_available():
     assert hasattr(m, "SR830")
     m = pytest.importorskip("qcodes.instrument_drivers.stanford_research.SR860")
     assert hasattr(m, "SR860")
-    m = pytest.importorskip("qcodes.instrument_drivers.tektronix.Keithley_2450")
+    try:
+        m = importlib.import_module("qcodes.instrument_drivers.Keithley")
+    except ImportError:
+        m = pytest.importorskip("qcodes.instrument_drivers.tektronix.Keithley_2450")
     assert hasattr(m, "Keithley2450")
     m = pytest.importorskip("qcodes.instrument_drivers.tektronix.Keithley_2400")
     assert hasattr(m, "Keithley2400")

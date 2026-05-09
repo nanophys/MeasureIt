@@ -16,7 +16,10 @@ except ImportError:  # pragma: no cover - fallback for older QCoDeS versions
     pass
 from functools import partial
 
-from qcodes.instrument_drivers.tektronix.Keithley_2450 import Keithley2450
+try:
+    from qcodes.instrument_drivers.Keithley import Keithley2450
+except ImportError:  # pragma: no cover - fallback for older QCoDeS versions
+    from qcodes.instrument_drivers.tektronix.Keithley_2450 import Keithley2450
 
 
 class Sweep1D_listening(BaseSweep, QObject):
