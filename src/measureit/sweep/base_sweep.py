@@ -2,6 +2,7 @@
 import importlib
 import json
 import math
+import os
 import time
 import threading
 import warnings
@@ -259,7 +260,13 @@ class BaseSweep(QObject):
             )
         self.inter_delay = inter_delay
         self.save_data = save_data
-        self.plot_data = plot_data
+        # Headless mode: if MEASUREIT_FORCE_NON_PLOTTING is set, silently
+        # disable plotting to avoid QWidget errors in headless environments
+        # (e.g., Docker containers). Only active when the env var exists.
+        if os.environ.get("MEASUREIT_FORCE_NON_PLOTTING"):
+            self.plot_data = False
+        else:
+            self.plot_data = plot_data
         self.x_axis = x_axis_time
         self.back_multiplier = back_multiplier
         self.direction = 0
