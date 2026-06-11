@@ -10,7 +10,7 @@ where = ["src"]
 
 [project]
 name = "qmeasure"
-version = "1.2.7"
+version = "1.2.8"
 description = "Measurement code for condensed matter groups at UW based on QCoDeS."
 readme = {file = "README.md", content-type = "text/markdown"}
 license = "GPL-3.0-or-later"
@@ -67,6 +67,9 @@ dev = [
     "mypy>=1.0.0",
     "ruff>=0.1.0",
     "pre-commit>=2.20.0",
+    # Executing the example notebooks in tests/e2e/test_example_notebooks.py
+    "nbformat>=5.7.0",
+    "nbclient>=0.8.0",
 ]
 
 # Documentation dependencies
