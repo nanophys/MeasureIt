@@ -375,10 +375,20 @@ class Sweep2D(BaseSweep, QObject):
             self.t0 = run_start
 
             if self.plot_data and self.heatmap_plotter is None:
-                # Initialize our heatmap in the main GUI thread to avoid crashes in Jupyter/Qt
-                self.heatmap_plotter = Heatmap(self)
-                self.heatmap_plotter.create_figs()
-                self.add_heatmap_data.connect(self.heatmap_plotter.add_data)
+                from ..tools.ipython import ensure_qt_app_for_plotting
+
+                if ensure_qt_app_for_plotting(verbose=not self.suppress_output):
+                    # Initialize the heatmap in the main GUI thread (Jupyter/Qt)
+                    self.heatmap_plotter = Heatmap(self)
+                    self.heatmap_plotter.create_figs()
+                    self.add_heatmap_data.connect(self.heatmap_plotter.add_data)
+                else:
+                    self.logger.warning(
+                        "plot_data=True but Qt cannot be started safely. Run "
+                        "%gui qt or measureit.tools.ensure_qt() in Jupyter, or "
+                        "set plot_data=False. Continuing without live plotting."
+                    )
+                    self.plot_data = False
 
             self.in_sweep.start(persist_data=(self.set_param, self.out_setpoint))
 

@@ -158,6 +158,19 @@ class Plotter(QObject):  # moved to _internal
             print("figs already set. returning.")
             return
 
+        # Backstop for callers that bypass BaseSweep.start(): constructing a
+        # QWidget without a QApplication aborts the process (kills a Jupyter
+        # kernel). Fail with a catchable error instead.
+        from ..tools.ipython import ensure_qt_app_for_plotting
+
+        if not ensure_qt_app_for_plotting():
+            raise RuntimeError(
+                "Cannot create plot windows: Qt is not available (no "
+                "QApplication and Qt failed the startup probe). Run %gui qt "
+                "or measureit.tools.ensure_qt() in Jupyter/IPython, or start "
+                "the sweep with plot_data=False."
+            )
+
         self.figs_set = True
         num_plots = len(self.sweep._params)
         if self.sweep.set_param is not None:

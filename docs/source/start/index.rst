@@ -33,6 +33,10 @@ Jupyter Usage
 
      from measureit.tools import ensure_qt
      ensure_qt()  # set MEASUREIT_FORCE_QT=1 to bypass the probe once configured
+- If you forget, ``sweep.start()`` sets up Qt automatically (enabling the
+  notebook event loop and creating a ``QApplication`` when Qt can start
+  safely). When Qt cannot be started, the sweep logs a warning and runs
+  without live plotting instead of crashing the kernel.
 - On WSL, if the probe warns about the XCB plugin, install the required Qt packages:
 
   .. code-block:: bash

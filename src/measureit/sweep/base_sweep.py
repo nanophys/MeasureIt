@@ -589,6 +589,21 @@ class BaseSweep(QObject):
         if self.progressState.state == SweepState.ERROR:
             self.clear_error()
 
+        # Creating plot widgets without a QApplication makes Qt abort the
+        # whole process (it kills a Jupyter kernel that never ran %gui qt or
+        # ensure_qt()). Set up Qt first; if that is impossible, run the sweep
+        # without live plotting rather than dying.
+        if self.plot_data is True:
+            from ..tools.ipython import ensure_qt_app_for_plotting
+
+            if not ensure_qt_app_for_plotting(verbose=not self.suppress_output):
+                self.logger.warning(
+                    "plot_data=True but Qt cannot be started safely. Run "
+                    "%gui qt or measureit.tools.ensure_qt() in Jupyter, or "
+                    "set plot_data=False. Continuing without live plotting."
+                )
+                self.plot_data = False
+
         # Check if we have a measurement object
         if self.meas is None:
             self._create_measurement()

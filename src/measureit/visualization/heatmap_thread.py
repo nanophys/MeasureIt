@@ -226,11 +226,17 @@ class Heatmap(QObject):
             self.param_surfaces = {}
             self.count = 0
 
-            # Ensure a QApplication exists (safe in scripts and in notebooks once ensure_qt() has been called)
-            try:
-                pg.mkQApp()
-            except Exception:
-                pass
+            # Constructing a QWidget without a QApplication aborts the whole
+            # process (kills a Jupyter kernel); set up Qt safely first.
+            from ..tools.ipython import ensure_qt_app_for_plotting
+
+            if not ensure_qt_app_for_plotting():
+                raise RuntimeError(
+                    "Cannot create heatmap window: Qt is not available (no "
+                    "QApplication and Qt failed the startup probe). Run "
+                    "%gui qt or measureit.tools.ensure_qt() in "
+                    "Jupyter/IPython, or start the sweep with plot_data=False."
+                )
 
             # Create main widget and layout
             self.widget = QWidget()

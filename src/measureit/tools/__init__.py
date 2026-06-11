@@ -1,5 +1,5 @@
 from . import tracking
-from .ipython import ensure_qt
+from .ipython import ensure_qt, ensure_qt_app_for_plotting
 from .util import (
     ParameterException,
     connect_station_instruments,
@@ -18,4 +18,5 @@ __all__ = [
     "ParameterException",
     "tracking",
     "ensure_qt",
+    "ensure_qt_app_for_plotting",
 ]

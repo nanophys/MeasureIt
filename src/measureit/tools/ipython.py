@@ -14,6 +14,7 @@ import os
 import platform
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass
 from typing import Optional
 
@@ -43,6 +44,17 @@ class _ProbeResult:
         """Combined human-readable output."""
         output = self.stderr.strip() or self.stdout.strip()
         return output
+
+
+# Cache a successful (slow, ~1s) subprocess probe for the lifetime of the
+# process. Failures are re-probed so a user who fixes their environment
+# mid-session can recover without restarting the kernel.
+_probe_cache: _ProbeResult | None = None
+
+# Keep a reference to any QApplication we create so it is not garbage
+# collected (PyQt does not keep the instance alive on its own).
+_qt_app = None
+_qt_app_lock = threading.Lock()
 
 
 def _is_wsl() -> bool:
@@ -86,6 +98,14 @@ def _probe_qt_support(timeout: float = 5.0) -> _ProbeResult:
         stdout=proc.stdout,
         stderr=proc.stderr,
     )
+
+
+def _probe_qt_support_cached(timeout: float = 5.0) -> _ProbeResult:
+    """Run the Qt probe, reusing a previous successful result."""
+    global _probe_cache
+    if _probe_cache is None or not _probe_cache.ok:
+        _probe_cache = _probe_qt_support(timeout=timeout)
+    return _probe_cache
 
 
 def _build_hint(details: str) -> Optional[str]:
@@ -184,7 +204,7 @@ def ensure_qt(
         force = True
 
     if not force:
-        probe = _probe_qt_support(timeout=timeout)
+        probe = _probe_qt_support_cached(timeout=timeout)
         if not probe.ok:
             if verbose:
                 print("WARNING: Skipping Qt integration because the probe failed.")
@@ -212,4 +232,61 @@ def ensure_qt(
     return True
 
 
-__all__ = ["ensure_qt"]
+def ensure_qt_app_for_plotting(*, timeout: float = 5.0, verbose: bool = False) -> bool:
+    """Make sure a QApplication exists so plot widgets can be created safely.
+
+    Creating a ``QWidget`` without a ``QApplication`` makes Qt abort the whole
+    process — in Jupyter this kills the kernel. This helper is called before
+    any plot widgets are constructed. Under IPython it also enables the ``qt``
+    event loop (via :func:`ensure_qt`) so plot windows stay responsive, then
+    instantiates a ``QApplication`` if one still does not exist. A successful
+    run of the slow subprocess safety probe is cached for the process
+    lifetime; failures are re-probed on the next call.
+
+    Returns:
+    -------
+    bool
+        ``True`` if it is safe to create Qt widgets, ``False`` if Qt cannot be
+        started safely (callers should then skip plotting).
+    """
+    if os.environ.get("MEASUREIT_FAKE_QT", "").lower() in {"1", "true", "yes"}:
+        # Test stubs replace Qt entirely; widget creation cannot crash.
+        return True
+
+    try:
+        from PyQt5.QtWidgets import QApplication
+    except ImportError:
+        return False
+
+    # Enable the IPython Qt event loop first so windows are responsive, not
+    # just non-crashing. ensure_qt() is a no-op if the loop is already active
+    # and probes Qt support safely in a subprocess otherwise.
+    try:
+        from IPython import get_ipython
+    except ImportError:
+        ip = None
+    else:
+        ip = get_ipython()
+
+    if ip is not None and getattr(ip, "active_eventloop", None) != "qt":
+        ensure_qt(timeout=timeout, verbose=verbose)
+
+    if QApplication.instance() is not None:
+        return True
+
+    # enable_gui() registers the event loop but does not necessarily create a
+    # QApplication synchronously (and outside IPython nothing has). Only
+    # create one ourselves if Qt can start without aborting the process.
+    force_env = os.environ.get("MEASUREIT_FORCE_QT", "").strip().lower()
+    if force_env not in {"1", "true", "yes", "on"}:
+        if not _probe_qt_support_cached(timeout=timeout).ok:
+            return False
+
+    global _qt_app
+    with _qt_app_lock:
+        if QApplication.instance() is None:
+            _qt_app = QApplication(["measureit"])
+    return True
+
+
+__all__ = ["ensure_qt", "ensure_qt_app_for_plotting"]
